@@ -7,6 +7,7 @@ import java.util.Map;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.data.domain.Page;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,6 +33,7 @@ public abstract class BaseController<T, ID extends Serializable> {
 
     /** -------------------- CREATE -------------------- **/
   @PostMapping
+  @PreAuthorize("hasRole('SUPER_ADMIN', 'ADMIN')")
   public ResponseEntity<ApiResponse<T>> create(@Valid @RequestBody T payload) {
     T result = baseService.createResource(payload);
     return ResponseEntity.status(HttpStatus.CREATED)
@@ -40,6 +42,7 @@ public abstract class BaseController<T, ID extends Serializable> {
 
   /** -------------------- READ BY ID -------------------- **/
   @GetMapping("/{id}")
+  @PreAuthorize("hasRole('SUPER_ADMIN', 'ADMIN', 'DRIVER')")
   public ApiResponse<T> getById(@PathVariable @NotNull @Positive ID id) {
     T result = baseService.findByIdResource(id);
     if (result == null) {
@@ -50,6 +53,7 @@ public abstract class BaseController<T, ID extends Serializable> {
 
   /** -------------------- READ ALL (PAGINATION) -------------------- **/
   @GetMapping
+  @PreAuthorize("hasRole('ADMIN', 'SUPER_ADMIN')")
   public ApiResponse<Map<String, Object>> getAll(Pageable pageable) {
     Page<T> result = this.baseService.getAllResources(pageable);
 
@@ -69,12 +73,14 @@ public abstract class BaseController<T, ID extends Serializable> {
 
   /** -------------------- UPDATE -------------------- **/
   @PutMapping("/{id}")
+  @PreAuthorize("hasRole('SUPER_ADMIN', 'ADMIN', 'DRIVER')")
   public ApiResponse<T> update(@PathVariable @NotNull @Positive ID id, @Valid @RequestBody T payload) {
     T result = baseService.updateResource(id, payload);
     return new ApiResponse<>(true, "Success", result);
   }
-
+  
   @DeleteMapping("/{id}")
+  @PreAuthorize("hasRole('SUPER_ADMIN', 'ADMIN')")
   public ApiResponse<Void> delete(@PathVariable @NotNull @Positive ID id) {
     T existing = baseService.findByIdResource(id);
     if (existing == null) {
