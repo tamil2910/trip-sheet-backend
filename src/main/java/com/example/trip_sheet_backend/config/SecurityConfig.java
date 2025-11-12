@@ -41,7 +41,7 @@ public class SecurityConfig {
     // disable csrf for apis (you don't need it for json request)
       .csrf(csrf -> csrf.disable())
       .authorizeHttpRequests(auth -> auth
-        .requestMatchers("/auth/**").permitAll()
+        .requestMatchers("/", "/auth/google-signup","/auth/login", "/ping", "/api/ping", "/auth/**").permitAll()
         .anyRequest().authenticated()
         )
         .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
