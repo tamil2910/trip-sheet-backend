@@ -5,6 +5,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
+
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -82,69 +84,95 @@ public class AuthController {
 
   @PostMapping("/google-signup")
   public ApiResponse<Map<String, Object>> googleSignup(@RequestBody Map<String, Object> payload) {
-    
-    
-    try {
-      String idToken = (String) payload.get("idToken");
-      // ✅ Verify token with Google
-      Payload googlePayload = this.googleAuthService.verifyToken(idToken);
-      // if (idTokenString == null) {
-      //   return new ApiResponse<>(false, "Missing Google ID token", null);
-      // }
+      try {
+          String idToken = (String) payload.get("idToken");
 
-      // GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
-      //   new NetHttpTransport(),
-      //   JacksonFactory.getDefaultInstance())
-      //   .setAudience(Collections.singletonList(googleClientId))
-      //   .build();
+          // ✅ Verify Google token
+          Payload googlePayload = this.googleAuthService.verifyToken(idToken);
+          if (googlePayload == null) {
+              return new ApiResponse<>(false, "Invalid Google ID token", null);
+          }
 
-      // GoogleIdToken idToken = verifier.verify(idTokenString);
-      
-      if (googlePayload == null) {
-          return new ApiResponse<>(false, "Invalid Google ID token", null);
+          String email = googlePayload.getEmail();
+          String name = (String) googlePayload.get("name");
+          String picture = (String) googlePayload.get("picture");
+          String googleId = googlePayload.getSubject();
+
+          Optional<UserAccount> existingUser = userAccountRepository.findByEmail(email);
+          UserAccount user;
+
+          if (existingUser.isEmpty()) {
+              // ✅ Role resolution
+              Object roleObj = payload.get("role");
+              Role defaultRole = null;
+
+              try {
+                  if (roleObj instanceof Map<?, ?> roleMap) {
+                      // Case 1: role = { "id": "uuid" }
+                      Object idObj = roleMap.get("id");
+                      if (idObj != null) {
+                          UUID roleId = UUID.fromString(idObj.toString());
+                          defaultRole = roleRepository.findById(roleId)
+                                  .orElseThrow(() -> new RuntimeException("Role not found for ID: " + roleId));
+                      }
+                  } else if (roleObj instanceof String roleStr) {
+                      // Case 2: role = "ADMIN" or "uuid"
+                      try {
+                          UUID roleId = UUID.fromString(roleStr);
+                          defaultRole = roleRepository.findById(roleId)
+                                  .orElseThrow(() -> new RuntimeException("Role not found for ID: " + roleId));
+                      } catch (IllegalArgumentException e) {
+                          // Not a UUID → treat as role name
+                          defaultRole = roleRepository.findByName(roleStr)
+                                  .orElseThrow(() -> new RuntimeException("Role not found for name: " + roleStr));
+                      }
+                  }
+              } catch (Exception e) {
+                  System.err.println("⚠️ Role resolution error: " + e.getMessage());
+              }
+
+              // ✅ Fallback role
+              if (defaultRole == null) {
+                  defaultRole = roleRepository.findByName("USER")
+                          .orElseThrow(() -> new RuntimeException("Default role USER not found"));
+              }
+
+              // ✅ Create new user
+              user = new UserAccount();
+              String baseName = name != null ? name : email.split("@")[0];
+              user.setUsername(generateUniqueUsername(baseName));
+              user.setEmail(email);
+              user.setGoogleId(googleId);
+              user.setProfilePicture(picture);
+              user.setRole(defaultRole);
+              user.setLoginType(UserAccount.LoginType.GOOGLE);
+
+              this.userAccountRepository.save(user);
+          } else {
+              user = existingUser.get();
+          }
+
+          // ✅ Token generation
+          if (user.getRole() == null) {
+              throw new RuntimeException("User role cannot be null before token generation");
+          }
+
+          String token = jwtTokenUtil.generateToken(
+                  user.getEmail(),
+                  user.getRole().getName(),
+                  "google"
+          );
+
+          Map<String, Object> response = new HashMap<>();
+          response.put("token", token);
+          response.put("user", user);
+
+          return new ApiResponse<>(true, "Google login/signup successful", response);
+
+      } catch (Exception e) {
+          e.printStackTrace();
+          return new ApiResponse<>(false, "Google verification failed: " + e.getMessage(), null);
       }
-
-      String email = googlePayload.getEmail();
-      String name = (String) googlePayload.get("name");
-      String picture = (String) googlePayload.get("picture");
-      String googleId = googlePayload.getSubject();
-
-      // ✅ Now safely handle signup/login
-      Optional<UserAccount> existingUser = userAccountRepository.findByEmail(email);
-
-      UserAccount user;
-      if (existingUser.isEmpty()) {
-          // Fetch role properly
-          Role defaultRole = roleRepository.findByName("USER")
-                  .orElseThrow(() -> new RuntimeException("Default role USER not found"));
-
-          user = new UserAccount();
-          String baseName = name != null ? name : email.split("@")[0];
-          user.setUsername(generateUniqueUsername(baseName));
-          user.setEmail(email);
-          user.setGoogleId(googleId);
-          user.setProfilePicture(picture);
-          user.setRole(defaultRole);
-
-          user.setLoginType(UserAccount.LoginType.GOOGLE);
-
-          this.userAccountRepository.save(user);
-      } else {
-          user = existingUser.get();
-      }
-
-      String token = jwtTokenUtil.generateToken(user.getEmail(), user.getRole().getName(), "google");
-
-      Map<String, Object> response = new HashMap<>();
-      response.put("token", token);
-      response.put("user", user);
-
-      return new ApiResponse<>(true, "Google login/signup successful", response);
-
-    } catch (Exception e) {
-      e.printStackTrace();
-      return new ApiResponse<>(false, "Google verification failed: " + e.getMessage(), null);
-    }
   }
 
   private String generateUniqueUsername(String baseUsername) {
