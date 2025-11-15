@@ -147,9 +147,10 @@ public class AuthController {
               user.setRole(defaultRole);
               user.setLoginType(UserAccount.LoginType.GOOGLE);
 
-              this.userAccountRepository.save(user);
+              this.userAccountRepository.saveAndFlush(user);
           } else {
               user = existingUser.get();
+            //   System.out.println(user);
           }
 
           // ✅ Token generation

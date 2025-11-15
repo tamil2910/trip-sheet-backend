@@ -43,7 +43,7 @@ public abstract class BaseController<T, ID extends Serializable> {
   /** -------------------- READ BY ID -------------------- **/
   @GetMapping("/{id}")
   @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'DRIVER')")
-  public ApiResponse<T> getById(@PathVariable @NotNull @Positive ID id) {
+  public ApiResponse<T> getById(@PathVariable @NotNull ID id) {
     T result = baseService.findByIdResource(id);
     if (result == null) {
       return new ApiResponse<>(false, "Resource not found", null);
@@ -74,14 +74,14 @@ public abstract class BaseController<T, ID extends Serializable> {
   /** -------------------- UPDATE -------------------- **/
   @PutMapping("/{id}")
   @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'DRIVER')")
-  public ApiResponse<T> update(@PathVariable @NotNull @Positive ID id, @Valid @RequestBody T payload) {
+  public ApiResponse<T> update(@PathVariable @NotNull ID id, @Valid @RequestBody T payload) {
     T result = baseService.updateResource(id, payload);
     return new ApiResponse<>(true, "Success", result);
   }
   
   @DeleteMapping("/{id}")
   @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('ADMIN')")
-  public ApiResponse<Void> delete(@PathVariable @NotNull @Positive ID id) {
+  public ApiResponse<Void> delete(@PathVariable @NotNull ID id) {
     T existing = baseService.findByIdResource(id);
     if (existing == null) {
       return new ApiResponse<>(false, "Resource not found", null);
