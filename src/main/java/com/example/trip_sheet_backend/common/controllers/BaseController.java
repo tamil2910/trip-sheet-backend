@@ -21,7 +21,6 @@ import com.example.trip_sheet_backend.response_setups.ApiResponse;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.Positive;
 
 
 public abstract class BaseController<T, ID extends Serializable> {
