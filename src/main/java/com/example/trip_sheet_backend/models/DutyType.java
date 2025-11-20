@@ -21,6 +21,14 @@ public class DutyType extends BaseModel {
 
   private Integer hr;
 
+  private Integer max_hr_per_day;
+
+  private Integer total_hr;
+
+  private Integer total_km;
+
+  private Integer max_days;
+
   private String name;
 
   @Enumerated(EnumType.STRING)
@@ -30,7 +38,7 @@ public class DutyType extends BaseModel {
   private TypeAirportTransfer airport_transfer_type;
 
   public enum typeDuty {
-    LOCAL, OUTSTATION, AIRPORT_TRANSFER_FIXED, AIRPORT_TRANSFER_KM
+    LOCAL, OUTSTATION, AIRPORT_TRANSFER_FIXED, AIRPORT_TRANSFER_KM, MONTHLY_BOOKING_MAX_HR, MONTHLY_BOOKING_TOTAL_HR
   }
 
   public enum TypeAirportTransfer {
