@@ -2,14 +2,20 @@ package com.example.trip_sheet_backend.models;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
+import io.micrometer.common.lang.Nullable;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.validation.constraints.Min;
+// import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
 @Getter
 @Setter
 @AllArgsConstructor
@@ -17,33 +23,57 @@ import lombok.Setter;
 @Entity
 @Table(name = "duty_types")
 public class DutyType extends BaseModel {
+  @Nullable
+  @Min(value = 0, message = "KM cannot be negative")
   private Integer km;
 
+  @Nullable
+  @Min(value = 0, message = "HR cannot be negative")
   private Integer hr;
 
-  private Integer max_hr_per_day;
+  @Nullable
+  @Min(value = 1, message = "Max hours per day must be at least 1")
+  private Integer maxHrPerDay;
 
-  private Integer total_hr;
+  @Nullable
+  @Min(value = 0, message = "Total hours must be 0 or above")
+  private Integer totalHr;
 
-  private Integer total_km;
+  @Nullable
+  @Min(value = 0, message = "Total KM must be 0 or above")
+  private Integer totalKm;
 
-  private Integer max_days;
+  @Nullable
+  @Min(value = 1, message = "Max days must be at least 1")
+  private Integer maxDays;
 
+  // @NotBlank(message = "Duty type name is required")
   private String name;
 
+  @NotNull(message = "Type of duty is required")
   @Enumerated(EnumType.STRING)
-  private typeDuty type_of_duty;
+  @Column(name = "type_of_duty")
+  private typeDuty typeOfDuty;
 
+  @Nullable
   @Enumerated(EnumType.STRING)
-  private TypeAirportTransfer airport_transfer_type;
+  private TypeAirportTransfer airportTransferType;
+
+  private Boolean isGlobal = true;
 
   public enum typeDuty {
-    LOCAL, OUTSTATION, AIRPORT_TRANSFER_FIXED, AIRPORT_TRANSFER_KM, MONTHLY_BOOKING_MAX_HR, MONTHLY_BOOKING_TOTAL_HR
+      LOCAL,
+      OUTSTATION,
+      AIRPORT_TRANSFER_FIXED,
+      AIRPORT_TRANSFER_KM,
+      MONTHLY_BOOKING_MAX_HR,
+      MONTHLY_BOOKING_TOTAL_HR,
+      PICKUP_DROP
   }
 
   public enum TypeAirportTransfer {
-    PICKUP, DROP
+      PICKUP,
+      DROP
   }
-
-  private Boolean is_global = true;
 }
+

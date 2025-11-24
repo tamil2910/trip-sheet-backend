@@ -1,8 +1,10 @@
 package com.example.trip_sheet_backend.controllers;
 
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.http.HttpStatus;
@@ -28,16 +30,17 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
     this.service = service;
   }
 
+  @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
   @PostMapping("/create_duty_type")
   public ResponseEntity<ApiResponse<DutyType>> create_duty_type(@RequestBody DutyType body) {
 
-    if(body.getType_of_duty() == null) {
+    if(body.getTypeOfDuty() == null) {
       return ResponseEntity.badRequest()
                 .body(new ApiResponse<>(false, "type_of_duty is required", null));
     }
 
     // enum directly used
-    typeDuty dutyType = body.getType_of_duty(); //LOCAL, OUTSTATION, AIRPORT_TRANSFER_FIXED, AIRPORT_TRANSFER_KM, TOTAL_KM_MAX_HR_OUTSTATION, TOTAL_KM_TOTAL_HR_OUTSTATION
+    typeDuty dutyType = body.getTypeOfDuty(); //LOCAL, OUTSTATION, AIRPORT_TRANSFER_FIXED, AIRPORT_TRANSFER_KM, TOTAL_KM_MAX_HR_OUTSTATION, TOTAL_KM_TOTAL_HR_OUTSTATION
 
     DutyType payload = new DutyType();  // FIXED — create new object
 
@@ -50,14 +53,25 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         }
 
         String name = body.getHr() + "hr_" + body.getKm() + "km";
+
+        Optional<DutyType> exist = this.service.findLocalDutyType(body.getKm(), body.getHr(), dutyType, name);
+
+        if(exist.isPresent()) {
+          throw new RuntimeException("LOCAL duty types with KM & HR in the same name is already available in your list");
+        }
+        // if(exist.isPresent()) {
+        //   return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        //   .body(new ApiResponse<DutyType>(false, "LOCAL duty types with KM & HR in the same name is already available in your list", null));
+        // }
+
         payload.setKm(body.getKm());
         payload.setHr(body.getHr());
         payload.setName(name);
-        payload.setType_of_duty(dutyType); 
-        payload.setAirport_transfer_type(null); 
-        payload.setMax_hr_per_day(null); 
-        payload.setTotal_hr(null); 
-        payload.setTotal_km(null);
+        payload.setTypeOfDuty(dutyType); 
+        payload.setAirportTransferType(null); 
+        payload.setMaxHrPerDay(null); 
+        payload.setTotalHr(null); 
+        payload.setTotalKm(null);
 
         DutyType result = this.service.createResource(payload);
 
@@ -74,14 +88,20 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         String outstationName = "outstation_" + body.getKm() + "km_" +
                 (body.getHr() != null ? body.getHr() + "hr" : "24hr");
 
+        Optional<DutyType> existOut = service.findOutstation(body.getKm(), dutyType, outstationName);
+
+        if (existOut.isPresent()) {
+            throw new RuntimeException("OUTSTATION duty type already exists");
+        }
+
         payload.setKm(body.getKm());
         payload.setHr(body.getHr());
         payload.setName(outstationName);
-        payload.setType_of_duty(typeDuty.OUTSTATION);
-        payload.setAirport_transfer_type(null);
-        payload.setMax_hr_per_day(null); 
-        payload.setTotal_hr(null); 
-        payload.setTotal_km(null); 
+        payload.setTypeOfDuty(typeDuty.OUTSTATION);
+        payload.setAirportTransferType(null);
+        payload.setMaxHrPerDay(null); 
+        payload.setTotalHr(null); 
+        payload.setTotalKm(null); 
 
         DutyType savedOut = service.createResource(payload);
 
@@ -89,14 +109,20 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
           .body(new ApiResponse<>(true, "OUTSTATION duty type created", savedOut));
 
       case AIRPORT_TRANSFER_FIXED:
-        payload.setName("airport_fixed_" + body.getAirport_transfer_type());
-        payload.setType_of_duty(typeDuty.AIRPORT_TRANSFER_FIXED);
-        payload.setAirport_transfer_type(body.getAirport_transfer_type());
+
+        Optional<DutyType> existFixed = service.findAirportFixed(body.getAirportTransferType());
+        if (existFixed.isPresent()) {
+            throw new RuntimeException("Airport FIXED duty type already exists");
+        }
+
+        payload.setName("airport_fixed_" + body.getAirportTransferType());
+        payload.setTypeOfDuty(typeDuty.AIRPORT_TRANSFER_FIXED);
+        payload.setAirportTransferType(body.getAirportTransferType());
         payload.setKm(null);
         payload.setHr(null);
-        payload.setMax_hr_per_day(null); 
-        payload.setTotal_hr(null); 
-        payload.setTotal_km(null);
+        payload.setMaxHrPerDay(null); 
+        payload.setTotalHr(null); 
+        payload.setTotalKm(null);
 
         DutyType savedFixed = service.createResource(payload);
 
@@ -109,14 +135,19 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
                     .body(new ApiResponse<>(false, "KM required for airport KM-based duty", null));
         }
 
+        Optional<DutyType> existKm = service.findAirportKm(body.getKm());
+        if (existKm.isPresent()) {
+            throw new RuntimeException("Airport KM-based duty already exists");
+        }
+
         payload.setKm(body.getKm());
         payload.setHr(null);
         payload.setName("airport_km_" + body.getKm());
-        payload.setType_of_duty(typeDuty.AIRPORT_TRANSFER_KM);
-        payload.setAirport_transfer_type(body.getAirport_transfer_type());
-        payload.setMax_hr_per_day(null); 
-        payload.setTotal_hr(null); 
-        payload.setTotal_km(null); 
+        payload.setTypeOfDuty(typeDuty.AIRPORT_TRANSFER_KM);
+        payload.setAirportTransferType(body.getAirportTransferType());
+        payload.setMaxHrPerDay(null); 
+        payload.setTotalHr(null); 
+        payload.setTotalKm(null); 
 
         DutyType savedKm = service.createResource(payload);
 
@@ -129,47 +160,77 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
                     .body(new ApiResponse<>(false, "KM required for airport KM-based duty", null));
         }
 
-        String totalKmMaxHrMonthlyType = "monthly_bookings_max_hr_" + body.getTotal_km() + "km_" +
-        (body.getMax_hr_per_day() != null ? body.getMax_hr_per_day() + "hr" : "24hr") + (body.getMax_days() != null ? body.getMax_days() + "days" : "30days");
+        Optional<DutyType> existMonthlyMax = service.findMonthlyMaxHr(body.getTotalKm(), body.getMaxHrPerDay(), body.getMaxDays());
+        if (existMonthlyMax.isPresent()) {
+          throw new RuntimeException("Monthly Max HR duty type already exists");
+        }
+
+        String totalKmMaxHrMonthlyType = "monthly_bookings_max_hr_" + body.getTotalKm() + "km_" +
+        (body.getMaxHrPerDay() != null ? body.getMaxHrPerDay() + "hr" : "24hr") + (body.getMaxDays() != null ? body.getMaxDays() + "days" : "30days");
 
         payload.setKm(null);
         payload.setHr(null);
         payload.setName(totalKmMaxHrMonthlyType);
-        payload.setType_of_duty(typeDuty.MONTHLY_BOOKING_MAX_HR);
-        payload.setAirport_transfer_type(null);
-        payload.setMax_hr_per_day(body.getMax_hr_per_day()); 
-        payload.setTotal_hr(null); 
-        payload.setTotal_km(body.getTotal_km());
-        payload.setMax_days(body.getMax_days()); 
+        payload.setTypeOfDuty(typeDuty.MONTHLY_BOOKING_MAX_HR);
+        payload.setAirportTransferType(null);
+        payload.setMaxHrPerDay(body.getMaxHrPerDay()); 
+        payload.setTotalHr(null); 
+        payload.setTotalKm(body.getTotalKm());
+        payload.setMaxDays(body.getMaxDays()); 
 
         DutyType savedMonthlyMaxHr = service.createResource(payload);
 
         return ResponseEntity.status(HttpStatus.CREATED)
           .body(new ApiResponse<>(true, "Monthly bookings with max hrs & days duty type created", savedMonthlyMaxHr));
       case MONTHLY_BOOKING_TOTAL_HR: // total hr, total km, max days
-        if (body.getKm() == null) {
+        if (body.getTotalKm() == null || body.getTotalHr() == null || body.getMaxDays() == null) {
             return ResponseEntity.badRequest()
-                    .body(new ApiResponse<>(false, "KM required for airport KM-based duty", null));
+              .body(new ApiResponse<>(false, "Total Km & Total hr and max days are required for Monthly booking total hr based duties", null));
         }
 
-        String totalKmTotalHrMonthlyType = "monthly_bookings_total_hr_" + body.getTotal_km() + "km_" +
-        (body.getTotal_hr() != null ? body.getTotal_hr() + "hr" : "24hr") + (body.getMax_days() != null ? body.getMax_days() + "days" : "30days");
+        Optional<DutyType> existMonthlyTotal = service.findMonthlyTotalHr(body.getTotalKm(), body.getTotalHr(), body.getMaxDays());
+        if (existMonthlyTotal.isPresent()) {
+            throw new RuntimeException("Monthly Total HR duty type already exists");
+        }
+
+        String totalKmTotalHrMonthlyType = "monthly_bookings_total_hr_" + body.getTotalKm() + "km_" +
+        (body.getTotalHr() != null ? body.getTotalHr() + "hr" : "24hr") + (body.getMaxDays() != null ? body.getMaxDays() + "days" : "30days");
 
         payload.setKm(null);
         payload.setHr(null);
         payload.setName(totalKmTotalHrMonthlyType);
-        payload.setType_of_duty(typeDuty.MONTHLY_BOOKING_TOTAL_HR);
-        payload.setAirport_transfer_type(null);
-        payload.setMax_hr_per_day(null); 
-        payload.setTotal_hr(body.getTotal_hr()); 
-        payload.setTotal_km(body.getTotal_km());
-        payload.setMax_days(body.getMax_days()); 
+        payload.setTypeOfDuty(typeDuty.MONTHLY_BOOKING_TOTAL_HR);
+        payload.setAirportTransferType(null);
+        payload.setMaxHrPerDay(null); 
+        payload.setTotalHr(body.getTotalHr()); 
+        payload.setTotalKm(body.getTotalKm());
+        payload.setMaxDays(body.getMaxDays()); 
 
         DutyType savedMonthlyTotalHrKm = service.createResource(payload);
 
         return ResponseEntity.status(HttpStatus.CREATED)
           .body(new ApiResponse<>(true, "Monthly bookings with max hrs & days duty type created", savedMonthlyTotalHrKm));
-    
+
+      case PICKUP_DROP:
+        if(body.getKm() == null) {
+          return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+          .body(new ApiResponse<DutyType>(false, "KM is required to add PICKUP_DROP duty types", null));
+        }
+
+        String pickup_drop_name = body.getKm() + "km";
+        payload.setKm(body.getKm());
+        payload.setHr(null);
+        payload.setName(pickup_drop_name);
+        payload.setTypeOfDuty(dutyType); 
+        payload.setAirportTransferType(null); 
+        payload.setMaxHrPerDay(null); 
+        payload.setTotalHr(null); 
+        payload.setTotalKm(null);
+
+        DutyType pickup_drop_result = this.service.createResource(payload);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+          .body(new ApiResponse<DutyType>(true, "Duty type saved successfully!", pickup_drop_result));
       
       }
     return ResponseEntity.badRequest()
