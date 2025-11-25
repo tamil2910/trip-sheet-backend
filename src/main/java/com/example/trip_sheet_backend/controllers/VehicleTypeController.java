@@ -29,37 +29,37 @@ public class VehicleTypeController extends BaseController<VehicleType, UUID>{
   @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
   public ResponseEntity<ApiResponse<VehicleType>> create_vehicle_type(@RequestBody VehicleType body) {
 
-    if (body.getType_of_vehicle() == null || body.getSeat_count() == null) {
+    if (body.getTypeOfVehicle() == null || body.getSeatCount() == null) {
       return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Type of vehicle and seat count are required to add vehicle type", null));
     }
 
-    typeVehicle type_of_vehicle = body.getType_of_vehicle();
+    typeVehicle type_of_vehicle = body.getTypeOfVehicle();
     VehicleType payload = new VehicleType();
 
     switch (type_of_vehicle) {
       case SEDAN, HATCHBACK -> {
-        if (body.getSeat_count() < 4 && body.getSeat_count() > 5) {
+        if (body.getSeatCount() < 4 && body.getSeatCount() > 5) {
           return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Seat count either can be 4 or 5 for sedan (or) hatchback vehicle type", null));
         }
       }
       case SUV -> {
-        if (body.getSeat_count() < 5 && body.getSeat_count() > 7) {
+        if (body.getSeatCount() < 5 && body.getSeatCount() > 7) {
           return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Seat count either can be 5 or 7 for sedan (or) hatchback vehicle type", null));
         }
       }
       case MUV -> {
-        if (body.getSeat_count() < 5 && body.getSeat_count() > 9) {
+        if (body.getSeatCount() < 5 && body.getSeatCount() > 9) {
           return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Seat count either can be 7 or 9 for sedan (or) hatchback vehicle type", null));
         }
       }
       default -> {}
     }
 
-    String sedan_default_name = type_of_vehicle + "_" + body.getSeat_count();
+    String sedan_default_name = type_of_vehicle + "_" + body.getSeatCount();
 
-    payload.setType_of_vehicle(type_of_vehicle);
-    payload.setSeat_count(body.getSeat_count());
-    payload.setDefault_name(sedan_default_name);
+    payload.setTypeOfVehicle(type_of_vehicle);
+    payload.setSeatCount(body.getSeatCount());
+    payload.setDefaultName(sedan_default_name);
     payload.setDescription(body.getDescription());
 
     VehicleType save = this.service.createResource(payload);

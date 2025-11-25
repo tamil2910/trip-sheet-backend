@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.security;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.UUID;
 import java.util.function.Function;
 
 import org.springframework.stereotype.Component;
@@ -21,11 +22,12 @@ public class JwtTokenUtil {
     private final Key key = Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
 
     // ✅ Generate token
-    public String generateToken(String identifier, String role, String type) {
+    public String generateToken(String identifier, String role, String type, UUID user_id) {
       return Jwts.builder()
           .setSubject(identifier)
           .claim("role", role)
           .claim("type", type)
+          .claim("user_id", user_id.toString())
           .setIssuedAt(new Date(System.currentTimeMillis()))
           .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
           .signWith(key, SignatureAlgorithm.HS256)
@@ -74,4 +76,9 @@ public class JwtTokenUtil {
         final Date expiration = getExpirationDateFromToken(token);
         return expiration.before(new Date());
     }
+
+    public String getUserIdFromToken(String token) {
+        return getAllClaimsFromToken(token).get("user_id", String.class);
+    }
+
 }

@@ -73,7 +73,7 @@ public class AuthController {
     }
 
     String role = user.get().getRole().getName();
-    String token = jwtTokenUtil.generateToken(identifier, role, "user_account");
+    String token = jwtTokenUtil.generateToken(identifier, role, "user_account", user.get().getId());
 
     Map<String, Object> response = new HashMap<>();
     response.put("token", token);
@@ -161,7 +161,8 @@ public class AuthController {
           String token = jwtTokenUtil.generateToken(
                   user.getEmail(),
                   user.getRole().getName(),
-                  "google"
+                  "google",
+                  user.getId()
           );
 
           Map<String, Object> response = new HashMap<>();

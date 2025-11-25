@@ -24,22 +24,22 @@ import lombok.Setter;
 })
 public class VehicleType extends BaseModel {
 
-  @NotBlank(message = "Default name is required")
-  private String default_name;
-  
+  // @NotBlank(message = "Default name is required")
+  private String defaultName;
+
   private String description;
 
   @NotNull(message = "Seat count is required")
   @Min(value = 1, message = "Seat count must be at least 1")
-  private Integer seat_count;
+  private Integer seatCount;
 
   @NotNull(message = "Vehicle type is required")
   @Enumerated(EnumType.STRING)
-  private typeVehicle type_of_vehicle;
+  private typeVehicle typeOfVehicle;
 
   public enum typeVehicle {
     SEDAN, HATCHBACK, SUV, MUV
   }
 
-  private Boolean is_global = true;
+  private Boolean isGlobal = true;
 }
