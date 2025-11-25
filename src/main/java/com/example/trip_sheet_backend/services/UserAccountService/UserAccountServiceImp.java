@@ -12,8 +12,8 @@ import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 
 @Service
 public class UserAccountServiceImp extends BaseServiceImp<UserAccount, UUID> implements UserAccountService {
-  UserAccountRepository repository;
-  RoleRepository roleRepository;
+  private final UserAccountRepository repository;
+  private final RoleRepository roleRepository;
 
   public UserAccountServiceImp(UserAccountRepository repository, RoleRepository roleRepository) {
     super(repository);
