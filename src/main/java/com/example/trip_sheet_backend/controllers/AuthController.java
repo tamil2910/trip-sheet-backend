@@ -1,7 +1,6 @@
 package com.example.trip_sheet_backend.controllers;
 
 import java.time.Instant;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -21,11 +20,7 @@ import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.GoogleAuthService;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
-import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
-import com.google.api.client.http.javanet.NetHttpTransport;
-import com.google.api.client.json.jackson2.JacksonFactory;
 import com.google.api.client.util.Value;
 
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;

@@ -1,7 +1,6 @@
 package com.example.trip_sheet_backend.common.controllers;
 
 import java.io.Serializable;
-import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -95,7 +94,7 @@ public abstract class BaseController<T, ID extends Serializable> {
     }
 
     T result = baseService.updateResource(id, payload);
-    
+
     return new ApiResponse<>(true, "Success", result);
   }
   

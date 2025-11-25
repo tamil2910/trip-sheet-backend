@@ -61,7 +61,6 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
 
     Optional<VehicleType> exist = this.vehicleTypeRepository.findBySeatCountAndTypeOfVehicle(body.getSeatCount(), body.getTypeOfVehicle());
 
-    VehicleTypeCustomName customPayload = new VehicleTypeCustomName();
     typeVehicle type_of_vehicle = body.getTypeOfVehicle();
 
 

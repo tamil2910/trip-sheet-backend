@@ -2,10 +2,7 @@ package com.example.trip_sheet_backend.models;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;

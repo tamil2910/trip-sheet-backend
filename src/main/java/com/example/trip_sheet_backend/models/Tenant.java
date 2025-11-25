@@ -1,7 +1,5 @@
 package com.example.trip_sheet_backend.models;
 
-import org.hibernate.validator.constraints.UniqueElements;
-
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
 import jakarta.persistence.*;
