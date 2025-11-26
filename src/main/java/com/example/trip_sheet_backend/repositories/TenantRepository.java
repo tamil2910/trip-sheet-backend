@@ -10,5 +10,5 @@ import com.example.trip_sheet_backend.models.Tenant;
 
 @Repository
 public interface TenantRepository extends BaseRepository<Tenant, UUID> {
-  Optional<Tenant> findByName(String name);
+  Optional<Tenant> findByTenantName(String tenantName);
 }

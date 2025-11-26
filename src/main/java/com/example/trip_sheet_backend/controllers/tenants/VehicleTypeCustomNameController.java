@@ -49,7 +49,7 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
   }
 
   @PreAuthorize("hasAnyRole('SUPER_ADMIN, 'ADMIN')")
-  @PostMapping("/add-custom-type")
+  @PostMapping("/add")
   public ResponseEntity<ApiResponse<VehicleTypeCustomName>> create_vehicle_type(@RequestBody VehicleTypeCreateRequestDto body) {
 
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -104,7 +104,7 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
     // 3. Now handle customName table
 
     Tenant tenant = this.tenantService.findByIdResource(UUID.fromString(tenantId));
-    Optional<VehicleTypeCustomName> customExist = this.repository.findByVehicleTypeAndTenant(vt.getId(), tenant.getId());
+    Optional<VehicleTypeCustomName> customExist = this.repository.findByVehicleType_IdAndTenant_Id(vt.getId(), tenant.getId());
 
     if (customExist.isPresent()) {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)

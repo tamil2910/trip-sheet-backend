@@ -11,7 +11,7 @@ import com.example.trip_sheet_backend.services.TenantService.TenantServiceImp;
 
 
 @RestController
-@RequestMapping("/roles")
+@RequestMapping("/tenants")
 public class TenantController extends BaseController<Tenant, UUID>{
   private final TenantServiceImp service;
   public TenantController(TenantServiceImp service) {
