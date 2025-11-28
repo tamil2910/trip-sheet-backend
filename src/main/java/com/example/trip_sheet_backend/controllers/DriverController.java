@@ -14,10 +14,10 @@ import com.example.trip_sheet_backend.services.DriverService.DriverServiceImp;
 @RestController
 @RequestMapping("/drivers")
 public class DriverController extends BaseController<Driver, UUID>{
-  private final DriverServiceImp service;
+  // private final DriverServiceImp service;
   public DriverController(DriverServiceImp service){
     super(service);
-    this.service = service;
+    // this.service = service;
   }
 
 }

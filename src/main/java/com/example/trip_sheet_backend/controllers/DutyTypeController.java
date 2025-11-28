@@ -5,6 +5,8 @@ import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.http.HttpStatus;
@@ -33,7 +35,8 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
   @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
   @PostMapping("/create_duty_type")
   public ResponseEntity<ApiResponse<DutyType>> create_duty_type(@RequestBody DutyType body) {
-
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    String createdBy = (String) auth.getDetails();
     if(body.getTypeOfDuty() == null) {
       return ResponseEntity.badRequest()
                 .body(new ApiResponse<>(false, "type_of_duty is required", null));
@@ -72,6 +75,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setMaxHrPerDay(null); 
         payload.setTotalHr(null); 
         payload.setTotalKm(null);
+        payload.setCreatedBy(createdBy);
 
         DutyType result = this.service.createResource(payload);
 
@@ -102,6 +106,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setMaxHrPerDay(null); 
         payload.setTotalHr(null); 
         payload.setTotalKm(null); 
+        payload.setCreatedBy(createdBy);
 
         DutyType savedOut = service.createResource(payload);
 
@@ -123,6 +128,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setMaxHrPerDay(null); 
         payload.setTotalHr(null); 
         payload.setTotalKm(null);
+        payload.setCreatedBy(createdBy);
 
         DutyType savedFixed = service.createResource(payload);
 
@@ -148,6 +154,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setMaxHrPerDay(null); 
         payload.setTotalHr(null); 
         payload.setTotalKm(null); 
+        payload.setCreatedBy(createdBy);
 
         DutyType savedKm = service.createResource(payload);
 
@@ -177,6 +184,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setTotalHr(null); 
         payload.setTotalKm(body.getTotalKm());
         payload.setMaxDays(body.getMaxDays()); 
+        payload.setCreatedBy(createdBy);
 
         DutyType savedMonthlyMaxHr = service.createResource(payload);
 
@@ -205,6 +213,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setTotalHr(body.getTotalHr()); 
         payload.setTotalKm(body.getTotalKm());
         payload.setMaxDays(body.getMaxDays()); 
+        payload.setCreatedBy(createdBy);
 
         DutyType savedMonthlyTotalHrKm = service.createResource(payload);
 
@@ -226,6 +235,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setMaxHrPerDay(null); 
         payload.setTotalHr(null); 
         payload.setTotalKm(null);
+        payload.setCreatedBy(createdBy);
 
         DutyType pickup_drop_result = this.service.createResource(payload);
 

@@ -13,9 +13,9 @@ import com.example.trip_sheet_backend.services.UserAccountService.UserAccountSer
 @RestController
 @RequestMapping("/accounts")
 public class UserAccountController extends BaseController<UserAccount, UUID>{
-  private final UserAccountServiceImp service;
+  // private final UserAccountServiceImp service;
   public UserAccountController(UserAccountServiceImp service){
     super(service);
-    this.service = service;
+    // this.service = service;
   }
 }

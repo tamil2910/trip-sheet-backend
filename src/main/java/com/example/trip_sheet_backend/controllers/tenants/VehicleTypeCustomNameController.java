@@ -26,6 +26,8 @@ import com.example.trip_sheet_backend.services.TenantService.TenantService;
 import com.example.trip_sheet_backend.services.VehicleTypeCustomNamesService.VehicleTypeCustomNamesService;
 import com.example.trip_sheet_backend.services.VehicleTypeService.VehicleTypeService;
 
+import jakarta.validation.Valid;
+
 @RestController
 @RequestMapping("/vehicletype-custom-name")
 public class VehicleTypeCustomNameController extends BaseController<VehicleTypeCustomName, UUID> {
@@ -34,7 +36,7 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
   private final VehicleTypeRepository vehicleTypeRepository;
 
 
-  private final VehicleTypeCustomNamesService service;
+  // private final VehicleTypeCustomNamesService service;
   private final VehicleTypeService vehicleTypeService;
   private final TenantService tenantService;
 
@@ -43,14 +45,14 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
     super(service);
     this.repository = repository;
     this.vehicleTypeRepository = vehicleTypeRepository;
-    this.service = service;
+    // this.service = service;
     this.vehicleTypeService = vehicleTypeService;
     this.tenantService = tenantService;
   }
 
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN, 'ADMIN')")
+  @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN ')")
   @PostMapping("/add")
-  public ResponseEntity<ApiResponse<VehicleTypeCustomName>> create_vehicle_type(@RequestBody VehicleTypeCreateRequestDto body) {
+  public ResponseEntity<ApiResponse<VehicleTypeCustomName>> create_vehicle_type(@Valid @RequestBody VehicleTypeCreateRequestDto body) {
 
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
     String tenantId = (String) auth.getDetails();

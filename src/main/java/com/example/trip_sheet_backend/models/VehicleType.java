@@ -19,7 +19,7 @@ import lombok.Setter;
 @NoArgsConstructor
 @Entity
 @Table(name = "vehicle_types", uniqueConstraints = {
-  @UniqueConstraint(columnNames = {"type_of_vehicle", "seat_count"})
+  @UniqueConstraint(columnNames = {"typeOfVehicle", "seatCount"})
 })
 public class VehicleType extends BaseModel {
 
