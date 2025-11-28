@@ -1,4 +1,4 @@
-package com.example.trip_sheet_backend.security;
+package com.example.trip_sheet_backend.config;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.context.annotation.Bean;
