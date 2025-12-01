@@ -41,7 +41,7 @@ public class Tenant extends BaseModel {
 
     private String address;
 
-    private enum TenantType {
+    public enum TenantType {
         VENDOR, ORGANISATION
     }
 

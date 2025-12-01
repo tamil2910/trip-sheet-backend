@@ -10,9 +10,9 @@ import com.example.trip_sheet_backend.models.VehicleDriverMapping;
 
 @Repository
 public interface VehicleDriverMappingRepository extends BaseRepository<VehicleDriverMapping, UUID> {
-    Optional<VehicleDriverMapping> findByDriverIdAndTenantIdAndStatus(
+    Optional<VehicleDriverMapping> findByDriverIdAndTenantIdAndIsActive(
       UUID driverId,
       UUID tenantId,
-      VehicleDriverMapping.typeStatus status
+      Boolean isActive
     );
 }

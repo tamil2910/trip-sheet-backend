@@ -36,11 +36,14 @@ public class VehicleDriverMapping extends BaseModel {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
-
+  
   @NotNull(message = "Active/ Inactive is required for mapping driver-vehicle")
-  private typeStatus status; 
+  private Boolean isActive = true;
 
-  public enum typeStatus {
-    ACTIVE, INACTIVE
-  }
+  // @NotNull(message = "Active/ Inactive is required for mapping driver-vehicle")
+  // private typeStatus status; 
+
+  // public enum typeStatus {
+  //   ACTIVE, INACTIVE
+  // }
 }

@@ -99,10 +99,10 @@ public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping
     mapping.setVehicle(vehicle);
     mapping.setDriver(driver);
     mapping.setTenant(tenant);
-    mapping.setStatus(VehicleDriverMapping.typeStatus.ACTIVE);
+    mapping.setIsActive(true);
 
-    Optional<VehicleDriverMapping> existingActive = repository.findByDriverIdAndTenantIdAndStatus(
-      driver.getId(), tenantId, VehicleDriverMapping.typeStatus.ACTIVE
+    Optional<VehicleDriverMapping> existingActive = repository.findByDriverIdAndTenantIdAndIsActive(
+      driver.getId(), tenantId, true
     );
 
     if (existingActive.isPresent()) {

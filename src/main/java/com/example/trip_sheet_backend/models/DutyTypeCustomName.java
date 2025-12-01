@@ -14,23 +14,24 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+
 @Getter
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "vehicle_type_custom_names", uniqueConstraints = {
-  @UniqueConstraint(columnNames = {"tenant_id", "vehicle_type_id"})
+@Table(name = "duty_type_custom_names", uniqueConstraints = {
+  @UniqueConstraint(columnNames = {"tenant_id", "duty_type_id"})
 })
-public class VehicleTypeCustomName extends BaseModel {
+public class DutyTypeCustomName extends BaseModel {
 
   @NotBlank(message = "Custom name cannot be empty")
   private String customName;
 
-  @NotNull(message = "Vehicle type is required")
+  @NotNull(message = "Duty type is required")
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "vehicle_type_id")
-  private VehicleType vehicleType;
+  @JoinColumn(name = "duty_type_id")
+  private DutyType dutyType;
 
   @NotNull(message = "Tenant id is required")
   @ManyToOne(fetch = FetchType.LAZY)
@@ -38,4 +39,5 @@ public class VehicleTypeCustomName extends BaseModel {
   private Tenant tenant;
 
   private Boolean isActive = true;
+
 }
