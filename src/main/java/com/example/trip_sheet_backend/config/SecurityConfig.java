@@ -40,6 +40,7 @@ public class SecurityConfig {
     http
     // disable csrf for apis (you don't need it for json request)
       .csrf(csrf -> csrf.disable())
+       .cors(cors -> cors.configurationSource(corsConfigurationSource()))
       .authorizeHttpRequests(auth -> auth
         .requestMatchers("/", "/auth/google-signup", "/auth/login", "/ping", "/api/ping", "/auth/**").permitAll() // "/roles/**", "/accounts",
         .anyRequest().authenticated()
@@ -50,4 +51,18 @@ public class SecurityConfig {
 
     return http.build();
   }
+
+  @Bean
+  public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
+      var config = new org.springframework.web.cors.CorsConfiguration();
+      config.addAllowedOrigin("http://localhost:4200"); // Angular app
+      config.addAllowedHeader("*");
+      config.addAllowedMethod("*");
+      config.setAllowCredentials(true);
+
+      var source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
+      source.registerCorsConfiguration("/**", config);
+      return source;
+  }
+
 }

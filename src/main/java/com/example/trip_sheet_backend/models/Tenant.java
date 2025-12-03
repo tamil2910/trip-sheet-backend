@@ -27,7 +27,7 @@ public class Tenant extends BaseModel {
 
     @Email(message = "Invalid email format")
     @Column(unique = true, nullable = false)
-    private String contact_email;
+    private String contactEmail;
 
     @Valid
     @ManyToOne(fetch = FetchType.LAZY)
@@ -35,9 +35,9 @@ public class Tenant extends BaseModel {
     private Admin admin;
 
     @Enumerated(EnumType.STRING)
-    private TenantType tenant_type;   
+    private TenantType tenantType;   
 
-    private String gst_number;
+    private String gstNumber;
 
     private String address;
 
@@ -45,5 +45,5 @@ public class Tenant extends BaseModel {
         VENDOR, ORGANISATION
     }
 
-    private Boolean verified_gst = false;
+    private Boolean verifiedGst = false;
 }
