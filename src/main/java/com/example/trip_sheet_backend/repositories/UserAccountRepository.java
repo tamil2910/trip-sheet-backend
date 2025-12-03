@@ -8,6 +8,6 @@ import com.example.trip_sheet_backend.models.UserAccount;
 
 public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> {
   Optional<UserAccount> findByEmail(String email);
-  Optional<UserAccount> findByPhone(Long phone);
+  Optional<UserAccount> findByPhone(String phone);
   Optional<UserAccount> findByUsername(String username);
 }

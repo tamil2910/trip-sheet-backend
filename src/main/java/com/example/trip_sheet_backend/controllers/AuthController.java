@@ -57,7 +57,7 @@ public class AuthController {
     if (identifier.contains("@")) {
         user = this.userAccountRepository.findByEmail(identifier);
     } else if (identifier.matches("\\d+")) {
-        Long phoneNumber = Long.parseLong(identifier);
+        String phoneNumber =identifier;
         user = this.userAccountRepository.findByPhone(phoneNumber);
     } else {
         user = this.userAccountRepository.findByUsername(identifier);
