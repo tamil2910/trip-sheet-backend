@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
+import io.micrometer.common.lang.Nullable;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -15,6 +16,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -36,8 +38,15 @@ public class UserAccount extends BaseModel {
 
     @Email
     private String email;
-    private Long phone;
+    
+    @Nullable
+    @Pattern(regexp = "^[6-9]\\d{9}$", message = "Phone number must be 10 digits and start with 6-9")
+    private String phone;
 
+    @Nullable
+    @Pattern(
+    regexp = "^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,}$",
+    message = "Password must be at least 8 characters, include letters and numbers")
     private String password; // hashed
 
     @Enumerated(EnumType.STRING)
