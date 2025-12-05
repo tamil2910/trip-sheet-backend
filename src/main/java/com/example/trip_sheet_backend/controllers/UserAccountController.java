@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.BaseController;
+import com.example.trip_sheet_backend.dtos.UserAccountByFormDto;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
@@ -42,20 +43,20 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   
   @PreAuthorize("permitAll()")
   @PostMapping("/register")
-  public ResponseEntity<ApiResponse<UserAccount>> create(@Valid @RequestBody UserAccount body) {
-    
-    String name = body.getRole().getName();
-    Role role = this.roleRepository.findByName(name).orElseThrow(() -> new RuntimeException("Role is not available in db!"));
+  public ResponseEntity<ApiResponse<UserAccount>> create(@Valid @RequestBody UserAccountByFormDto body) {
 
-    UserAccount payload = new UserAccount();
-    payload = mapper.map(body, UserAccount.class);
+    UserAccount payload = mapper.map(body, UserAccount.class);
 
-    // encrypt password BEFORE saving
-    String encryptedPassword = passwordEncoder.encode(body.getPassword());
-    payload.setPassword(encryptedPassword);
+    Role role = this.roleRepository.findByName(body.getRole().getName()).orElseThrow(
+      () -> new RuntimeException("Role is not available in db!"));
 
+    // Encrypt password BEFORE save
+    if (body.getPassword() != null) {
+        payload.setPassword(passwordEncoder.encode(body.getPassword()));
+    }
+
+    // Assign Role entity
     payload.setRole(role);
-    
 
     UserAccount result = this.service.createResource(payload);
     return ResponseEntity.status(HttpStatus.CREATED)
