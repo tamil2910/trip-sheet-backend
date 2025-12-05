@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.common.services;
 
 import java.io.Serializable;
+import java.util.Map;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -15,4 +16,6 @@ public interface BaseService<T, ID extends Serializable> {
   T updateResource(ID id, T payload);
 
   void deleteResource(ID id);
+
+  Page<T> searchResources(Map<String, Object> filters, Pageable pageable);
 }

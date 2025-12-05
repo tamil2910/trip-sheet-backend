@@ -45,5 +45,7 @@ public class Tenant extends BaseModel {
         VENDOR, ORGANISATION
     }
 
+    private Boolean isActive = false;
+
     private Boolean verifiedGst = false;
 }

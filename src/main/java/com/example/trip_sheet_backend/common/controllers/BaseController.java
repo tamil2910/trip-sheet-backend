@@ -113,4 +113,23 @@ public abstract class BaseController<T, ID extends Serializable> {
     return new ApiResponse<>(true, "Resource deleted successfully", null);
   }
 
+  @GetMapping("/search")
+  @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+  public ApiResponse<Map<String, Object>> search(
+    @RequestBody(required = false) Map<String, Object> filters,
+    Pageable pageable
+  ) {
+      Page<T> result = baseService.searchResources(filters, pageable);
+
+      Map<String, Object> response = new HashMap<>();
+      response.put("data", result.getContent());
+      response.put("currentPage", result.getNumber());
+      response.put("totalItems", result.getTotalElements());
+      response.put("totalPages", result.getTotalPages());
+      response.put("pageSize", result.getSize());
+
+      return new ApiResponse<>(true, "Search success", response);
+  }
+
+
 }

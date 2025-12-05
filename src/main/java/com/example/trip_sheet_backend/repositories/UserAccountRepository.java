@@ -3,10 +3,11 @@ package com.example.trip_sheet_backend.repositories;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.springframework.data.jpa.repository.JpaRepository;
+
+import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.UserAccount;
 
-public interface UserAccountRepository extends JpaRepository<UserAccount, UUID> {
+public interface UserAccountRepository extends BaseRepository<UserAccount, UUID> {
   Optional<UserAccount> findByEmail(String email);
   Optional<UserAccount> findByPhone(String phone);
   Optional<UserAccount> findByUsername(String username);
