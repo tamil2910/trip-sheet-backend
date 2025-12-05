@@ -23,7 +23,8 @@ import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.api.client.util.Value;
 
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.beans.factory.annotation.Autowired;
+// import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 @RestController
@@ -32,7 +33,8 @@ public class AuthController {
 
   private final UserAccountRepository userAccountRepository;
   private final JwtTokenUtil jwtTokenUtil;
-  private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+  @Autowired
+  private final PasswordEncoder passwordEncoder;
   private final RoleRepository roleRepository;
   private final GoogleAuthService googleAuthService;
 
@@ -40,11 +42,13 @@ public class AuthController {
   @Value("${GOOGLE_AUTH_CLIENT_ID}")
   private String googleClientId; // 👈 inject env variable here
   
-  public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, RoleRepository roleRepository, GoogleAuthService googleAuthService) {
+  public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, RoleRepository roleRepository, GoogleAuthService googleAuthService,
+    PasswordEncoder passwordEncoder) {
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
     this.roleRepository = roleRepository;
     this.googleAuthService = googleAuthService;
+    this.passwordEncoder = passwordEncoder;
   }
 
   @PostMapping("/login")

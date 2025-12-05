@@ -3,9 +3,11 @@ package com.example.trip_sheet_backend.controllers;
 import java.util.UUID;
 
 import org.modelmapper.ModelMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -27,6 +29,9 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final RoleRepository roleRepository;
   
   private final ModelMapper mapper;
+
+  @Autowired
+  private PasswordEncoder passwordEncoder;
   
   public UserAccountController(UserAccountServiceImp service, RoleRepository roleRepository, ModelMapper mapper){
     super(service);
@@ -44,6 +49,10 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
 
     UserAccount payload = new UserAccount();
     payload = mapper.map(body, UserAccount.class);
+
+    // encrypt password BEFORE saving
+    String encryptedPassword = passwordEncoder.encode(body.getPassword());
+    payload.setPassword(encryptedPassword);
 
     payload.setRole(role);
     
