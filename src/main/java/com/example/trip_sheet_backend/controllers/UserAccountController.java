@@ -15,8 +15,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.BaseController;
 import com.example.trip_sheet_backend.dtos.UserAccountByFormDto;
+import com.example.trip_sheet_backend.models.Admin;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.repositories.AdminRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -30,24 +32,25 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final UserAccountServiceImp service;
   private final RoleRepository roleRepository;
   private final UserAccountRepository userAccountRepository;
-  
+  private final AdminRepository adminRepository;
   private final ModelMapper mapper;
 
   @Autowired
   private PasswordEncoder passwordEncoder;
   
   public UserAccountController(UserAccountServiceImp service, RoleRepository roleRepository, 
-    UserAccountRepository userAccountRepository, ModelMapper mapper){
+    UserAccountRepository userAccountRepository, ModelMapper mapper, AdminRepository adminRepository){
     super(service);
     this.service = service;
     this.roleRepository = roleRepository;
     this.mapper =  mapper;
     this.userAccountRepository = userAccountRepository;
+    this.adminRepository = adminRepository;
   }
   
   @PreAuthorize("permitAll()")
   @PostMapping("/register")
-  public ResponseEntity<ApiResponse<UserAccount>> create(@Valid @RequestBody UserAccountByFormDto body) {
+  public ResponseEntity<ApiResponse<?>> create(@Valid @RequestBody UserAccountByFormDto body) {
 
     if (body.getEmail() != null && userAccountRepository.existsByEmail(body.getEmail())) {
       throw new RuntimeException("Email already exists");
@@ -72,6 +75,17 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     payload.setRole(role);
 
     UserAccount result = this.service.createResource(payload);
+
+    if ("ADMIN".equals(body.getRole().getName())) {
+      Admin adminPayload = new Admin();
+      adminPayload.setUserAccount(result);
+      Admin adminResult = adminRepository.saveAndFlush(adminPayload);
+
+      return ResponseEntity.status(HttpStatus.CREATED)
+            .body(new ApiResponse<>(true, "Admin created successfully", adminResult));
+    }
+    
+
     return ResponseEntity.status(HttpStatus.CREATED)
             .body(new ApiResponse<>(true, "Resource created successfully", result));
   }

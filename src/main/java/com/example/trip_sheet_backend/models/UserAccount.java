@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.models;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import io.micrometer.common.lang.Nullable;
 import jakarta.persistence.Column;
@@ -36,20 +37,22 @@ public class UserAccount extends BaseModel {
     // @Pattern(regexp = "^[6-9]\\d{9}$", message = "Phone number must be 10 digits and start with 6-9")
     private String phone;
 
+    @JsonIgnore
     @Nullable
-    @Column(unique = true)
     private String password; // hashed
 
     @Nullable
     @Enumerated(EnumType.STRING)
     private LoginType loginType; // "EMAIL", "PHONE", "USERNAME", "OAUTH", "GOOGLE"
 
+    @JsonIgnore
     @Nullable
     private String googleId;  // store Google’s unique ID
 
     @Nullable
     private String profilePicture;
     
+    @JsonIgnore
     @Nullable
     private String deviceId;  // store users’s device ID
 

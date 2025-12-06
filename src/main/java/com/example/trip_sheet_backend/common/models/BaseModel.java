@@ -13,6 +13,8 @@ import lombok.Setter;
 
 import java.util.UUID;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -22,13 +24,26 @@ public class BaseModel {
   @Id
   @GeneratedValue
   private UUID id;
+
+  @JsonIgnore
   private Long createdAt;
+
+  @JsonIgnore
   private Long updatedAt;
+
+  @JsonIgnore
   private Long deletedAt;
 
+  @JsonIgnore
   private String createdBy;
+
+  @JsonIgnore
   private String updatedBy;
+
+  @JsonIgnore
   private String deletedBy;
+
+  @JsonIgnore
   private Boolean isDeleted;
 
   @PrePersist
