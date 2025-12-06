@@ -16,10 +16,23 @@ import io.jsonwebtoken.security.Keys;
 @Component
 public class JwtTokenUtil {
 
-    private static final String SECRET_KEY = "this_is_a_super_secret_jwt_key_which_is_very_long_and_secure_123456";
+ // Read directly from OS environment
+    private static final String SECRET_KEY =
+            System.getenv("JWT_SECRET");
+
+    private final Key key;
+
+    public JwtTokenUtil() {
+        if (SECRET_KEY == null || SECRET_KEY.isEmpty()) {
+            throw new IllegalStateException(
+                "Missing env variable: JWT_SECRET"
+            );
+        }
+        this.key = Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
+    }
+
     private static final long EXPIRATION_TIME = 86400000; // 1 day in milliseconds
 
-    private final Key key = Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
 
     // ✅ Generate token
     public String generateToken(String identifier, String role, String type, UUID user_id) {

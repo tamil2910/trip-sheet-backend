@@ -7,6 +7,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,8 +24,10 @@ import com.example.trip_sheet_backend.repositories.AdminRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
+import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.UserAccountService.UserAccountServiceImp;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 @RestController
@@ -37,15 +41,19 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
 
   @Autowired
   private PasswordEncoder passwordEncoder;
+
+  private final JwtTokenUtil jwtTokenUtil;
   
   public UserAccountController(UserAccountServiceImp service, RoleRepository roleRepository, 
-    UserAccountRepository userAccountRepository, ModelMapper mapper, AdminRepository adminRepository){
+    UserAccountRepository userAccountRepository, ModelMapper mapper, AdminRepository 
+    adminRepository, JwtTokenUtil jwtTokenUtil){
     super(service);
     this.service = service;
     this.roleRepository = roleRepository;
     this.mapper =  mapper;
     this.userAccountRepository = userAccountRepository;
     this.adminRepository = adminRepository;
+    this.jwtTokenUtil = jwtTokenUtil;
   }
   
   @PreAuthorize("permitAll()")
@@ -89,4 +97,60 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     return ResponseEntity.status(HttpStatus.CREATED)
             .body(new ApiResponse<>(true, "Resource created successfully", result));
   }
+
+  @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+  @PostMapping("/add")
+  public ResponseEntity<ApiResponse<?>> createUser(
+    HttpServletRequest request, 
+    @Valid @RequestBody UserAccountByFormDto body) {
+
+    if (body.getEmail() != null && userAccountRepository.existsByEmail(body.getEmail())) {
+      throw new RuntimeException("Email already exists");
+    }
+
+    if (body.getPhone() != null && userAccountRepository.existsByPhone(body.getPhone())) {
+        throw new RuntimeException("Phone already exists");
+    }
+
+
+    UserAccount payload = mapper.map(body, UserAccount.class);
+
+    if ("ADMIN".equals(body.getRole().getName())) {
+      throw new RuntimeException("Admin can not be added in this route!");
+    }
+
+    Role role = this.roleRepository.findByName(body.getRole().getName()).orElseThrow(
+      () -> new RuntimeException("Role is not available in db!"));
+
+    // Encrypt password BEFORE save
+    if (body.getPassword() != null) {
+        payload.setPassword(passwordEncoder.encode(body.getPassword()));
+    }
+
+    // Assign Role entity
+    payload.setRole(role);
+
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    String createdBy = (String) auth.getDetails();
+
+    payload.setCreatedBy(createdBy);
+
+    String token = request.getHeader("Authorization").replace("Bearer ", "");
+
+    String userIdString = jwtTokenUtil.getUserIdFromToken(token);
+    UUID userId = UUID.fromString(userIdString);
+
+    UserAccount userAccount = userAccountRepository
+            .findById(userId)
+            .orElseThrow(() -> new RuntimeException("Admin resource not found!"));
+
+    payload.setCreatedByUser(userAccount);    
+
+    UserAccount result = this.service.createResource(payload);
+    
+
+    return ResponseEntity.status(HttpStatus.CREATED)
+            .body(new ApiResponse<>(true, "Resource created successfully", result));
+  }
+
 }

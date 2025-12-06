@@ -65,6 +65,11 @@ public class UserAccount extends BaseModel {
     @Nullable
     private TenantType tenantType;   
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id")
+    @JsonIgnore
+    private UserAccount createdByUser;
+
     public enum TenantType {
         VENDOR, ORGANISATION
     }
