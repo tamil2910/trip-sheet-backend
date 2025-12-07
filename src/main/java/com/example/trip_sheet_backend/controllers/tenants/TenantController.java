@@ -49,7 +49,7 @@ public class TenantController extends BaseController<Tenant, UUID>{
       String token = request.getHeader("Authorization").replace("", "Bearer ");
       UUID user_id = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
       
-      Admin admin = this.adminRepository.findById(user_id).orElseThrow(() -> new RuntimeException("Admin resource not found"));
+      Admin admin = this.adminRepository.findByUserAccountId(user_id).orElseThrow(() -> new RuntimeException("Admin resource not found"));
       body.setAdmin(admin);
 
       Tenant result = service.createResource(body);
