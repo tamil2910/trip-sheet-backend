@@ -37,14 +37,15 @@ public class JwtTokenUtil {
     // ✅ Generate token
     public String generateToken(String identifier, String role, String type, UUID user_id) {
       return Jwts.builder()
-          .setSubject(identifier)
-          .claim("role", role)
-          .claim("type", type)
-          .claim("user_id", user_id.toString())
-          .setIssuedAt(new Date(System.currentTimeMillis()))
-          .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
-          .signWith(key, SignatureAlgorithm.HS256)
-          .compact();
+        //   .setSubject(identifier)
+        .setSubject(user_id.toString()) 
+        .claim("role", role)
+        .claim("type", type)
+        .claim("user_id", user_id.toString())
+        .setIssuedAt(new Date(System.currentTimeMillis()))
+        .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+        .signWith(key, SignatureAlgorithm.HS256)
+        .compact();
     }
 
     // ✅ Validate token

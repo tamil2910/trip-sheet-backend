@@ -137,8 +137,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
 
     String token = request.getHeader("Authorization").replace("Bearer ", "");
 
-    String userIdString = jwtTokenUtil.getUserIdFromToken(token);
-    UUID userId = UUID.fromString(userIdString);
+    UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
 
     UserAccount userAccount = userAccountRepository
             .findById(userId)
