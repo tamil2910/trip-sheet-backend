@@ -2,8 +2,10 @@ package com.example.trip_sheet_backend.controllers;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.web.bind.annotation.PostMapping;
@@ -56,23 +58,41 @@ public class AuthController {
     String identifier = payload.getIdentifier();
     String password = payload.getPassword();
 
-    Optional<UserAccount> user = Optional.empty();
+    // Optional<UserAccount> user = Optional.empty();
+    Optional<UserAccount> foundUser;
+
 
     if (identifier.contains("@")) {
-        user = this.userAccountRepository.findByEmail(identifier);
+        foundUser = this.userAccountRepository.findByEmail(identifier);
     } else if (identifier.matches("\\d+")) {
         String phoneNumber =identifier;
-        user = this.userAccountRepository.findByPhone(phoneNumber);
+        foundUser = this.userAccountRepository.findByPhone(phoneNumber);
     } else {
-        user = this.userAccountRepository.findByUsername(identifier);
+        foundUser = this.userAccountRepository.findByUsername(identifier);
     }
 
-    if (user.isEmpty() || !passwordEncoder.matches(password, user.get().getPassword())) {
+    if (foundUser.isEmpty() || !passwordEncoder.matches(password, foundUser.get().getPassword())) {
         return new ApiResponse<>(false, "Invalid credentials", null);
     }
 
-    String role = user.get().getRole().getName();
-    String token = jwtTokenUtil.generateToken(identifier, role, "user_account", user.get().getId());
+    // Extract actual user
+    UserAccount user = foundUser.get();
+
+    // Compute permissions (temporary or real)
+    Set<String> effectivePermissions = new HashSet<>();
+    // 👉 Later replace with:
+    // effectivePermissions = permissionService.computeEffectivePermissions(user);
+
+    // Token type label
+    String type = "user_login";
+
+    // Generate JWT
+    String token = jwtTokenUtil.generateToken(
+            user,
+            effectivePermissions,
+            type,
+            identifier
+    );
 
     Map<String, Object> response = new HashMap<>();
     response.put("token", token);
@@ -161,7 +181,7 @@ public class AuthController {
                   user.getEmail(),
                   user.getRole().getName(),
                   "google",
-                  user.getId()
+                  user.getId(), null
           );
 
           Map<String, Object> response = new HashMap<>();
@@ -185,49 +205,6 @@ public class AuthController {
     return sanitized;
   }
 
-
-  // @PostMapping("/google-signup")
-  // public ApiResponse<Map<String, Object>> googleSignup(@RequestBody Map<String, Object> payload) {
-  //     String email = (String) payload.get("email");
-  //     String name = (String) payload.get("name");
-  //     String googleId = (String) payload.get("googleId");
-  //     String picture = (String) payload.get("picture");
-
-  //     if (email == null || googleId == null) {
-  //         return new ApiResponse<>(false, "Missing Google user data", null);
-  //     }
-
-  //     Optional<UserAccount> existingUser = userAccountRepository.findByEmail(email);
-
-  //     UserAccount user;
-  //     if (existingUser.isEmpty()) {
-  //         // 1️⃣ Assign default role (USER or TRAVELLER)
-  //         Role defaultRole = new Role();
-  //         defaultRole.setName("USER");
-
-  //         // 2️⃣ Create new account
-  //         user = new UserAccount();
-  //         user.setEmail(email);
-  //         user.setUsername(name != null ? name.replaceAll(" ", "_") : email.split("@")[0]);
-  //         user.setGoogleId(googleId);
-  //         user.setProfilePicture(picture);
-  //         user.setRole(defaultRole);
-  //         user.setLoginType("GOOGLE");
-
-  //         userAccountRepository.save(user);
-  //     } else {
-  //         user = existingUser.get();
-  //     }
-
-  //     // 3️⃣ Generate token
-  //     String token = jwtTokenUtil.generateToken(user.getEmail(), user.getRole().getName(), "google");
-
-  //     Map<String, Object> response = new HashMap<>();
-  //     response.put("token", token);
-  //     response.put("user", user);
-
-  //     return new ApiResponse<>(true, "Google login/signup successful", response);
-  // }
 
 
 }

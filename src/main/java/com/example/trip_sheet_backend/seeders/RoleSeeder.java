@@ -16,12 +16,12 @@ public class RoleSeeder implements CommandLineRunner {
   @Override
   public void run(String... args) throws Exception {
     if (roleRepository.count() == 0) {
-            roleRepository.save(new Role("SUPER_ADMIN", "Super Administrator role"));
-            roleRepository.save(new Role("ADMIN", "Administrator role"));
-            roleRepository.save(new Role("DRIVER", "Driver role"));
-            roleRepository.save(new Role("USER", "Standard & Registered user role"));
-            roleRepository.save(new Role("TRAVELLER", "temporary passengers created by GUEST"));
-            roleRepository.save(new Role("GUEST", "permanent TRAVELLER with login credentials, signed up by theirself or created USER, ADMIN, SUPER_ADMIN"));
+            roleRepository.save(new Role("SUPER_ADMIN", "Super Administrator role", null));
+            roleRepository.save(new Role("ADMIN", "Administrator role", null));
+            roleRepository.save(new Role("DRIVER", "Driver role", null));
+            roleRepository.save(new Role("USER", "Standard & Registered user role", null));
+            roleRepository.save(new Role("TRAVELLER", "temporary passengers created by GUEST", null));
+            roleRepository.save(new Role("GUEST", "permanent TRAVELLER with login credentials, signed up by theirself or created USER, ADMIN, SUPER_ADMIN", null));
             System.out.println("Default roles inserted successfully!");
         }
   }

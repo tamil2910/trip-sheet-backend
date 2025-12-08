@@ -1,9 +1,17 @@
 package com.example.trip_sheet_backend.models;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
+import io.micrometer.common.lang.Nullable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -25,4 +33,14 @@ public class Role extends BaseModel {
 
   @NotBlank(message = "Description is required")
   private String description;
+
+  @Nullable
+  @ManyToMany(fetch = FetchType.LAZY)
+  @JoinTable(
+      name = "role_permissions",
+      joinColumns = @JoinColumn(name = "role_id"),             // this entity
+      inverseJoinColumns = @JoinColumn(name = "permission_id") // Permission entity
+  )
+  private Set<Permission> permissions = new HashSet<>();
+
 }

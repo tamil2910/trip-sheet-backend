@@ -1,5 +1,7 @@
 package com.example.trip_sheet_backend.services.UserAccountService;
 
+// import java.util.HashSet;
+// import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -12,12 +14,30 @@ import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 
 @Service
 public class UserAccountServiceImp extends BaseServiceImp<UserAccount, UUID> implements UserAccountService {
-  private final UserAccountRepository repository;
-  private final RoleRepository roleRepository;
+  // private final UserAccountRepository repository;
+  // private final RoleRepository roleRepository;
 
   public UserAccountServiceImp(UserAccountRepository repository, RoleRepository roleRepository) {
     super(repository);
-    this.repository = repository;
-    this.roleRepository = roleRepository;
+    // this.repository = repository;
+    // this.roleRepository = roleRepository;
   }
+
+  // public Set<String> computeEffectivePermissions(UserAccount user) {
+  //     Set<String> result = new HashSet<>();
+
+  //     // From Role
+  //     if (user.getRole() != null && user.getRole().getPermissions() != null) {
+  //         user.getRole().getPermissions()
+  //                 .forEach(p -> result.add(p.getName()));
+  //     }
+
+  //     // From user-specific custom permissions
+  //     if (user.getCustomPermissions() != null) {
+  //         user.getCustomPermissions()
+  //                 .forEach(p -> result.add(p.getName()));
+  //     }
+
+  //     return result;
+  // }
 }

@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.common.controllers.BaseController;
 import com.example.trip_sheet_backend.models.Admin;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.AdminRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
@@ -53,6 +54,9 @@ public class TenantController extends BaseController<Tenant, UUID>{
       body.setAdmin(admin);
 
       Tenant result = service.createResource(body);
+      UserAccount userAccount = new UserAccount();
+      userAccount.setTenant(result);
+      
       return ResponseEntity.status(HttpStatus.CREATED)
       .body(new ApiResponse<>(true, "Resource created successfully", result));
   }

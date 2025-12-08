@@ -122,6 +122,18 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     Role role = this.roleRepository.findByName(body.getRole().getName()).orElseThrow(
       () -> new RuntimeException("Role is not available in db!"));
 
+    String token = request.getHeader("Authorization").replace("Bearer ", "");
+
+    UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
+
+    UserAccount userAccount = userAccountRepository
+            .findById(userId)
+            .orElseThrow(() -> new RuntimeException("Admin resource not found!"));
+
+    if (userAccount.getTenant() == null) {
+      throw new RuntimeException("Tenant resource not found to add user!");
+    }
+
     // Encrypt password BEFORE save
     if (body.getPassword() != null) {
         payload.setPassword(passwordEncoder.encode(body.getPassword()));
@@ -134,14 +146,6 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     String createdBy = (String) auth.getDetails();
 
     payload.setCreatedBy(createdBy);
-
-    String token = request.getHeader("Authorization").replace("Bearer ", "");
-
-    UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
-
-    UserAccount userAccount = userAccountRepository
-            .findById(userId)
-            .orElseThrow(() -> new RuntimeException("Admin resource not found!"));
 
     payload.setCreatedByUser(userAccount);    
 

@@ -1,5 +1,8 @@
 package com.example.trip_sheet_backend.models;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import com.example.trip_sheet_backend.common.models.BaseModel;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -10,6 +13,8 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.Email;
@@ -69,6 +74,15 @@ public class UserAccount extends BaseModel {
     @JoinColumn(name = "created_by_user_id")
     @JsonIgnore
     private UserAccount createdByUser;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "role_group_id")
+    private RoleGroup roleGroup;
+
+    @Nullable
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "tenant_id")
+    private Tenant tenant;
 
     public enum TenantType {
         VENDOR, ORGANISATION

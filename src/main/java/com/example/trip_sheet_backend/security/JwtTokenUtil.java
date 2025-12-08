@@ -2,10 +2,14 @@ package com.example.trip_sheet_backend.security;
 
 import java.security.Key;
 import java.util.Date;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 
 import org.springframework.stereotype.Component;
+
+import com.example.trip_sheet_backend.models.UserAccount;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -35,18 +39,35 @@ public class JwtTokenUtil {
 
 
     // ✅ Generate token
-    public String generateToken(String identifier, String role, String type, UUID user_id) {
+    public String generateToken(String identifier, String role, 
+        String type, UUID user_id, Set<String> permissions) {
       return Jwts.builder()
         //   .setSubject(identifier)
         .setSubject(user_id.toString()) 
         .claim("role", role)
         .claim("type", type)
         .claim("user_id", user_id.toString())
+        .claim("permissions", permissions)         // NEW
         .setIssuedAt(new Date(System.currentTimeMillis()))
         .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
         .signWith(key, SignatureAlgorithm.HS256)
         .compact();
     }
+
+    public String generateToken(UserAccount user, Set<String> permissions, String type, String identifier) {
+        return Jwts.builder()
+                .setSubject(user.getId().toString()) // or username/phone
+                .claim("role", user.getRole() != null ? user.getRole().getName() : null)
+                .claim("type", type)
+                .claim("user_id", user.getId().toString())
+                .claim("permissions", permissions) 
+                .claim("identifier", identifier)        // NEW
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
 
     // ✅ Validate token
     public Boolean validateToken(String token) {
@@ -94,5 +115,10 @@ public class JwtTokenUtil {
     public String getUserIdFromToken(String token) {
         return getAllClaimsFromToken(token).get("user_id", String.class);
     }
+
+    public List<String> getPermissionsFromToken(String token) {
+        return getAllClaimsFromToken(token).get("permissions", List.class);
+    }
+
 
 }
