@@ -4,7 +4,7 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
-import com.example.trip_sheet_backend.common.services.BaseServiceImp;
+import com.example.trip_sheet_backend.common.services.GlobalBaseServiceImp;
 // import com.example.trip_sheet_backend.dtos.DriverDto;
 import com.example.trip_sheet_backend.models.Driver;
 // import com.example.trip_sheet_backend.models.Role;
@@ -13,7 +13,7 @@ import com.example.trip_sheet_backend.repositories.RoleRepository;
 // import com.example.trip_sheet_backend.response_setups.ApiResponse;
 
 @Service
-public class DriverServiceImp extends BaseServiceImp<Driver, UUID> implements DriverService {
+public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> implements DriverService {
 
   DriverRepository repository;
   RoleRepository roleRepository;

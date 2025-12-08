@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.trip_sheet_backend.common.controllers.BaseController;
+import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.models.VehicleType;
 import com.example.trip_sheet_backend.models.VehicleType.typeVehicle;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -17,7 +17,7 @@ import com.example.trip_sheet_backend.services.VehicleTypeService.VehicleTypeSer
 
 @RestController
 @RequestMapping("/vehicle-types")
-public class VehicleTypeController extends BaseController<VehicleType, UUID>{
+public class VehicleTypeController extends GlobalBaseController<VehicleType, UUID>{
 
   private final VehicleTypeServiceImp service;
 
@@ -62,7 +62,7 @@ public class VehicleTypeController extends BaseController<VehicleType, UUID>{
     payload.setDefaultName(sedan_default_name);
     payload.setDescription(body.getDescription());
 
-    VehicleType save = this.service.createResource(payload);
+    VehicleType save = this.service.create(payload);
 
     return ResponseEntity.ok().body(new ApiResponse<>(true, "Vehicle type is added successfully!", save));
   }

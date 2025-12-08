@@ -25,7 +25,7 @@ import lombok.Setter;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
-public class RoleGroup extends BaseModel {
+public class RoleGroup extends BaseModel implements TenantScoped {
 
     @Column(unique = true, nullable = false)
     private String name;  // Example: "Dispatch Operators", "Billing Team"
@@ -41,4 +41,9 @@ public class RoleGroup extends BaseModel {
             inverseJoinColumns = @JoinColumn(name = "permission_id")
     )
     private Set<Permission> permissions = new HashSet<>();
+
+    @Override
+    public Tenant getTenant() {
+        return tenant;
+    }
 }

@@ -20,7 +20,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @Entity
 @Table(name = "vehicle_driver_mappings")
-public class VehicleDriverMapping extends BaseModel {
+public class VehicleDriverMapping extends BaseModel implements TenantScoped {
 
   @NotNull(message = "Vehicle is required to link with driver")
   @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.MERGE)
@@ -40,10 +40,8 @@ public class VehicleDriverMapping extends BaseModel {
   @NotNull(message = "Active/ Inactive is required for mapping driver-vehicle")
   private Boolean isActive = true;
 
-  // @NotNull(message = "Active/ Inactive is required for mapping driver-vehicle")
-  // private typeStatus status; 
-
-  // public enum typeStatus {
-  //   ACTIVE, INACTIVE
-  // }
+  @Override
+  public Tenant getTenant() {
+      return tenant;
+  }
 }

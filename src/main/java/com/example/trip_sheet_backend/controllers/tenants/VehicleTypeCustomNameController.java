@@ -100,7 +100,7 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
       vt.setDescription(body.getDescription());
       vt.setIsGlobal(false);
 
-      vt = this.vehicleTypeService.createResource(vt);
+      vt = this.vehicleTypeService.create(vt);
     }
 
     // 3. Now handle customName table

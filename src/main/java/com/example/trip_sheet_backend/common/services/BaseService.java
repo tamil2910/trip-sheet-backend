@@ -2,20 +2,31 @@ package com.example.trip_sheet_backend.common.services;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
-public interface BaseService<T, ID extends Serializable> {
-  T createResource(T payload);
+import com.example.trip_sheet_backend.models.TenantScoped;
 
-  T findByIdResource(ID id);
+public interface BaseService<T extends TenantScoped, ID extends Serializable> {
+  // T createResource(T payload);
 
-  Page<T> getAllResources(Pageable pageable);
+  // T findByIdResource(UUID tenatId, ID id);
 
-  T updateResource(ID id, T payload);
+  // Page<T> getAllResources(UUID tenantId ,Pageable pageable);
 
-  void deleteResource(ID id);
+  // T updateResource(ID id, T payload);
 
-  Page<T> searchResources(Map<String, Object> filters, Pageable pageable);
+  // void deleteResource(ID id);
+
+  // Page<T> searchResources(UUID tenantId, Map<String, Object> filters, Pageable pageable);
+
+    T createResource(UUID tenantId, T payload);
+    T findByIdResource(UUID tenantId, ID id);
+    Page<T> getAllResources(UUID tenantId, Pageable pageable);
+    T updateResource(UUID tenantId, ID id, T payload);
+    void deleteResource(UUID tenantId, ID id);
+    Page<T> searchResources(UUID tenantId, Map<String, Object> filters, Pageable pageable);
+
 }

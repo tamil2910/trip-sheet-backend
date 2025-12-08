@@ -22,7 +22,7 @@ import lombok.Setter;
 @Table(name = "vehicle_type_custom_names", uniqueConstraints = {
   @UniqueConstraint(columnNames = {"tenant_id", "vehicle_type_id"})
 })
-public class VehicleTypeCustomName extends BaseModel {
+public class VehicleTypeCustomName extends BaseModel implements TenantScoped {
 
   @NotBlank(message = "Custom name cannot be empty")
   private String customName;
@@ -38,4 +38,9 @@ public class VehicleTypeCustomName extends BaseModel {
   private Tenant tenant;
 
   private Boolean isActive = true;
+
+  @Override
+  public Tenant getTenant() {
+    return tenant;
+  }
 }

@@ -17,7 +17,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class BankAccounts extends BaseModel {
+public class BankAccounts extends BaseModel implements TenantScoped {
 
     @Valid
     @ManyToOne(fetch = FetchType.LAZY)
@@ -49,4 +49,9 @@ public class BankAccounts extends BaseModel {
     private Boolean primary_account = false;
 
     private Boolean is_active = true;
+
+    @Override
+    public Tenant getTenant() {
+        return tenant;
+    }
 }

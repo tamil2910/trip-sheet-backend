@@ -79,7 +79,7 @@ public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping
     Vehicle vehicle = mapper.map(dto.getVehicle_info(), Vehicle.class);
     vehicle.setVehicleType(vehicleType);
 
-    vehicle = vehicleService.createResource(vehicle);
+    vehicle = vehicleService.create(vehicle);
 
     // --------------------------------------------------
     // 3. Map Driver
@@ -88,7 +88,7 @@ public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping
     driver.setAccount(account);
     driver.setRole(role);
 
-    driver = driverService.createResource(driver);
+    driver = driverService.create(driver);
 
     Tenant tenant = tenantService.findByIdResource(tenantId);
 
@@ -109,7 +109,7 @@ public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping
         throw new RuntimeException("Driver already has an active vehicle mapping in this tenant.");
     }
 
-    return mappingService.createResource(mapping);
+    return mappingService.createResource(tenantId, mapping);
   }
 
 }

@@ -3,10 +3,10 @@ package com.example.trip_sheet_backend.services.DutyTypeService;
 import java.util.Optional;
 import java.util.UUID;
 
-import com.example.trip_sheet_backend.common.services.BaseService;
+import com.example.trip_sheet_backend.common.services.GlobalBaseService;
 import com.example.trip_sheet_backend.models.DutyType;
 
-public interface DutyTypeService extends BaseService<DutyType, UUID> {
+public interface DutyTypeService extends GlobalBaseService<DutyType, UUID> {
   Optional<DutyType> findLocalDutyType(Integer km, Integer hr, DutyType.typeDuty type_of_duty, String name);
 
   Optional<DutyType> findOutstation(Integer km, DutyType.typeDuty dutyType, String name);

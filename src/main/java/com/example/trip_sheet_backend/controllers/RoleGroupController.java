@@ -70,9 +70,11 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
 
     UserAccount userAccount = userAccountRepository.findById(user_id).orElseThrow(() -> new RuntimeException("UserAccount resource not found!"));
     
+    Tenant tenant = userAccount.getTenant();
 
-    Tenant tenant = tenantRepository.findById(userAccount.getTenant().getId())
-    .orElseThrow(() -> new RuntimeException("Tenant resource not found!"));
+    if(tenant == null)
+      tenant = tenantRepository.findById(userAccount.getTenant().getId())
+        .orElseThrow(() -> new RuntimeException("Tenant resource not found!"));
 
     roleGroup.setTenant(tenant);
 
@@ -84,7 +86,7 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
     roleGroup.setPermissions(perms);
 
     // 4️⃣ Save
-    RoleGroup result = this.service.createResource(roleGroup);
+    RoleGroup result = this.service.createResource(tenant.getId(), roleGroup);
 
     return ResponseEntity.status(HttpStatus.CREATED)
             .body(new ApiResponse<>(true, "Resource Created Successfully!", result));

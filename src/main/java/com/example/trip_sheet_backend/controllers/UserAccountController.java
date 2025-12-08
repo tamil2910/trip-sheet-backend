@@ -83,7 +83,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     payload.setRole(role);
     payload.setTenant(null);
 
-    UserAccount result = this.service.createResource(payload);
+    UserAccount result = userAccountRepository.save(payload);
 
     if ("ADMIN".equals(body.getRole().getName())) {
       Admin adminPayload = new Admin();
@@ -149,7 +149,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
 
     payload.setCreatedByUser(userAccount);    
 
-    UserAccount result = this.service.createResource(payload);
+    UserAccount result = this.service.createResource(userAccount.getTenant().getId(), payload);
     
 
     return ResponseEntity.status(HttpStatus.CREATED)

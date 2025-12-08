@@ -23,7 +23,7 @@ import lombok.Setter;
 @Table(name = "saved_passengers")
 @AllArgsConstructor
 @NoArgsConstructor
-public class SavedPassenger extends BaseModel {
+public class SavedPassenger extends BaseModel implements TenantScoped {
 
     private String name;
 
@@ -58,5 +58,10 @@ public class SavedPassenger extends BaseModel {
 
     public enum AddedUserType {
         VENDOR, ORGANISATION, GUEST
+    }
+
+    @Override
+    public Tenant getTenant() {
+        return tenant;
     }
 }

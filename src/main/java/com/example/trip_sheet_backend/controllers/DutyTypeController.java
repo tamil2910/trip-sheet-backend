@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.BaseController;
+import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.DutyType.typeDuty;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -25,7 +26,7 @@ import com.example.trip_sheet_backend.services.DutyTypeService.DutyTypeServiceIm
 
 @RestController
 @RequestMapping("/duty_types")
-public class DutyTypeController extends BaseController<DutyType, UUID>{
+public class DutyTypeController extends GlobalBaseController<DutyType, UUID>{
   private final DutyTypeServiceImp service;
   public DutyTypeController(DutyTypeServiceImp service){
     super(service);
@@ -77,7 +78,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setTotalKm(null);
         payload.setCreatedBy(createdBy);
 
-        DutyType result = this.service.createResource(payload);
+        DutyType result = this.service.create(payload);
 
         return ResponseEntity.status(HttpStatus.CREATED)
           .body(new ApiResponse<DutyType>(true, "Duty type saved successfully!", result));
@@ -108,7 +109,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setTotalKm(null); 
         payload.setCreatedBy(createdBy);
 
-        DutyType savedOut = service.createResource(payload);
+        DutyType savedOut = service.create(payload);
 
         return ResponseEntity.status(HttpStatus.CREATED)
           .body(new ApiResponse<>(true, "OUTSTATION duty type created", savedOut));
@@ -130,7 +131,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setTotalKm(null);
         payload.setCreatedBy(createdBy);
 
-        DutyType savedFixed = service.createResource(payload);
+        DutyType savedFixed = service.create(payload);
 
         return ResponseEntity.status(HttpStatus.CREATED)
           .body(new ApiResponse<>(true, "Airport Fixed duty created", savedFixed));
@@ -156,7 +157,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setTotalKm(null); 
         payload.setCreatedBy(createdBy);
 
-        DutyType savedKm = service.createResource(payload);
+        DutyType savedKm = service.create(payload);
 
         return ResponseEntity.status(HttpStatus.CREATED)
           .body(new ApiResponse<>(true, "Airport KM duty created", savedKm));
@@ -186,7 +187,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setMaxDays(body.getMaxDays()); 
         payload.setCreatedBy(createdBy);
 
-        DutyType savedMonthlyMaxHr = service.createResource(payload);
+        DutyType savedMonthlyMaxHr = service.create(payload);
 
         return ResponseEntity.status(HttpStatus.CREATED)
           .body(new ApiResponse<>(true, "Monthly bookings with max hrs & days duty type created", savedMonthlyMaxHr));
@@ -215,7 +216,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setMaxDays(body.getMaxDays()); 
         payload.setCreatedBy(createdBy);
 
-        DutyType savedMonthlyTotalHrKm = service.createResource(payload);
+        DutyType savedMonthlyTotalHrKm = service.create(payload);
 
         return ResponseEntity.status(HttpStatus.CREATED)
           .body(new ApiResponse<>(true, "Monthly bookings with max hrs & days duty type created", savedMonthlyTotalHrKm));
@@ -237,7 +238,7 @@ public class DutyTypeController extends BaseController<DutyType, UUID>{
         payload.setTotalKm(null);
         payload.setCreatedBy(createdBy);
 
-        DutyType pickup_drop_result = this.service.createResource(payload);
+        DutyType pickup_drop_result = this.service.create(payload);
 
         return ResponseEntity.status(HttpStatus.CREATED)
           .body(new ApiResponse<DutyType>(true, "Duty type saved successfully!", pickup_drop_result));

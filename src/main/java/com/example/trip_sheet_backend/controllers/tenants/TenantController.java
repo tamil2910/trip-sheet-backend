@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.trip_sheet_backend.common.controllers.BaseController;
+import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.models.Admin;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
@@ -28,50 +28,59 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/tenants")
-public class TenantController extends BaseController<Tenant, UUID>{
-  private final TenantServiceImp service;
-  private final JwtTokenUtil jwtTokenUtil;
-  private final AdminRepository adminRepository;
-  private final UserAccountRepository userAccountRepository;
-  public TenantController(TenantServiceImp service, JwtTokenUtil jwtTokenUtil, 
-    AdminRepository adminRepository, UserAccountRepository userAccountRepository) {
-    super(service);
-    this.jwtTokenUtil = jwtTokenUtil;
-    this.adminRepository = adminRepository;
-    this.service = service;
-    this.userAccountRepository = userAccountRepository;
-  }
+public class TenantController extends GlobalBaseController<Tenant, UUID> {
 
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
-  @PostMapping("/add")
-  public ResponseEntity<ApiResponse<Tenant>> create(
-    HttpServletRequest request,
-    @Valid @RequestBody Tenant body) {
-      Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-      String createdBy = (String) auth.getDetails();
-      body.setCreatedBy(createdBy);
+    private final TenantServiceImp service;
+    private final JwtTokenUtil jwtTokenUtil;
+    private final AdminRepository adminRepository;
+    private final UserAccountRepository userAccountRepository;
 
-      String token = request.getHeader("Authorization").replace("Bearer ", "");
-      UUID user_id = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
-      
-      Admin admin = this.adminRepository.findByUserAccountId(user_id).orElseThrow(() -> new RuntimeException("Admin resource not found"));
-      body.setAdmin(admin);
-      body.setIsActive(true);
+    public TenantController(
+            TenantServiceImp service,
+            JwtTokenUtil jwtTokenUtil,
+            AdminRepository adminRepository,
+            UserAccountRepository userAccountRepository
+    ) {
+        super(service);  // <-- THIS IS CORRECT (GlobalBaseService)
+        this.service = service;
+        this.jwtTokenUtil = jwtTokenUtil;
+        this.adminRepository = adminRepository;
+        this.userAccountRepository = userAccountRepository;
+    }
 
-      Tenant result = service.createResource(body);
-      
-      UserAccount userAccount = userAccountRepository.findById(user_id)
-              .orElseThrow(() -> new RuntimeException("User account not found"));
+    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PostMapping("/add")
+    public ResponseEntity<ApiResponse<Tenant>> createTenant(
+            HttpServletRequest request,
+            @Valid @RequestBody Tenant body
+    ) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String createdBy = (String) auth.getDetails();
+        body.setCreatedBy(createdBy);
 
-      // Update tenant
-      userAccount.setTenant(result);
+        String token = request.getHeader("Authorization").replace("Bearer ", "");
+        UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
 
-      // Save changes
-      userAccountRepository.saveAndFlush(userAccount);
+        Admin admin = adminRepository.findByUserAccountId(userId)
+                .orElseThrow(() -> new RuntimeException("Admin not found"));
 
-      result = service.findByIdResource(result.getId());
-      
-      return ResponseEntity.status(HttpStatus.CREATED)
-      .body(new ApiResponse<>(true, "Resource created successfully", result));
-  }
+        // Assign admin who created the tenant
+        body.setAdmin(admin);
+        body.setIsActive(true);
+
+        // Create tenant globally (no tenantId filtering)
+        Tenant createdTenant = service.create(body);
+
+        // Attach tenant to user who created it
+        UserAccount userAccount = userAccountRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User account not found"));
+
+        userAccount.setTenant(createdTenant);
+        userAccountRepository.saveAndFlush(userAccount);
+
+        createdTenant = service.findByIdResource(createdTenant.getId());
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new ApiResponse<>(true, "Tenant created successfully!", createdTenant));
+    }
 }

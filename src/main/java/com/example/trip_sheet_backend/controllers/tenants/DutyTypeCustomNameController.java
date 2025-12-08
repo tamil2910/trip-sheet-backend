@@ -79,7 +79,7 @@ public class DutyTypeCustomNameController {
               }
 
               payload.setName(name);
-              savedDutyType = dutyTypeservice.createResource(payload);
+              savedDutyType = dutyTypeservice.create(payload);
               break;
 
           case OUTSTATION:
@@ -96,7 +96,7 @@ public class DutyTypeCustomNameController {
               }
 
               payload.setName(outName);
-              savedDutyType = dutyTypeservice.createResource(payload);
+              savedDutyType = dutyTypeservice.create(payload);
               break;
 
           case AIRPORT_TRANSFER_FIXED:
@@ -105,7 +105,7 @@ public class DutyTypeCustomNameController {
               }
 
               payload.setName("airport_fixed_" + body.getAirportTransferType());
-              savedDutyType = dutyTypeservice.createResource(payload);
+              savedDutyType = dutyTypeservice.create(payload);
               break;
 
           case AIRPORT_TRANSFER_KM:
@@ -119,7 +119,7 @@ public class DutyTypeCustomNameController {
               }
 
               payload.setName("airport_km_" + body.getKm());
-              savedDutyType = dutyTypeservice.createResource(payload);
+              savedDutyType = dutyTypeservice.create(payload);
               break;
 
           case MONTHLY_BOOKING_MAX_HR:
@@ -132,7 +132,7 @@ public class DutyTypeCustomNameController {
               }
 
               payload.setName(name1);
-              savedDutyType = dutyTypeservice.createResource(payload);
+              savedDutyType = dutyTypeservice.create(payload);
               break;
 
           case MONTHLY_BOOKING_TOTAL_HR:
@@ -149,7 +149,7 @@ public class DutyTypeCustomNameController {
               }
 
               payload.setName(name2);
-              savedDutyType = dutyTypeservice.createResource(payload);
+              savedDutyType = dutyTypeservice.create(payload);
               break;
 
           case PICKUP_DROP:
@@ -159,7 +159,7 @@ public class DutyTypeCustomNameController {
               }
 
               payload.setName(body.getKm() + "km");
-              savedDutyType = dutyTypeservice.createResource(payload);
+              savedDutyType = dutyTypeservice.create(payload);
               break;
 
           default:
@@ -194,7 +194,7 @@ public class DutyTypeCustomNameController {
       custom.setTenant(tenant);
       custom.setCreatedBy(createdBy);
 
-      DutyTypeCustomName savedCustom = service.createResource(custom);
+      DutyTypeCustomName savedCustom = service.createResource(tenantId, custom);
 
       return ResponseEntity.status(HttpStatus.CREATED)
               .body(new ApiResponse<>(true,

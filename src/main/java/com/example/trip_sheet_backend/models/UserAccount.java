@@ -25,7 +25,7 @@ import lombok.Setter;
 @Table(name = "user_accounts")
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserAccount extends BaseModel {
+public class UserAccount extends BaseModel implements TenantScoped {
 
     private String username;
 
@@ -86,5 +86,10 @@ public class UserAccount extends BaseModel {
 
     public enum LoginType {
         GOOGLE, EMAIL, PHONE, USERNAME, OAUTH
+    }
+
+    @Override
+    public Tenant getTenant() {
+        return tenant;
     }
 }
