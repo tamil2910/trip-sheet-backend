@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.models;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.*;
 import jakarta.validation.Valid;
@@ -29,6 +30,7 @@ public class Tenant extends BaseModel {
     @Column(unique = true, nullable = false)
     private String contactEmail;
 
+    @JsonIgnore
     @Valid
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "admin_id", nullable = false)

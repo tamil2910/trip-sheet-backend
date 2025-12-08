@@ -17,6 +17,7 @@ import com.example.trip_sheet_backend.models.Admin;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.AdminRepository;
+import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.TenantService.TenantServiceImp;
@@ -31,11 +32,14 @@ public class TenantController extends BaseController<Tenant, UUID>{
   private final TenantServiceImp service;
   private final JwtTokenUtil jwtTokenUtil;
   private final AdminRepository adminRepository;
-  public TenantController(TenantServiceImp service, JwtTokenUtil jwtTokenUtil, AdminRepository adminRepository) {
+  private final UserAccountRepository userAccountRepository;
+  public TenantController(TenantServiceImp service, JwtTokenUtil jwtTokenUtil, 
+    AdminRepository adminRepository, UserAccountRepository userAccountRepository) {
     super(service);
     this.jwtTokenUtil = jwtTokenUtil;
     this.adminRepository = adminRepository;
     this.service = service;
+    this.userAccountRepository = userAccountRepository;
   }
 
   @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
@@ -47,15 +51,25 @@ public class TenantController extends BaseController<Tenant, UUID>{
       String createdBy = (String) auth.getDetails();
       body.setCreatedBy(createdBy);
 
-      String token = request.getHeader("Authorization").replace("", "Bearer ");
+      String token = request.getHeader("Authorization").replace("Bearer ", "");
       UUID user_id = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
       
       Admin admin = this.adminRepository.findByUserAccountId(user_id).orElseThrow(() -> new RuntimeException("Admin resource not found"));
       body.setAdmin(admin);
+      body.setIsActive(true);
 
       Tenant result = service.createResource(body);
-      UserAccount userAccount = new UserAccount();
+      
+      UserAccount userAccount = userAccountRepository.findById(user_id)
+              .orElseThrow(() -> new RuntimeException("User account not found"));
+
+      // Update tenant
       userAccount.setTenant(result);
+
+      // Save changes
+      userAccountRepository.saveAndFlush(userAccount);
+
+      result = service.findByIdResource(result.getId());
       
       return ResponseEntity.status(HttpStatus.CREATED)
       .body(new ApiResponse<>(true, "Resource created successfully", result));

@@ -81,6 +81,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
 
     // Assign Role entity
     payload.setRole(role);
+    payload.setTenant(null);
 
     UserAccount result = this.service.createResource(payload);
 
@@ -112,6 +113,8 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
         throw new RuntimeException("Phone already exists");
     }
 
+    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    String createdBy = (String) auth.getDetails();
 
     UserAccount payload = mapper.map(body, UserAccount.class);
 
@@ -141,9 +144,6 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
 
     // Assign Role entity
     payload.setRole(role);
-
-    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    String createdBy = (String) auth.getDetails();
 
     payload.setCreatedBy(createdBy);
 

@@ -27,7 +27,6 @@ import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.RoleGroupService.RoleGroupServiceImp;
-import com.example.trip_sheet_backend.services.TenantService.TenantService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
