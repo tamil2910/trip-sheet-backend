@@ -10,17 +10,20 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.BaseController;
+import com.example.trip_sheet_backend.dtos.AssignRoleGroupDto;
 import com.example.trip_sheet_backend.dtos.UserAccountByFormDto;
-import com.example.trip_sheet_backend.models.Admin;
 import com.example.trip_sheet_backend.models.Role;
+import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.UserAccount;
-import com.example.trip_sheet_backend.repositories.AdminRepository;
+import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -34,76 +37,46 @@ import jakarta.validation.Valid;
 @RequestMapping("/accounts")
 public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final UserAccountServiceImp service;
-  private final RoleRepository roleRepository;
   private final UserAccountRepository userAccountRepository;
-  private final AdminRepository adminRepository;
   private final ModelMapper mapper;
+  private final RoleGroupRepository roleGroupRepository;
+  private final RoleRepository roleRepository;
 
   @Autowired
   private PasswordEncoder passwordEncoder;
 
   private final JwtTokenUtil jwtTokenUtil;
   
-  public UserAccountController(UserAccountServiceImp service, RoleRepository roleRepository, 
-    UserAccountRepository userAccountRepository, ModelMapper mapper, AdminRepository 
-    adminRepository, JwtTokenUtil jwtTokenUtil){
+  public UserAccountController(UserAccountServiceImp service, UserAccountRepository userAccountRepository, 
+    ModelMapper mapper, JwtTokenUtil jwtTokenUtil, RoleGroupRepository roleGroupRepository, RoleRepository roleRepository) {
     super(service);
     this.service = service;
-    this.roleRepository = roleRepository;
     this.mapper =  mapper;
     this.userAccountRepository = userAccountRepository;
-    this.adminRepository = adminRepository;
     this.jwtTokenUtil = jwtTokenUtil;
+    this.roleGroupRepository = roleGroupRepository;
+    this.roleRepository = roleRepository;
   }
   
-  @PreAuthorize("permitAll()")
-  @PostMapping("/register")
-  public ResponseEntity<ApiResponse<?>> create(@Valid @RequestBody UserAccountByFormDto body) {
 
-    if (body.getEmail() != null && userAccountRepository.existsByEmail(body.getEmail())) {
-      throw new RuntimeException("Email already exists");
-    }
-
-    if (body.getPhone() != null && userAccountRepository.existsByPhone(body.getPhone())) {
-        throw new RuntimeException("Phone already exists");
-    }
-
-
-    UserAccount payload = mapper.map(body, UserAccount.class);
-
-    Role role = this.roleRepository.findByName(body.getRole().getName()).orElseThrow(
-      () -> new RuntimeException("Role is not available in db!"));
-
-    // Encrypt password BEFORE save
-    if (body.getPassword() != null) {
-        payload.setPassword(passwordEncoder.encode(body.getPassword()));
-    }
-
-    // Assign Role entity
-    payload.setRole(role);
-    payload.setTenant(null);
-
-    UserAccount result = userAccountRepository.save(payload);
-
-    if ("ADMIN".equals(body.getRole().getName())) {
-      Admin adminPayload = new Admin();
-      adminPayload.setUserAccount(result);
-      Admin adminResult = adminRepository.saveAndFlush(adminPayload);
-
-      return ResponseEntity.status(HttpStatus.CREATED)
-            .body(new ApiResponse<>(true, "Admin created successfully", adminResult));
-    }
-    
-
-    return ResponseEntity.status(HttpStatus.CREATED)
-            .body(new ApiResponse<>(true, "Resource created successfully", result));
-  }
-
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+ @PreAuthorize("hasAuthority('ROLE_GROUP_CREATE') or hasAnyRole('SUPER_ADMIN', 'ADMIN')")
   @PostMapping("/add")
   public ResponseEntity<ApiResponse<?>> createUser(
     HttpServletRequest request, 
     @Valid @RequestBody UserAccountByFormDto body) {
+
+    String token = request.getHeader("Authorization").replace("Bearer ", "");
+
+    UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
+
+    UserAccount userAccount = userAccountRepository
+            .findById(userId)
+            .orElseThrow(() -> new RuntimeException("Admin resource not found!"));
+
+    if (userAccount.getTenant() == null) {
+      throw new RuntimeException("Tenant resource not found to add user!");
+    }
+    
 
     if (body.getEmail() != null && userAccountRepository.existsByEmail(body.getEmail())) {
       throw new RuntimeException("Email already exists");
@@ -118,23 +91,22 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
 
     UserAccount payload = mapper.map(body, UserAccount.class);
 
-    if ("ADMIN".equals(body.getRole().getName())) {
-      throw new RuntimeException("Admin can not be added in this route!");
+    if ("ADMIN".equals(body.getRole().getName()) || "SUPER_ADMIN".equals(body.getRole().getName())) {
+      throw new RuntimeException("Admin/ Super admin can not be added in this route!");
     }
 
     Role role = this.roleRepository.findByName(body.getRole().getName()).orElseThrow(
       () -> new RuntimeException("Role is not available in db!"));
 
-    String token = request.getHeader("Authorization").replace("Bearer ", "");
+    RoleGroup roleGroup = null;
 
-    UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
-
-    UserAccount userAccount = userAccountRepository
-            .findById(userId)
-            .orElseThrow(() -> new RuntimeException("Admin resource not found!"));
-
-    if (userAccount.getTenant() == null) {
-      throw new RuntimeException("Tenant resource not found to add user!");
+    if (body.getRoleGroupId() != null) {
+      roleGroup = roleGroupRepository.findById(body.getRoleGroupId())
+          .orElseThrow(() -> new RuntimeException("RoleGroup not found"));
+  
+      // IMPORTANT — TENANT SECURITY CHECK HERE
+      if (!roleGroup.getTenant().getId().equals(userAccount.getTenant().getId())) 
+        throw new RuntimeException("RoleGroup does not belong to this tenant!");
     }
 
     // Encrypt password BEFORE save
@@ -145,15 +117,72 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     // Assign Role entity
     payload.setRole(role);
 
+    payload.setRoleGroup(roleGroup);
+
     payload.setCreatedBy(createdBy);
 
-    payload.setCreatedByUser(userAccount);    
+    payload.setCreatedByUser(userAccount);  
+    
+    payload.setTenant(userAccount.getTenant());
 
     UserAccount result = this.service.createResource(userAccount.getTenant().getId(), payload);
-    
 
     return ResponseEntity.status(HttpStatus.CREATED)
             .body(new ApiResponse<>(true, "Resource created successfully", result));
   }
 
+  @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+  @PatchMapping("/assign-role-group/{userId}")
+  public ResponseEntity<ApiResponse<?>> assignRoleGroup(
+    HttpServletRequest request,
+    @PathVariable UUID userId,
+    @Valid @RequestBody AssignRoleGroupDto body) {
+
+      if (body.getRoleGroupId() == null) {
+        throw new RuntimeException("RoleGroup ID must not be null!");
+      }
+      
+     // logged-in admin
+      String token = request.getHeader("Authorization").replace("Bearer ", "");
+      UUID adminUserId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
+
+      UserAccount adminUserAccount = userAccountRepository.findById(adminUserId)
+        .orElseThrow(() -> new RuntimeException("Admin not found!"));
+
+      if (adminUserAccount.getTenant() == null) {
+          throw new RuntimeException("Admin does not belong to any tenant!");
+      }
+
+      //  user we are updating
+      UserAccount user = userAccountRepository.findById(userId)
+            .orElseThrow(() -> new RuntimeException("User not found!"));
+
+      if (!user.getTenant().getId().equals(adminUserAccount.getTenant().getId())) {
+        throw new RuntimeException("Illegal Access! User belongs to another tenant!");
+      }
+
+      // fetch role group
+      RoleGroup roleGroup = roleGroupRepository.findById(body.getRoleGroupId())
+            .orElseThrow(() -> new RuntimeException("RoleGroup not found!"));
+
+
+      // Tenant isolation check
+      if (!roleGroup.getTenant().getId().equals(adminUserAccount.getTenant().getId())) {
+          throw new RuntimeException("Illegal Access! RoleGroup belongs to another tenant!");
+      }
+
+      // assign
+      user.setRoleGroup(roleGroup);
+
+      // optional tracking
+      user.setUpdatedBy(adminUserAccount.getId().toString());
+
+      userAccountRepository.save(user);
+
+      return ResponseEntity.ok(
+              new ApiResponse<>(true, "Role Group assigned successfully!", user)
+    );
+  }
+
 }
+

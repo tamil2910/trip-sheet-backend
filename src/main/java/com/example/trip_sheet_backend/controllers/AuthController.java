@@ -2,11 +2,11 @@ package com.example.trip_sheet_backend.controllers;
 
 import java.time.Instant;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,8 +14,13 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.LoginRequestDto;
+import com.example.trip_sheet_backend.dtos.UserAccountByFormDto;
+import com.example.trip_sheet_backend.dtos.responseDtos.LoginUserResponseDTO;
+import com.example.trip_sheet_backend.models.Admin;
+import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.repositories.AdminRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -25,7 +30,13 @@ import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.api.client.util.Value;
 
+import jakarta.validation.Valid;
+
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 // import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -39,19 +50,65 @@ public class AuthController {
   private final PasswordEncoder passwordEncoder;
   private final RoleRepository roleRepository;
   private final GoogleAuthService googleAuthService;
-
+  private final AdminRepository adminRepository;
+  private final ModelMapper mapper;
 
   @Value("${GOOGLE_AUTH_CLIENT_ID}")
   private String googleClientId; // 👈 inject env variable here
   
   public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, RoleRepository roleRepository, GoogleAuthService googleAuthService,
-    PasswordEncoder passwordEncoder) {
+    PasswordEncoder passwordEncoder, AdminRepository adminRepository,  ModelMapper mapper) {
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
     this.roleRepository = roleRepository;
     this.googleAuthService = googleAuthService;
     this.passwordEncoder = passwordEncoder;
+    this.adminRepository = adminRepository;
+    this.mapper = mapper;
   }
+
+  @PreAuthorize("permitAll()")
+  @PostMapping("/register") // admin registration via admin portal
+  public ResponseEntity<ApiResponse<?>> create(@Valid @RequestBody UserAccountByFormDto body) {
+
+    if (body.getEmail() != null && userAccountRepository.existsByEmail(body.getEmail())) {
+      throw new RuntimeException("Email already exists");
+    }
+
+    if (body.getPhone() != null && userAccountRepository.existsByPhone(body.getPhone())) {
+        throw new RuntimeException("Phone already exists");
+    }
+
+
+    UserAccount payload = mapper.map(body, UserAccount.class);
+
+    Role role = this.roleRepository.findByName(body.getRole().getName()).orElseThrow(
+      () -> new RuntimeException("Role is not available in db!"));
+
+    // Encrypt password BEFORE save
+    if (body.getPassword() != null) {
+        payload.setPassword(passwordEncoder.encode(body.getPassword()));
+    }
+
+    // Assign Role entity
+    payload.setRole(role);
+    payload.setTenant(null);
+
+    UserAccount result = userAccountRepository.save(payload);
+
+    if ("ADMIN".equals(body.getRole().getName())) {
+      Admin adminPayload = new Admin();
+      adminPayload.setUserAccount(result);
+      Admin adminResult = adminRepository.saveAndFlush(adminPayload);
+
+      return ResponseEntity.status(HttpStatus.CREATED)
+            .body(new ApiResponse<>(true, "Admin created successfully", adminResult));
+    }
+
+    return ResponseEntity.status(HttpStatus.CREATED)
+            .body(new ApiResponse<>(true, "Resource created successfully", result));
+  }
+
 
   @PostMapping("/login")
   public ApiResponse<Map<String, Object>> login(@RequestBody LoginRequestDto payload) {
@@ -75,29 +132,53 @@ public class AuthController {
         return new ApiResponse<>(false, "Invalid credentials", null);
     }
 
-    // Extract actual user
     UserAccount user = foundUser.get();
 
-    // Compute permissions (temporary or real)
-    Set<String> effectivePermissions = new HashSet<>();
-    // 👉 Later replace with:
-    // effectivePermissions = permissionService.computeEffectivePermissions(user);
-
-    // Token type label
-    String type = "user_login";
+    // Load permissions from RoleGroup
+    Set<String> effectivePermissions;
+    if (user.getRoleGroup() != null && user.getRoleGroup().getPermissions() != null) {
+        effectivePermissions = user.getRoleGroup()
+                .getPermissions()
+                .stream()
+                .map(Permission::getName)
+                .collect(Collectors.toSet());
+    } else {
+        effectivePermissions = Set.of();
+    }
 
     // Generate JWT
     String token = jwtTokenUtil.generateToken(
             user,
             effectivePermissions,
-            type,
+            "user_login",
             identifier
     );
 
+    // Build flat DTO (avoid returning entity)
+    LoginUserResponseDTO dto = new LoginUserResponseDTO();
+    dto.setId(user.getId());
+    dto.setRole(user.getRole() != null ? user.getRole().getName() : null);
+    dto.setRoleGroup(user.getRoleGroup() != null ? user.getRoleGroup().getName() : null);
+    // dto.setTenantType(user.getTenantType() != null ? user.getTenantType().name() : null);
+
+    if (user.getTenant() != null && user.getTenant().getTenantType() != null) {
+        dto.setTenantType(user.getTenant().getTenantType().name());
+    } else {
+        dto.setTenantType(null);
+    }
+
+
+    if (user.getTenant() != null) {
+        dto.setTenantId(user.getTenant().getId());
+        dto.setTenantName(user.getTenant().getTenantName());
+    }
+
+    dto.setPermissions(effectivePermissions);
+
     Map<String, Object> response = new HashMap<>();
     response.put("token", token);
-    response.put("user", user);
-
+    response.put("user", dto);
+    
     return new ApiResponse<>(true, "Login successful", response);
   }
 

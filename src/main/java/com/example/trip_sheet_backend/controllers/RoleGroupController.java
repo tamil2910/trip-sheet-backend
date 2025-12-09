@@ -4,7 +4,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-import org.modelmapper.ModelMapper;
+// import org.modelmapper.ModelMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -39,14 +39,14 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
   private final TenantRepository tenantRepository;
   private final PermissionRepository permissionRepository;
   private final UserAccountRepository userAccountRepository;
-  private ModelMapper mapper;
+  // private ModelMapper mapper;
   private final JwtTokenUtil jwtTokenUtil;
-  public RoleGroupController(RoleGroupServiceImp service, ModelMapper mapper, 
+  public RoleGroupController(RoleGroupServiceImp service,
     TenantRepository tenantRepository, JwtTokenUtil jwtTokenUtil, 
     PermissionRepository permissionRepository, UserAccountRepository userAccountRepository) {
     super(service);
     this.service = service;
-    this.mapper = mapper;
+    // this.mapper = mapper;
     this.tenantRepository = tenantRepository;
     this.jwtTokenUtil = jwtTokenUtil;
     this.permissionRepository = permissionRepository;
@@ -54,42 +54,52 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
   }
 
   @PostMapping("/add")
-  @PreAuthorize("hasAuthority('ROLE_GROUP_CREATE')")
+  // @PreAuthorize("hasAuthority('ROLE_GROUP_CREATE')")
+  @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
   public ResponseEntity<ApiResponse<RoleGroup>> create(HttpServletRequest request,
      @Valid @RequestBody RoleGroupCreateDTO body) {
 
-    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    String createdBy = (String) auth.getDetails();
+      
+      if (body.getPermissionIds() == null || body.getPermissionIds().isEmpty()) {
+        throw new RuntimeException("Permission IDs must not be empty or null");
+      }
+      
+      RoleGroup roleGroup = new RoleGroup();
 
-    RoleGroup roleGroup = new RoleGroup();
-    roleGroup = mapper.map(body, RoleGroup.class);
-    roleGroup.setCreatedBy(createdBy);
+      Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+      String createdBy = (String) auth.getDetails();
 
-    String token = request.getHeader("Authorization").replace("Bearer ", "");
-    UUID user_id = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
+      roleGroup.setName(body.getName());
+      roleGroup.setCreatedBy(createdBy);
+ 
+      String token = request.getHeader("Authorization").replace("Bearer ", "");
+      UUID user_id = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
 
-    UserAccount userAccount = userAccountRepository.findById(user_id).orElseThrow(() -> new RuntimeException("UserAccount resource not found!"));
-    
-    Tenant tenant = userAccount.getTenant();
+      UserAccount userAccount = userAccountRepository.findById(user_id).orElseThrow(() -> new RuntimeException("UserAccount resource not found!"));
+      
+      Tenant tenant = userAccount.getTenant();
 
-    if(tenant == null)
-      tenant = tenantRepository.findById(userAccount.getTenant().getId())
+      if (!(tenant.getId()).equals(body.getTenantId())) {
+        throw new RuntimeException("illegal Access! Tenant id is not matching with user account!");
+      }
+
+      tenant = tenantRepository.findById(tenant.getId())
         .orElseThrow(() -> new RuntimeException("Tenant resource not found!"));
 
-    roleGroup.setTenant(tenant);
+      roleGroup.setTenant(tenant);
+      
+      // 3️⃣ Fetch permissions
+      Set<Permission> perms =
+      permissionRepository.findAllById(body.getPermissionIds())
+      .stream().collect(Collectors.toSet());
+      
+      roleGroup.setPermissions(perms);
+      
+      // 4️⃣ Save
+      RoleGroup result = this.service.createResource(tenant.getId(), roleGroup);
 
-    // 3️⃣ Fetch permissions
-    Set<Permission> perms =
-            permissionRepository.findAllById(body.getPermissionIds())
-                                .stream().collect(Collectors.toSet());
-
-    roleGroup.setPermissions(perms);
-
-    // 4️⃣ Save
-    RoleGroup result = this.service.createResource(tenant.getId(), roleGroup);
-
-    return ResponseEntity.status(HttpStatus.CREATED)
-            .body(new ApiResponse<>(true, "Resource Created Successfully!", result));
+      return ResponseEntity.status(HttpStatus.CREATED)
+              .body(new ApiResponse<>(true, "Resource Created Successfully!", result));
   }
 
 }

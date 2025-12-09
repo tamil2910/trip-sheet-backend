@@ -1,5 +1,7 @@
 package com.example.trip_sheet_backend.dtos;
 
+import java.util.UUID;
+
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.UserAccount;
 
@@ -44,6 +46,8 @@ public class UserAccountByFormDto {
 
 
     private Role role;
+
+    private UUID roleGroupId;
 
     private Boolean isActive = true;
 

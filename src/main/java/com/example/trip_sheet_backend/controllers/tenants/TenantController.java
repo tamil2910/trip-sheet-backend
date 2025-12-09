@@ -48,7 +48,7 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
         this.userAccountRepository = userAccountRepository;
     }
 
-    @PreAuthorize("hasRole('SUPER_ADMIN')")
+    @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
     @PostMapping("/add")
     public ResponseEntity<ApiResponse<Tenant>> createTenant(
             HttpServletRequest request,
