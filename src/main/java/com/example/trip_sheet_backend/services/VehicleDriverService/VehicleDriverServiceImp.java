@@ -17,7 +17,6 @@ import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleDriverMapping;
-import com.example.trip_sheet_backend.models.VehicleType;
 import com.example.trip_sheet_backend.models.VehicleTypeCustomName;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
@@ -107,37 +106,16 @@ public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping
 
     Role role = roleRepository.findByName("DRIVER").orElseThrow(() -> new RuntimeException("DRIVER role is not found!"));
     
+    String vehicleNumber = dto.getVehicle_info().getVehicleNumber();
+    Vehicle existingVehicle = vehicleService.findByVehicleNumberAndTenantId(vehicleNumber, userAccount.getTenant().getId());
+
+    if (existingVehicle != null) {
+      throw new RuntimeException("Vehicle with the same number already exists.");
+    }
 
     // Create vehicle
     // Vehicle vehicle = new Vehicle();
     Vehicle vehicle = mapper.map(dto.getVehicle_info(), Vehicle.class);
-
-
-    // vehicle.setModelName(dto.getVehicle_info().getModelName());
-    // vehicle.setVehicleNumber(dto.getVehicle_info().getVehicleNumber());
-    // vehicle.setFuelType(Vehicle.typeFuel.valueOf(dto.getVehicle_info().getFuelType().name()));
-    // vehicle.setColour(dto.getVehicle_info().getColour());
-    // vehicle.setDescription(dto.getVehicle_info().getDescription());
-    // vehicle.setVehicleUniqueCode(dto.getVehicle_info().getVehicleUniqueCode());
-
-    // vehicle.setLeftSideUrl(dto.getVehicle_info().getLeftSideUrl());
-    // vehicle.setRightSideUrl(dto.getVehicle_info().getRightSideUrl());
-    // vehicle.setBackSideUrl(dto.getVehicle_info().getBackSideUrl());
-    // vehicle.setFrontSideUrl(dto.getVehicle_info().getFrontSideUrl());
-    // vehicle.setVehProfileUrl(dto.getVehicle_info().getVehProfileUrl());
-
-    // vehicle.setRegisteredOwnerName(dto.getVehicle_info().getRegisteredOwnerName());
-    // vehicle.setRegistrationDate(dto.getVehicle_info().getRegistrationDate());
-    // vehicle.setChassisNumber(dto.getVehicle_info().getChassisNumber());
-    // vehicle.setEngineNumber(dto.getVehicle_info().getEngineNumber());
-
-    // vehicle.setInsuranceCompanyName(dto.getVehicle_info().getInsuranceCompanyName());
-    // vehicle.setPolicyNumber(dto.getVehicle_info().getPolicyNumber());
-    // vehicle.setIssueDate(dto.getVehicle_info().getIssueDate());
-    // vehicle.setDueDate(dto.getVehicle_info().getDueDate());
-    // vehicle.setPremiumAmount(dto.getVehicle_info().getPremiumAmount());
-    // vehicle.setCoverAmount(dto.getVehicle_info().getCoverAmount());
-
 
     // extra fields set from service
     // mapper.map(dto.getVehicle_info(), Vehicle.class);
@@ -149,8 +127,37 @@ public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping
 
     vehicle = vehicleService.create(vehicle);
 
-    // Create UserAccount for driver, and link it with driver model with driver info
+        // Create UserAccount for driver, and link it with driver model with driver info
     UserAccount driverUser = new UserAccount();
+    VehicleDriverMapping vehicleDriverMapping = new VehicleDriverMapping();
+
+    String driverEmail = dto.getDriver_info().getEmail();
+    Driver existingDriver = driverService.findByEmail(driverEmail);
+
+    if (existingDriver != null) {
+      throw new RuntimeException("Driver with the same email already exists.");
+    }
+
+    String driverPhone = dto.getDriver_info().getPhone();
+    Driver existingDriverPhone = driverService.findByPhone(driverPhone);
+
+    if (existingDriverPhone != null) {
+      throw new RuntimeException("Driver with the same phone number already exists.");
+    }
+
+    if ((existingDriver != null || existingDriverPhone != null) & dto.getLinkTenant() == false) {
+      throw new RuntimeException("Driver with the same email or phone number already exists.");
+    } else {
+      if (dto.getLinkTenant() == true) {
+        vehicleDriverMapping.setTenant(userAccount.getTenant());
+        // write tenant driver mapping relationship here
+        // for that create TenantDriverMapping entity/model, create service, repository, controller
+
+      }
+    }
+
+
+
     driverUser.setUsername(dto.getDriver_info().getFullName());
     driverUser.setEmail(dto.getDriver_info().getEmail());
     driverUser.setPhone(dto.getDriver_info().getPhone());

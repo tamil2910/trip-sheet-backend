@@ -28,5 +28,7 @@ public class VehicleDriverCreateRequestDto {
     public enum typeStatus {
         ACTIVE, INACTIVE
     }
+    
+    private Boolean linkTenant;
 
 }

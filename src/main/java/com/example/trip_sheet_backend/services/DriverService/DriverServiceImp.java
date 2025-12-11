@@ -24,4 +24,14 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     this.roleRepository = roleRepository;
   }
 
+  @Override
+  public Driver findByEmail(String email) {
+    return repository.findByEmail(email);
+  }
+
+  @Override
+  public Driver findByPhone(String phone) {
+    return repository.findByPhone(phone);
+  }
+
 }

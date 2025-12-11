@@ -10,6 +10,7 @@ import com.example.trip_sheet_backend.models.Driver;
 
 @Repository
 public interface DriverRepository extends BaseRepository<Driver, UUID> {
-  // Optional<Driver> findByEmail(String email);
+  Driver findByEmail(String email);
+  Driver findByPhone(String email);
   Optional<Driver> findByAccount_Id(UUID accountId);
 }
