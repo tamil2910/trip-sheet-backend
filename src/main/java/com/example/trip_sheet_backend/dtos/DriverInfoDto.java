@@ -1,5 +1,7 @@
 package com.example.trip_sheet_backend.dtos;
 
+import io.micrometer.common.lang.Nullable;
+import jakarta.persistence.Column;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
@@ -11,6 +13,15 @@ public class DriverInfoDto {
 
     @NotBlank(message = "Driver full name is required!")
     private String fullName;
+
+    @Email
+    @NotBlank(message = "Driver email is required!")
+    private String email;
+
+    @Column(unique = true)
+    @Nullable
+    @Pattern(regexp = "^[6-9]\\d{9}$", message = "Phone number must be 10 digits and start with 6-9")
+    private String phone;
 
     @NotBlank(message = "License number is required!")
     private String licenseNumber;
@@ -31,8 +42,8 @@ public class DriverInfoDto {
         PERMANENT, CONTRACT, TEMPORARY
     }
 
-    @NotNull(message = "User account ID is required!")
-    private String userAccountId;
+    // @NotNull(message = "User account ID is required!")
+    // private String userAccountId;
 
     @NotNull(message = "Role ID is required!")
     private String roleId;

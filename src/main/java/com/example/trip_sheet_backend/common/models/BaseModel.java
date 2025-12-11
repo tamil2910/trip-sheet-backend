@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.common.models;
 
 import java.time.Instant;
+// import jakarta.persistence.GenerationType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.MappedSuperclass;
@@ -22,7 +23,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 @MappedSuperclass
 public class BaseModel {
   @Id
-  @GeneratedValue
+  @GeneratedValue //(strategy = GenerationType.UUID)
   private UUID id;
 
   @JsonIgnore

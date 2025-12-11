@@ -37,7 +37,7 @@ public class VehicleDriverMapping extends BaseModel implements TenantScoped {
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
   
-  @NotNull(message = "Active/ Inactive is required for mapping driver-vehicle")
+  // @NotNull(message = "Active/ Inactive is required for mapping driver-vehicle")
   private Boolean isActive = true;
 
   @Override

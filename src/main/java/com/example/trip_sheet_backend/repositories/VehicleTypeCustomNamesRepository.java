@@ -9,4 +9,5 @@ import com.example.trip_sheet_backend.models.VehicleTypeCustomName;
 
 public interface VehicleTypeCustomNamesRepository extends BaseRepository<VehicleTypeCustomName, UUID> {
   Optional<VehicleTypeCustomName> findByVehicleType_IdAndTenant_Id(UUID vehicleTypeId, UUID tenantId);
+  Optional<VehicleTypeCustomName> findByIdAndTenant_Id(UUID vehicleTypeId, UUID tenantId);
 }

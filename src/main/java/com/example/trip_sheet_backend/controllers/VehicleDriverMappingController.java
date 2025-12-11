@@ -15,6 +15,7 @@ import com.example.trip_sheet_backend.models.VehicleDriverMapping;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.VehicleDriverService.VehicleDriverServiceImp;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 
@@ -30,9 +31,9 @@ public class VehicleDriverMappingController extends BaseController<VehicleDriver
   @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
   @PostMapping("/add")
   public ResponseEntity<ApiResponse<VehicleDriverMapping>> createVehicleAndDriverTogether(
-          @Valid @RequestBody VehicleDriverCreateRequestDto body) {
+          @Valid @RequestBody VehicleDriverCreateRequestDto body, HttpServletRequest request) {
 
-      VehicleDriverMapping response = this.service.createVehicleAndDriver(body);
+      VehicleDriverMapping response = this.service.createVehicleAndDriver(body, request);
 
       return ResponseEntity.ok(
               new ApiResponse<>(true, "Vehicle & Driver Created Successfully!", response)

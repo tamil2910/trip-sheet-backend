@@ -12,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.trip_sheet_backend.common.controllers.BaseController;
 import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -35,9 +34,13 @@ public class PermissionController extends GlobalBaseController<Permission, UUID>
   public ResponseEntity<ApiResponse<Permission>> create(@Valid @RequestBody Permission body) {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
     String createdBy = (String) auth.getDetails();
+    
+    if (body.getModuleName() == null) {
+        throw new RuntimeException("moduleName must not be null");
+    }
 
     body.setCreatedBy(createdBy);
-
+    
     Permission result = this.service.create(body);
     return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(true, "Resource Created Successfully!", result));
   }

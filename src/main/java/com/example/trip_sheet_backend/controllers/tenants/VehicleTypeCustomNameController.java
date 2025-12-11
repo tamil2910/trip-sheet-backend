@@ -16,9 +16,11 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.common.controllers.BaseController;
 import com.example.trip_sheet_backend.dtos.VehicleTypeCreateRequestDto;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VehicleType;
 import com.example.trip_sheet_backend.models.VehicleType.typeVehicle;
 import com.example.trip_sheet_backend.models.VehicleTypeCustomName;
+import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeCustomNamesRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -26,6 +28,7 @@ import com.example.trip_sheet_backend.services.TenantService.TenantService;
 import com.example.trip_sheet_backend.services.VehicleTypeCustomNamesService.VehicleTypeCustomNamesService;
 import com.example.trip_sheet_backend.services.VehicleTypeService.VehicleTypeService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 
 @RestController
@@ -39,23 +42,36 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
   // private final VehicleTypeCustomNamesService service;
   private final VehicleTypeService vehicleTypeService;
   private final TenantService tenantService;
+  private final UserAccountRepository userAccountRepository;
 
   public VehicleTypeCustomNameController(VehicleTypeCustomNamesRepository repository, VehicleTypeCustomNamesService service, 
-    VehicleTypeRepository vehicleTypeRepository, VehicleTypeService vehicleTypeService, TenantService tenantService) {
+    VehicleTypeRepository vehicleTypeRepository, VehicleTypeService vehicleTypeService, TenantService tenantService,
+  UserAccountRepository userAccountRepository) {
     super(service);
     this.repository = repository;
     this.vehicleTypeRepository = vehicleTypeRepository;
     // this.service = service;
     this.vehicleTypeService = vehicleTypeService;
     this.tenantService = tenantService;
+    this.userAccountRepository = userAccountRepository;
   }
 
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN ')")
+  @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
   @PostMapping("/add")
-  public ResponseEntity<ApiResponse<VehicleTypeCustomName>> create_vehicle_type(@Valid @RequestBody VehicleTypeCreateRequestDto body) {
+  public ResponseEntity<ApiResponse<VehicleTypeCustomName>> create_vehicle_type(@Valid @RequestBody VehicleTypeCreateRequestDto body, HttpServletRequest request) {
 
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    String tenantId = (String) auth.getDetails();
+    String createdBy = (String) auth.getDetails();
+
+    String token = request.getHeader("Authorization").replace("Bearer ", "");
+    UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
+
+    UserAccount userAccount = userAccountRepository.findById(userId)
+    .orElseThrow(() -> new RuntimeException("User not found!"));
+
+    if (userAccount.getTenant() == null) {
+        throw new RuntimeException("User does not belong to any tenant!");
+    }
 
     if (body.getTypeOfVehicle() == null || body.getSeatCount() == null) {
       return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Type of vehicle and seat count are required to add vehicle type", null));
@@ -99,13 +115,14 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
       vt.setDefaultName(vt.getTypeOfVehicle() + "_" + vt.getSeatCount());
       vt.setDescription(body.getDescription());
       vt.setIsGlobal(false);
+      vt.setCreatedBy(createdBy);
 
       vt = this.vehicleTypeService.create(vt);
     }
 
     // 3. Now handle customName table
 
-    Tenant tenant = this.tenantService.findByIdResource(UUID.fromString(tenantId));
+    Tenant tenant = this.tenantService.findByIdResource(userAccount.getTenant().getId());
     Optional<VehicleTypeCustomName> customExist = this.repository.findByVehicleType_IdAndTenant_Id(vt.getId(), tenant.getId());
 
     if (customExist.isPresent()) {

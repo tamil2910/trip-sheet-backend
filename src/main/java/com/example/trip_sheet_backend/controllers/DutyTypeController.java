@@ -14,7 +14,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.trip_sheet_backend.common.controllers.BaseController;
 import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.DutyType.typeDuty;

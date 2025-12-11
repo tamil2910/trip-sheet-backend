@@ -8,7 +8,6 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -50,9 +49,9 @@ public class Driver extends BaseModel {
     @JoinColumn(name = "user_account_id", referencedColumnName = "id")
     private UserAccount account;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "role_id")
-    private Role role;
+    // @ManyToOne(fetch = FetchType.LAZY)
+    // @JoinColumn(name = "role_id")
+    // private Role role;
 
     public enum DriverType {
         PERMANENT, CONTRACT, TEMPORARY

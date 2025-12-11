@@ -22,4 +22,8 @@ public class Permission extends BaseModel {
     private String name; // e.g. TRIP_CREATE, TRIP_VIEW
 
     private String description;
+
+    // NEW FIELD
+    @Column(nullable = false)
+    private String moduleName; // e.g. CONTRACT, INVOICE, DUTY, EXPENSE
 }

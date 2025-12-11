@@ -28,7 +28,7 @@ public class VehicleTypeCustomName extends BaseModel implements TenantScoped {
   private String customName;
 
   @NotNull(message = "Vehicle type is required")
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.EAGER)
   @JoinColumn(name = "vehicle_type_id")
   private VehicleType vehicleType;
 

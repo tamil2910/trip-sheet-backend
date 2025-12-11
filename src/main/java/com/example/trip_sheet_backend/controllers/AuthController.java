@@ -2,6 +2,8 @@ package com.example.trip_sheet_backend.controllers;
 
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -21,6 +23,7 @@ import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.AdminRepository;
+import com.example.trip_sheet_backend.repositories.PermissionRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -51,13 +54,14 @@ public class AuthController {
   private final RoleRepository roleRepository;
   private final GoogleAuthService googleAuthService;
   private final AdminRepository adminRepository;
+  private final PermissionRepository permissionRepository;
   private final ModelMapper mapper;
 
   @Value("${GOOGLE_AUTH_CLIENT_ID}")
   private String googleClientId; // 👈 inject env variable here
   
   public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, RoleRepository roleRepository, GoogleAuthService googleAuthService,
-    PasswordEncoder passwordEncoder, AdminRepository adminRepository,  ModelMapper mapper) {
+    PasswordEncoder passwordEncoder, AdminRepository adminRepository,  ModelMapper mapper, PermissionRepository permissionRepository) {
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
     this.roleRepository = roleRepository;
@@ -65,6 +69,7 @@ public class AuthController {
     this.passwordEncoder = passwordEncoder;
     this.adminRepository = adminRepository;
     this.mapper = mapper;
+    this.permissionRepository = permissionRepository;
   }
 
   @PreAuthorize("permitAll()")
@@ -159,6 +164,7 @@ public class AuthController {
     dto.setId(user.getId());
     dto.setRole(user.getRole() != null ? user.getRole().getName() : null);
     dto.setRoleGroup(user.getRoleGroup() != null ? user.getRoleGroup().getName() : null);
+    dto.setUsername(user.getUsername());
     // dto.setTenantType(user.getTenantType() != null ? user.getTenantType().name() : null);
 
     if (user.getTenant() != null && user.getTenant().getTenantType() != null) {
@@ -174,6 +180,21 @@ public class AuthController {
     }
 
     dto.setPermissions(effectivePermissions);
+    // Fetch full Permission objects for grouping
+    List<Permission> permissionObjects =
+            permissionRepository.findAllByNameIn(effectivePermissions);
+
+    // Group by moduleName
+    Map<String, Set<String>> grouped = new HashMap<>();
+
+    for (Permission p : permissionObjects) {
+        String module = p.getModuleName();  // e.g. "INVOICE", "DUTY", "EXPENSE"
+        grouped.putIfAbsent(module, new HashSet<>());
+        grouped.get(module).add(p.getName());
+    }
+
+    dto.setModulePermissions(grouped);
+    
 
     Map<String, Object> response = new HashMap<>();
     response.put("token", token);

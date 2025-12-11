@@ -1,5 +1,6 @@
 package com.example.trip_sheet_backend.dtos.responseDtos;
 
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -12,7 +13,7 @@ import lombok.Setter;
 @Setter
 public class LoginUserResponseDTO {
     private UUID id;
-    // private String username;
+    private String username;
     // private String email;
     // private String phone;
     private String role;
@@ -22,4 +23,7 @@ public class LoginUserResponseDTO {
     // private Tenant.TenantType tenantType;
     private String tenantType;
     private Set<String> permissions;
+
+    // NEW (grouped by module)
+    private Map<String, Set<String>> modulePermissions;
 }
