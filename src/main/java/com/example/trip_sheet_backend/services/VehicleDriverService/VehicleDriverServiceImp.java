@@ -19,17 +19,12 @@ import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleDriverMapping;
 import com.example.trip_sheet_backend.models.VehicleTypeCustomName;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
-import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.repositories.VehicleDriverMappingRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeCustomNamesRepository;
-import com.example.trip_sheet_backend.repositories.VehicleTypeRepository;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.DriverService.DriverService;
-import com.example.trip_sheet_backend.services.RoleService.RoleService;
-import com.example.trip_sheet_backend.services.TenantService.TenantService;
 import com.example.trip_sheet_backend.services.UserAccountService.UserAccountService;
 import com.example.trip_sheet_backend.services.VehicleService.VehicleService;
-import com.example.trip_sheet_backend.services.VehicleTypeService.VehicleTypeService;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -37,42 +32,29 @@ import jakarta.servlet.http.HttpServletRequest;
 public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping, UUID> implements VehicleDriverService {
 
     private final RoleRepository roleRepository;
-    private final UserAccountRepository userAccountRepository;
-    private final VehicleTypeRepository vehicleTypeRepository;
     private final VehicleTypeCustomNamesRepository vehicleTypeCustomNamesRepository;
 
   VehicleDriverMappingRepository repository;
 
   private final VehicleService vehicleService;
   private final DriverService driverService;
-  private final VehicleTypeService vehicleTypeService;
   private final UserAccountService userAccountService;
-  private final RoleService roleService;
-  private final TenantService tenantService;
   private final BaseService<VehicleDriverMapping, UUID> mappingService;
   private final ModelMapper mapper;
   private final JwtTokenUtil jwtTokenUtil;
 
   public VehicleDriverServiceImp(
-    VehicleDriverMappingRepository repository, VehicleService vehicleService, DriverService driverService, VehicleTypeService vehicleTypeService,
-      UserAccountService userAccountService, RoleService roleService, BaseService<VehicleDriverMapping, UUID> mappingService, ModelMapper mapper,
-      TenantService tenantService, JwtTokenUtil jwtTokenUtil, VehicleTypeCustomNamesRepository vehicleTypeCustomNamesRepository
-  , UserAccountRepository userAccountRepository, RoleRepository roleRepository, VehicleTypeRepository vehicleTypeRepository) {
+    VehicleDriverMappingRepository repository, VehicleService vehicleService, DriverService driverService, UserAccountService userAccountService, BaseService<VehicleDriverMapping, UUID> mappingService, ModelMapper mapper, JwtTokenUtil jwtTokenUtil, VehicleTypeCustomNamesRepository vehicleTypeCustomNamesRepository, RoleRepository roleRepository) {
     super(repository);
     this.vehicleService = vehicleService;
     this.driverService = driverService;
-    this.vehicleTypeService = vehicleTypeService;
     this.userAccountService = userAccountService;
-    this.roleService = roleService;
     this.mappingService = mappingService;
-    this.tenantService = tenantService;
     this.mapper = mapper;
 
     this.repository = repository;
     this.jwtTokenUtil = jwtTokenUtil;
-    this.userAccountRepository = userAccountRepository;
     this.roleRepository = roleRepository;
-    this.vehicleTypeRepository  = vehicleTypeRepository;
     this.vehicleTypeCustomNamesRepository = vehicleTypeCustomNamesRepository;
   }
 
@@ -132,14 +114,14 @@ public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping
     VehicleDriverMapping vehicleDriverMapping = new VehicleDriverMapping();
 
     String driverEmail = dto.getDriver_info().getEmail();
-    Driver existingDriver = driverService.findByEmail(driverEmail);
+    UserAccount existingDriver = userAccountService.findByEmail(driverEmail);
 
     if (existingDriver != null) {
       throw new RuntimeException("Driver with the same email already exists.");
     }
 
     String driverPhone = dto.getDriver_info().getPhone();
-    Driver existingDriverPhone = driverService.findByPhone(driverPhone);
+    UserAccount existingDriverPhone = userAccountService.findByPhone(driverPhone);
 
     if (existingDriverPhone != null) {
       throw new RuntimeException("Driver with the same phone number already exists.");

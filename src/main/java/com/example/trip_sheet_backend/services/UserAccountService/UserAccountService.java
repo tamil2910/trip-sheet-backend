@@ -7,4 +7,6 @@ import com.example.trip_sheet_backend.models.UserAccount;
 
 public interface UserAccountService extends BaseService<UserAccount, UUID> {
   UserAccount findByIdResource(UUID id);
+  UserAccount findByEmail(String email);
+  UserAccount findByPhone(String phone);
 }

@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
+import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 // import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -26,5 +27,15 @@ public class UserAccountServiceImp extends BaseServiceImp<UserAccount, UUID> imp
   // GLOBAL READ ONLY FOR USERACCOUNT
   public UserAccount findByIdResource(UUID id) {
       return repository.findById(id).orElse(null);
+  }
+
+  @Override
+  public UserAccount findByEmail(String email) {
+    return repository.findByEmail(email).orElse(null);
+  }
+
+  @Override
+  public UserAccount findByPhone(String phone) {
+    return repository.findByPhone(phone).orElse(null);
   }
 }
