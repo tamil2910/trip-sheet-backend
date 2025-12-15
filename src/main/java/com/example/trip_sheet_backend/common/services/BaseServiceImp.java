@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -15,7 +14,6 @@ import org.springframework.data.jpa.domain.Specification;
 
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.TenantScoped;
-import com.example.trip_sheet_backend.security.JwtTokenUtil;
 
 import jakarta.persistence.criteria.Predicate;
 
@@ -24,8 +22,6 @@ public class BaseServiceImp<T extends TenantScoped, ID extends Serializable> imp
   protected final BaseRepository<T, ID> repository;
   // protected final JpaSpecificationExecutor<T> specExecutor;
 
-  @Autowired
-  private JwtTokenUtil jwtTokenUtil;
 
   public BaseServiceImp(BaseRepository<T, ID> repository) {
     this.repository = repository;
