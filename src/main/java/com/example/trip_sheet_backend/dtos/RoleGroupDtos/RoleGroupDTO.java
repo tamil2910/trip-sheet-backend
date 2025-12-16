@@ -1,8 +1,10 @@
-package com.example.trip_sheet_backend.dtos;
+package com.example.trip_sheet_backend.dtos.RoleGroupDtos;
 
 import java.util.Set;
 import java.util.UUID;
 
+import com.example.trip_sheet_backend.dtos.PermissionDtos.PermissionDTO;
+import com.example.trip_sheet_backend.dtos.TenantDtos.TenantDTO;
 import com.example.trip_sheet_backend.models.RoleGroup;
 
 import lombok.AllArgsConstructor;

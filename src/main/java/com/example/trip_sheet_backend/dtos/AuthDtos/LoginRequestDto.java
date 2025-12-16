@@ -1,4 +1,4 @@
-package com.example.trip_sheet_backend.dtos;
+package com.example.trip_sheet_backend.dtos.AuthDtos;
 
 import lombok.Getter;
 import lombok.Setter;

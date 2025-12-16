@@ -1,4 +1,4 @@
-package com.example.trip_sheet_backend.dtos;
+package com.example.trip_sheet_backend.dtos.DriverVehicleDtos;
 
 import java.util.UUID;
 

@@ -1,4 +1,4 @@
-package com.example.trip_sheet_backend.dtos.responseDtos;
+package com.example.trip_sheet_backend.dtos.AuthDtos;
 
 import java.util.Map;
 import java.util.Set;

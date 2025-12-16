@@ -15,9 +15,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.trip_sheet_backend.dtos.LoginRequestDto;
-import com.example.trip_sheet_backend.dtos.UserAccountByFormDto;
-import com.example.trip_sheet_backend.dtos.responseDtos.LoginUserResponseDTO;
+import com.example.trip_sheet_backend.dtos.AuthDtos.LoginRequestDto;
+import com.example.trip_sheet_backend.dtos.AuthDtos.LoginUserResponseDTO;
+import com.example.trip_sheet_backend.dtos.UserAccountDtos.UserAccountByFormDto;
 import com.example.trip_sheet_backend.models.Admin;
 import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.Role;

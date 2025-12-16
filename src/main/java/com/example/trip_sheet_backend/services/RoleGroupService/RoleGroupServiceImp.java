@@ -7,7 +7,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
-import com.example.trip_sheet_backend.dtos.RoleGroupDTO;
+import com.example.trip_sheet_backend.dtos.RoleGroupDtos.RoleGroupDTO;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 

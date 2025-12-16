@@ -21,8 +21,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.BaseController;
-import com.example.trip_sheet_backend.dtos.RoleGroupCreateDTO;
-import com.example.trip_sheet_backend.dtos.RoleGroupDTO;
+import com.example.trip_sheet_backend.dtos.RoleGroupDtos.RoleGroupCreateDTO;
+import com.example.trip_sheet_backend.dtos.RoleGroupDtos.RoleGroupDTO;
 import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.Tenant;

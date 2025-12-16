@@ -18,8 +18,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.BaseController;
-import com.example.trip_sheet_backend.dtos.AssignRoleGroupDto;
-import com.example.trip_sheet_backend.dtos.UserAccountByFormDto;
+import com.example.trip_sheet_backend.dtos.RoleGroupDtos.AssignRoleGroupDto;
+import com.example.trip_sheet_backend.dtos.UserAccountDtos.UserAccountByFormDto;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.UserAccount;

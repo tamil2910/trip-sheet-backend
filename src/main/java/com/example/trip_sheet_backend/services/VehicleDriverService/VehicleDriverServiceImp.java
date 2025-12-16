@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.common.services.BaseService;
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
-import com.example.trip_sheet_backend.dtos.VehicleDriverCreateRequestDto;
+import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleDriverCreateRequestDto;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.UserAccount;

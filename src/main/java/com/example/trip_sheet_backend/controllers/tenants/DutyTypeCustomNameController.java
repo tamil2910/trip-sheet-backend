@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 
-import com.example.trip_sheet_backend.dtos.DutyTypeCreateRequestDto;
+import com.example.trip_sheet_backend.dtos.DutyTypeDtos.DutyTypeCreateRequestDto;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.DutyTypeCustomName;
 import com.example.trip_sheet_backend.models.Tenant;

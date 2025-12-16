@@ -7,8 +7,8 @@ import org.springframework.context.annotation.Configuration;
 
 
 import com.example.trip_sheet_backend.models.Vehicle;
-import com.example.trip_sheet_backend.dtos.DriverInfoDto;
-import com.example.trip_sheet_backend.dtos.VehicleInfoDto;
+import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.DriverInfoDto;
+import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleInfoDto;
 import com.example.trip_sheet_backend.models.Driver;
 
 import com.fasterxml.jackson.databind.Module;
