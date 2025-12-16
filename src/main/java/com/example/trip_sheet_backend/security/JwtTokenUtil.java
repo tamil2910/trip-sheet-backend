@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Component;
 
@@ -117,7 +118,16 @@ public class JwtTokenUtil {
     }
 
     public List<String> getPermissionsFromToken(String token) {
-        return getAllClaimsFromToken(token).get("permissions", List.class);
+            Claims claims = getAllClaimsFromToken(token);
+
+        Object permissionsObj = claims.get("permissions");
+
+        if (permissionsObj instanceof List<?>) {
+            return ((List<?>) permissionsObj).stream()
+                    .map(Object::toString) // safe conversion
+                    .collect(Collectors.toList());
+        }
+        return List.of(); // return empty list if none
     }
 
 

@@ -8,7 +8,6 @@ import java.util.UUID;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.Authentication;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -48,7 +47,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
 
     /** -------------------- CREATE -------------------- **/
   @PostMapping
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+  // @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
   public ResponseEntity<ApiResponse<T>> create(@Valid @RequestBody T payload, HttpServletRequest request) {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
     String createdBy = (String) auth.getDetails();
@@ -65,7 +64,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
 
   /** -------------------- READ BY ID -------------------- **/
   @GetMapping("/{id}")
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'DRIVER')")
+  // @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'DRIVER')")
   public ApiResponse<T> getById(@PathVariable @NotNull ID id, HttpServletRequest request) {
 
     UUID tenantId = getCurrentTenantId(request);
@@ -78,7 +77,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
 
   /** -------------------- READ ALL (PAGINATION) -------------------- **/
   @GetMapping
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+  // @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
   public ApiResponse<Map<String, Object>> getAll(@RequestBody(required = false) Map<String, Object> filters,
     Pageable pageable,
     HttpServletRequest request) {
@@ -102,7 +101,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
 
   /** -------------------- UPDATE -------------------- **/
   @PutMapping("/{id}")
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'DRIVER')")
+  // @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'DRIVER')")
   public ApiResponse<T> update(@PathVariable @NotNull ID id, @Valid @RequestBody T payload, HttpServletRequest request) {
 
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
@@ -119,7 +118,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   }
   
   @DeleteMapping("/{id}")
-  @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('ADMIN')")
+  // @PreAuthorize("hasRole('SUPER_ADMIN') or hasRole('ADMIN')")
   public ApiResponse<Void> delete(@PathVariable @NotNull ID id, HttpServletRequest request) {
 
     UUID tenantId = getCurrentTenantId(request);
@@ -135,7 +134,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   }
 
   @GetMapping("/search")
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+  // @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
   public ApiResponse<Map<String, Object>> search(
     @RequestBody(required = false) Map<String, Object> filters,
     Pageable pageable, HttpServletRequest request

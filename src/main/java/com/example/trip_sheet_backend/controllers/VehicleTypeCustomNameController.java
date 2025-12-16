@@ -1,4 +1,4 @@
-package com.example.trip_sheet_backend.controllers.tenants;
+package com.example.trip_sheet_backend.controllers;
 
 import java.util.Optional;
 import java.util.UUID;

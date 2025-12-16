@@ -9,7 +9,6 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
@@ -31,7 +30,7 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
 
   /** -------------------- CREATE -------------------- **/
   @PostMapping
-  @PreAuthorize("hasRole('SUPER_ADMIN')")
+//   @PreAuthorize("hasRole('SUPER_ADMIN')")
   public ResponseEntity<ApiResponse<T>> create(@Valid @RequestBody T payload) {
 
       if (payload instanceof BaseModel base) {
@@ -49,7 +48,7 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
 
   /** -------------------- READ BY ID -------------------- **/
   @GetMapping("/{id}")
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+//   @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
   public ApiResponse<T> getById(@PathVariable @NotNull ID id) {
 
       T result = globalService.findById(id);
@@ -64,7 +63,7 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
 
   /** -------------------- READ ALL (PAGINATION) -------------------- **/
   @GetMapping
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
+//   @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
   public ApiResponse<Map<String, Object>> getAll(
           @RequestBody(required = false) Map<String, Object> filters,
           Pageable pageable
@@ -94,7 +93,7 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
 
   /** -------------------- UPDATE -------------------- **/
   @PutMapping("/{id}")
-  @PreAuthorize("hasRole('SUPER_ADMIN')")
+//   @PreAuthorize("hasRole('SUPER_ADMIN')")
   public ApiResponse<T> update(
           @PathVariable @NotNull ID id,
           @Valid @RequestBody T payload
@@ -112,7 +111,7 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
 
   /** -------------------- DELETE -------------------- **/
   @DeleteMapping("/{id}")
-  @PreAuthorize("hasRole('SUPER_ADMIN')")
+//   @PreAuthorize("hasRole('SUPER_ADMIN')")
   public ApiResponse<Void> delete(@PathVariable @NotNull ID id) {
 
       T existing = globalService.findById(id);
