@@ -27,4 +27,8 @@ public class RoleGroupServiceImp extends BaseServiceImp<RoleGroup, UUID> impleme
     return page.map(RoleGroupDTO::new);
   }
 
+  public Boolean existsByTenantIdAndName(UUID tenantId, String name) {
+    return roleGroupRepository.existsByTenantIdAndName(tenantId, name);
+  }
+
 }

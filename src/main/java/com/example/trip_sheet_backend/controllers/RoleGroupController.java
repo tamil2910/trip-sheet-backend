@@ -89,6 +89,11 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
 
       RoleGroup roleGroup = new RoleGroup();
 
+      boolean exists = this.service.existsByTenantIdAndName(tenant.getId(), body.getName());
+      if (exists) {
+          throw new RuntimeException("RoleGroup name already exists for this tenant!");
+      }
+
       roleGroup.setName(body.getName());
       roleGroup.setCreatedBy(createdBy);
       roleGroup.setTenant(tenant);

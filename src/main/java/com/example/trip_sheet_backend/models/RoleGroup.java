@@ -27,7 +27,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class RoleGroup extends BaseModel implements TenantScoped {
 
-    @Column(unique = true, nullable = false)
+    @Column(nullable = false)
     private String name;  // Example: "Dispatch Operators", "Billing Team"
 
     @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.MERGE)

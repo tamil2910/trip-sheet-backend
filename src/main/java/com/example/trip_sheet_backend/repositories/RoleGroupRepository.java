@@ -10,4 +10,5 @@ import com.example.trip_sheet_backend.models.RoleGroup;
 
 public interface RoleGroupRepository extends BaseRepository<RoleGroup, UUID> {
   Page<RoleGroup> findAllByTenantId(UUID tenantId, Pageable pageable);
+  Boolean existsByTenantIdAndName(UUID tenantId, String name);
 }
