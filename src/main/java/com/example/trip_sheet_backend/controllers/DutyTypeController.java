@@ -32,7 +32,7 @@ public class DutyTypeController extends GlobalBaseController<DutyType, UUID>{
     this.service = service;
   }
 
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+  @PreAuthorize("hasAnyRole('SUPER_ADMIN')")
   @PostMapping("/create_duty_type")
   public ResponseEntity<ApiResponse<DutyType>> create_duty_type(@RequestBody DutyType body) {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();

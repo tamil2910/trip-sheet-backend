@@ -12,9 +12,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,16 +26,14 @@ import com.example.trip_sheet_backend.dtos.RoleGroupDtos.RoleGroupDTO;
 import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.Tenant;
-import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.PermissionRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
-import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
-import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.RoleGroupService.RoleGroupServiceImp;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 
 
 @RestController
@@ -44,74 +42,62 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
   private final RoleGroupServiceImp service;
   private final TenantRepository tenantRepository;
   private final PermissionRepository permissionRepository;
-  private final UserAccountRepository userAccountRepository;
   // private ModelMapper mapper;
-  private final JwtTokenUtil jwtTokenUtil;
   public RoleGroupController(RoleGroupServiceImp service,
-    TenantRepository tenantRepository, JwtTokenUtil jwtTokenUtil, 
-    PermissionRepository permissionRepository, UserAccountRepository userAccountRepository) {
+    TenantRepository tenantRepository, 
+    PermissionRepository permissionRepository) {
     super(service);
     this.service = service;
     // this.mapper = mapper;
     this.tenantRepository = tenantRepository;
-    this.jwtTokenUtil = jwtTokenUtil;
     this.permissionRepository = permissionRepository;
-    this.userAccountRepository = userAccountRepository;
   }
 
-  @PostMapping("/add")
+  @PostMapping("/create")
   // @PreAuthorize("hasAuthority('ROLE_GROUP_CREATE')")
   @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
   public ResponseEntity<ApiResponse<RoleGroupDTO>> create(HttpServletRequest request,
      @Valid @RequestBody RoleGroupCreateDTO body) {
-
       
-      if (body.getPermissionIds() == null || body.getPermissionIds().isEmpty()) {
-        throw new RuntimeException("Permission IDs must not be empty or null");
-      }
-      
-      Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-      String createdBy = (String) auth.getDetails();
+    if (body.getPermissionIds() == null || body.getPermissionIds().isEmpty()) {
+      throw new RuntimeException("Permission IDs must not be empty or null");
+    }
+    
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    
+    if (!(tenant.getId()).equals(body.getTenantId())) {
+      throw new RuntimeException("illegal Access! Tenant id is not matching with user account!");
+    }
 
-      String token = request.getHeader("Authorization").replace("Bearer ", "");
-      UUID user_id = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
+    tenant = tenantRepository.findById(tenant.getId())
+      .orElseThrow(() -> new RuntimeException("Tenant resource not found!"));
 
-      UserAccount userAccount = userAccountRepository.findById(user_id).orElseThrow(() -> new RuntimeException("UserAccount resource not found!"));
-      
-      Tenant tenant = userAccount.getTenant();
-      
-      if (!(tenant.getId()).equals(body.getTenantId())) {
-        throw new RuntimeException("illegal Access! Tenant id is not matching with user account!");
-      }
+    RoleGroup roleGroup = new RoleGroup();
 
-      tenant = tenantRepository.findById(tenant.getId())
-        .orElseThrow(() -> new RuntimeException("Tenant resource not found!"));
+    boolean exists = this.service.existsByTenantIdAndName(tenant.getId(), body.getName());
+    if (exists) {
+        throw new RuntimeException("RoleGroup name already exists for this tenant!");
+    }
 
-      RoleGroup roleGroup = new RoleGroup();
+    roleGroup.setName(body.getName());
+    UUID createdBy = (UUID) request.getAttribute("createdBy");
+    roleGroup.setCreatedBy(createdBy.toString());
+    roleGroup.setTenant(tenant);
+    
+    // Fetch permissions
+    Set<Permission> perms =
+    permissionRepository.findAllById(body.getPermissionIds())
+    .stream().collect(Collectors.toSet());
+    
+    roleGroup.setPermissions(perms);
+    
+    // Save
+    RoleGroup result = this.service.createResource(tenant.getId(), roleGroup);
 
-      boolean exists = this.service.existsByTenantIdAndName(tenant.getId(), body.getName());
-      if (exists) {
-          throw new RuntimeException("RoleGroup name already exists for this tenant!");
-      }
-
-      roleGroup.setName(body.getName());
-      roleGroup.setCreatedBy(createdBy);
-      roleGroup.setTenant(tenant);
-      
-      // Fetch permissions
-      Set<Permission> perms =
-      permissionRepository.findAllById(body.getPermissionIds())
-      .stream().collect(Collectors.toSet());
-      
-      roleGroup.setPermissions(perms);
-      
-      // Save
-      RoleGroup result = this.service.createResource(tenant.getId(), roleGroup);
-
-       // Convert to DTO
-      RoleGroupDTO dto = new RoleGroupDTO(result);
-      return ResponseEntity.status(HttpStatus.CREATED)
-              .body(new ApiResponse<>(true, "Resource Created Successfully!", dto));
+      // Convert to DTO
+    RoleGroupDTO dto = new RoleGroupDTO(result);
+    return ResponseEntity.status(HttpStatus.CREATED)
+            .body(new ApiResponse<>(true, "Resource Created Successfully!", dto));
   }
   
 
@@ -119,16 +105,9 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
   public ResponseEntity<ApiResponse<?>> getAll(HttpServletRequest request, @RequestBody(required = false) Map<String, Object> filters,
     Pageable pageable) {
 
-    String token = request.getHeader("Authorization").replace("Bearer ", "");
-    UUID user_id = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
 
-    UserAccount userAccount = userAccountRepository.findById(user_id).orElseThrow(() -> new RuntimeException("UserAccount resource not found!"));
-
-    UUID tenantId = userAccount.getTenant().getId();
-    System.out.println(tenantId);
-
-    Page<RoleGroupDTO> result = this.service.getAllWithDTO(userAccount.getTenant().getId(), pageable);
-
+    Page<RoleGroupDTO> result = this.service.getAllWithDTO(tenantId, pageable);
 
     Map<String, Object> response = new HashMap<>();
     response.put("data", result.getContent());
@@ -144,6 +123,62 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
     return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", response)); 
   }
 
-  
+  @GetMapping("/byId/{id}")
+  public ResponseEntity<ApiResponse<RoleGroup>> getRoleGroupById(@PathVariable @NotNull UUID id, HttpServletRequest request) {
+
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+    RoleGroup result = this.service.findByIdResource(tenantId, id);
+    if (result == null) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Resource not found", null));
+    }
+    return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", result));
+  }
+
+  public ResponseEntity<ApiResponse<RoleGroup>> updateRoleGroup(@PathVariable @NotNull UUID id, @Valid @RequestBody RoleGroup payload, HttpServletRequest request) {
+
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+
+    UUID userId = (UUID) request.getAttribute("userId");
+
+    payload.setUpdatedBy(userId.toString());
+
+    RoleGroup result = this.service.updateResource(tenantId,id, payload);
+
+    return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", result));
+  }
+
+  @DeleteMapping("/delete/{id}")
+  public ResponseEntity<ApiResponse<Void>> deleteRoleGroup(@PathVariable @NotNull UUID id, HttpServletRequest request) {
+
+    UUID tenantId = request.getAttribute("tenantId") == null ? null : (UUID) request.getAttribute("tenantId");
+
+    RoleGroup existing = baseService.findByIdResource(tenantId, id);
+
+    if (existing == null) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Resource not found", null));
+    }
+
+    this.baseService.deleteResource(tenantId, id);
+
+    return ResponseEntity.ok().body(new ApiResponse<>(true, "Resource deleted successfully", null));
+  }
+
+  @GetMapping("/search")
+  public ApiResponse<Map<String, Object>> search(
+    @RequestBody(required = false) Map<String, Object> filters,
+    Pageable pageable, HttpServletRequest request
+  ) {
+      UUID tenantId = (UUID) request.getAttribute("tenantId");
+      Page<RoleGroup> result = this.service.searchResources(tenantId, filters, pageable);
+
+      Map<String, Object> response = new HashMap<>();
+      response.put("data", result.getContent());
+      response.put("currentPage", result.getNumber());
+      response.put("totalItems", result.getTotalElements());
+      response.put("totalPages", result.getTotalPages());
+      response.put("pageSize", result.getSize());
+
+      return new ApiResponse<>(true, "Search success", response);
+  }
 
 }
