@@ -35,12 +35,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             String token = header.substring(7);
 
             try {
-                String email = jwtTokenUtil.getUsernameFromToken(token);
+                String userId = jwtTokenUtil.getUserIdFromSubject(token);
                 String role = jwtTokenUtil.getRoleFromToken(token);
                 String accountId = jwtTokenUtil.getUserIdFromToken(token);
                 List<String> permissions = jwtTokenUtil.getPermissionsFromToken(token);
 
-                if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 
                     List<GrantedAuthority> authorities = new ArrayList<>();
 
@@ -51,15 +51,20 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                         }
                     }
 
+                    String tenantId = jwtTokenUtil.getTenantIdFromToken(token);
+                    if (tenantId != null) {
+                        authorities.add(new SimpleGrantedAuthority("TENANT_" + tenantId));
+                    }
                     // Role as ROLE_XXX for hasRole() support
-                    if (role != null) {
+                    if (role != null  && !role.isBlank()) {
                         authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
                     }
 
                     UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(email, null, authorities);
+                            new UsernamePasswordAuthenticationToken(accountId, null, authorities);
 
-                    authToken.setDetails(accountId);
+                    authToken.setDetails(userId);
+                    // authToken.setDetails(accountId);
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
 
@@ -69,44 +74,5 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
-    }
-
-    // @Override
-    // protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
-    //         throws ServletException, IOException {
-
-    //     String header = request.getHeader("Authorization");
-
-    //     if (header != null && header.startsWith("Bearer ")) {
-    //         String token = header.substring(7);
-
-    //         try {
-    //             String email = jwtTokenUtil.getUsernameFromToken(token);
-    //             String role = jwtTokenUtil.getRoleFromToken(token);
-    //             String accountId = jwtTokenUtil.getUserIdFromToken(token);
-
-    //             if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-    //                 UserDetails userDetails = User.builder()
-    //                         .username(email)
-    //                         .password("") // password not needed, JWT is trusted
-    //                         .roles(role)
-    //                         .build();
-
-    //                 UsernamePasswordAuthenticationToken authToken =
-    //                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-
-    //                 authToken.setDetails(accountId);
-    //                 // authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-
-    //                 SecurityContextHolder.getContext().setAuthentication(authToken);
-    //             }
-
-    //         } catch (Exception e) {
-    //             System.out.println("❌ Invalid JWT: " + e.getMessage());
-    //         }
-    //     }
-
-    //     filterChain.doFilter(request, response);
-    // }
-    
+    }    
 }

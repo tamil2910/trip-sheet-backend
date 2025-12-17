@@ -63,7 +63,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   }
 
   /** -------------------- READ BY ID -------------------- **/
-  @GetMapping("/{id}")
+  @GetMapping
   // @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN', 'DRIVER')")
   public ApiResponse<T> getById(@PathVariable @NotNull ID id, HttpServletRequest request) {
 
@@ -159,8 +159,13 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
       UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
       
       UserAccount user = userAccountService.findByIdResource(userId);
-      System.out.println(user.getTenant().getTenantName());
       return user.getTenant().getId();  
+  }
+
+  protected String getCreatePermission() {
+    String controllerName = this.getClass().getSimpleName(); // DriverController
+    String entityName = controllerName.replace("Controller", ""); // Driver
+    return "CAN_CREATE_" + entityName.toUpperCase(); // CAN_CREATE_DRIVER
   }
 
 

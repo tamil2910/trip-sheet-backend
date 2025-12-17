@@ -48,7 +48,7 @@ public class TenantInterceptor implements HandlerInterceptor {
       return true;
     }
 
-        // Normal Users → set tenantId
+    // Normal Users → set tenantId
     Tenant tenant = user.getTenant();
     if (tenant == null) {
         throw new RuntimeException("User does not belong to any tenant");

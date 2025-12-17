@@ -33,7 +33,7 @@ public class DutyTypeCustomName extends BaseModel implements TenantScoped {
   @JoinColumn(name = "duty_type_id")
   private DutyType dutyType;
 
-  @NotNull(message = "Tenant id is required")
+  // @NotNull(message = "Tenant id is required")
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;

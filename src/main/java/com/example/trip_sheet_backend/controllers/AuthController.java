@@ -21,6 +21,7 @@ import com.example.trip_sheet_backend.dtos.UserAccountDtos.UserAccountByFormDto;
 import com.example.trip_sheet_backend.models.Admin;
 import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.Role;
+import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.AdminRepository;
 import com.example.trip_sheet_backend.repositories.PermissionRepository;
@@ -139,17 +140,19 @@ public class AuthController {
 
     UserAccount user = foundUser.get();
 
-    // Load permissions from RoleGroup
+    // Load permissions from all assigned RoleGroups
     Set<String> effectivePermissions;
-    if (user.getRoleGroup() != null && user.getRoleGroup().getPermissions() != null) {
-        effectivePermissions = user.getRoleGroup()
-                .getPermissions()
-                .stream()
+
+    if (user.getRoleGroups() != null && !user.getRoleGroups().isEmpty()) {
+        effectivePermissions =
+            user.getRoleGroups().stream()
+                .flatMap(group -> group.getPermissions().stream())
                 .map(Permission::getName)
                 .collect(Collectors.toSet());
     } else {
         effectivePermissions = Set.of();
     }
+
 
     // Generate JWT
     String token = jwtTokenUtil.generateToken(
@@ -163,7 +166,12 @@ public class AuthController {
     LoginUserResponseDTO dto = new LoginUserResponseDTO();
     dto.setId(user.getId());
     dto.setRole(user.getRole() != null ? user.getRole().getName() : null);
-    dto.setRoleGroup(user.getRoleGroup() != null ? user.getRoleGroup().getName() : null);
+    dto.setRoleGroups(
+        user.getRoleGroups()
+            .stream()
+            .map(RoleGroup::getName)
+            .collect(Collectors.toSet())
+    );
     dto.setUsername(user.getUsername());
     // dto.setTenantType(user.getTenantType() != null ? user.getTenantType().name() : null);
 
@@ -279,11 +287,25 @@ public class AuthController {
               throw new RuntimeException("User role cannot be null before token generation");
           }
 
+          // Load permissions from user's role groups
+            Set<String> effectivePermissions;
+
+            if (user.getRoleGroups() != null && !user.getRoleGroups().isEmpty()) {
+                effectivePermissions =
+                    user.getRoleGroups().stream()
+                        .flatMap(g -> g.getPermissions().stream())
+                        .map(Permission::getName)
+                        .collect(Collectors.toSet());
+            } else {
+                effectivePermissions = Set.of(); // No permissions assigned yet
+            }
+
+
           String token = jwtTokenUtil.generateToken(
-                  user.getEmail(),
-                  user.getRole().getName(),
-                  "google",
-                  user.getId(), null
+            user,
+            effectivePermissions,
+            "login",
+            user.getEmail()
           );
 
           Map<String, Object> response = new HashMap<>();

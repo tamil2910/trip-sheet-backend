@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.security.SecurityProperties.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -107,6 +108,8 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
       // IMPORTANT — TENANT SECURITY CHECK HERE
       if (!roleGroup.getTenant().getId().equals(userAccount.getTenant().getId())) 
         throw new RuntimeException("RoleGroup does not belong to this tenant!");
+
+      payload.getRoleGroups().add(roleGroup);
     }
 
     // Encrypt password BEFORE save
@@ -116,8 +119,6 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
 
     // Assign Role entity
     payload.setRole(role);
-
-    payload.setRoleGroup(roleGroup);
 
     payload.setCreatedBy(createdBy);
 
@@ -143,19 +144,19 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
       }
       
      // logged-in admin
-      String token = request.getHeader("Authorization").replace("Bearer ", "");
-      UUID adminUserId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
+      UUID adminUserId = (UUID) request.getAttribute("userId");
+      UserAccount adminUserAccount = (UserAccount) request.getAttribute("user");
 
-      UserAccount adminUserAccount = userAccountRepository.findById(adminUserId)
-        .orElseThrow(() -> new RuntimeException("Admin not found!"));
+      // UserAccount adminUserAccount = userAccountRepository.findById(adminUserId)
+      //   .orElseThrow(() -> new RuntimeException("Admin not found!"));
 
-      if (adminUserAccount.getTenant() == null) {
-          throw new RuntimeException("Admin does not belong to any tenant!");
-      }
+      // if (adminUserAccount.getTenant() == null) {
+      //     throw new RuntimeException("Admin does not belong to any tenant!");
+      // }
 
       //  user we are updating
       UserAccount user = userAccountRepository.findById(userId)
-            .orElseThrow(() -> new RuntimeException("User not found!"));
+            .orElseThrow(() -> new RuntimeException("Assigned User not found!"));
 
       if (!user.getTenant().getId().equals(adminUserAccount.getTenant().getId())) {
         throw new RuntimeException("Illegal Access! User belongs to another tenant!");
@@ -172,7 +173,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
       }
 
       // assign
-      user.setRoleGroup(roleGroup);
+      user.getRoleGroups().add(roleGroup);
 
       // optional tracking
       user.setUpdatedBy(adminUserAccount.getId().toString());

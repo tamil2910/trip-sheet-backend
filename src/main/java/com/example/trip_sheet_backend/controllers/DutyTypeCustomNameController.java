@@ -6,12 +6,10 @@ import java.util.UUID;
 import org.modelmapper.ModelMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.DutyTypeDtos.DutyTypeCreateRequestDto;
 import com.example.trip_sheet_backend.models.DutyType;
@@ -20,42 +18,45 @@ import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.DutyType.typeDuty;
 import com.example.trip_sheet_backend.repositories.DutyTypeCustomNamesRepository;
 import com.example.trip_sheet_backend.repositories.DutyTypeRepository;
-import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.DutyTypeCustomNamesService.DutyTypeCustomNamesService;
 import com.example.trip_sheet_backend.services.DutyTypeService.DutyTypeService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
-@RequestMapping("custom_duty_type")
+
+@RestController
+@RequestMapping("/custom_duty_type")
 public class DutyTypeCustomNameController {
 
   private final DutyTypeCustomNamesService service;
   private final DutyTypeService dutyTypeservice;
   private final DutyTypeCustomNamesRepository customNamesRepository;
   private ModelMapper mapper;
-  private final TenantRepository tenantRepository;
 
-  public DutyTypeCustomNameController(DutyTypeCustomNamesService service, ModelMapper mapper, DutyTypeService dutyTypeservice, DutyTypeRepository dutyTypeRepository, DutyTypeCustomNamesRepository customNamesRepository, TenantRepository tenantRepository) {
+  public DutyTypeCustomNameController(DutyTypeCustomNamesService service, ModelMapper mapper, DutyTypeService dutyTypeservice, DutyTypeRepository dutyTypeRepository, DutyTypeCustomNamesRepository customNamesRepository) {
     this.service = service;
     this.dutyTypeservice = dutyTypeservice;
     this.customNamesRepository = customNamesRepository;
     this.mapper = mapper;
-    this.tenantRepository = tenantRepository;
   }
   
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+//   @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
   @PostMapping("/create")
-  public ResponseEntity<ApiResponse<?>> create_duty_type(
-          @Valid @RequestBody DutyTypeCreateRequestDto body) {
+  public ResponseEntity<ApiResponse<DutyTypeCustomName>> create_duty_type(
+          @Valid @RequestBody DutyTypeCreateRequestDto body, HttpServletRequest request) {
 
-      Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-      String createdBy = (String) auth.getDetails();
+        String createdBy = (String) request.getAttribute("createdBy");
+        // UUID userId = (UUID) request.getAttribute("userId");
+        UUID tenantId = (UUID) request.getAttribute("tenantId");
+        Tenant tenant = (Tenant) request.getAttribute("tenant");
+
+
 
       if (body.getTypeOfDuty() == null) {
           return ResponseEntity.badRequest()
                   .body(new ApiResponse<>(false, "type_of_duty is required", null));
       }
-
       typeDuty dutyType = body.getTypeOfDuty();
 
       DutyType payload = mapper.map(body, DutyType.class);
@@ -175,9 +176,10 @@ public class DutyTypeCustomNameController {
 
       // 🍀 NOW CREATE CUSTOM DUTY TYPE
       // Check duplicate for same tenant + dutyType
-      UUID tenantId =  UUID.fromString(body.getTenant_id());
-      Tenant tenant = this.tenantRepository.findById(tenantId)
-        .orElseThrow(() -> new RuntimeException("Tenant not found"));
+      
+    //   Tenant tenant = this.tenantRepository.findById(tenantId)
+    //     .orElseThrow(() -> new RuntimeException("Tenant not found"));
+
       Optional<DutyTypeCustomName> customExists =
               customNamesRepository.findByDutyTypeIdAndTenantId(savedDutyType.getId(), tenantId);
 

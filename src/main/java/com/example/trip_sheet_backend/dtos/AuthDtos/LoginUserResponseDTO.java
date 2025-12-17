@@ -17,7 +17,7 @@ public class LoginUserResponseDTO {
     // private String email;
     // private String phone;
     private String role;
-    private String roleGroup; // only name
+    private Set<String> roleGroups;
     private UUID tenantId;
     private String tenantName;
     // private Tenant.TenantType tenantType;

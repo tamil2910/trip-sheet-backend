@@ -62,7 +62,12 @@ public class JwtTokenUtil {
                 .claim("type", type)
                 .claim("user_id", user.getId().toString())
                 .claim("permissions", permissions) 
-                .claim("identifier", identifier)        // NEW
+                .claim("identifier", identifier)
+                .claim("tenant_id", user.getTenant() != null ? user.getTenant().getId().toString() : null)
+                .claim("tenant_name", user.getTenant() != null ? user.getTenant().getTenantName() : null)
+                .claim("tenant_type", user.getTenant() != null && user.getTenant().getTenantType() != null
+                                ? user.getTenant().getTenantType().name()
+                                : null)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -79,8 +84,8 @@ public class JwtTokenUtil {
         }
     }
 
-    // ✅ Extract email (subject)
-    public String getUsernameFromToken(String token) {
+    // ✅ Extract userId (subject)
+    public String getUserIdFromSubject(String token) {
         return getClaimFromToken(token, Claims::getSubject);
     }
 
@@ -129,6 +134,11 @@ public class JwtTokenUtil {
         }
         return List.of(); // return empty list if none
     }
+
+    public String getTenantIdFromToken(String token) {
+        return getAllClaimsFromToken(token).get("tenant_id", String.class);
+    }
+
 
 
 }
