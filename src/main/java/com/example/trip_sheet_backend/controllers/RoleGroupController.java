@@ -56,7 +56,7 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
   @PostMapping("/create")
   // @PreAuthorize("hasAuthority('ROLE_GROUP_CREATE')")
   @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
-  public ResponseEntity<ApiResponse<RoleGroupDTO>> create(HttpServletRequest request,
+  public ResponseEntity<ApiResponse<RoleGroupDTO>> createRoleGroup(HttpServletRequest request,
      @Valid @RequestBody RoleGroupCreateDTO body) {
       
     if (body.getPermissionIds() == null || body.getPermissionIds().isEmpty()) {
@@ -102,7 +102,7 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
   
 
   @GetMapping("/all")
-  public ResponseEntity<ApiResponse<?>> getAll(HttpServletRequest request, @RequestBody(required = false) Map<String, Object> filters,
+  public ResponseEntity<ApiResponse<?>> getAllRoleGroup(HttpServletRequest request, @RequestBody(required = false) Map<String, Object> filters,
     Pageable pageable) {
 
     UUID tenantId = (UUID) request.getAttribute("tenantId");
