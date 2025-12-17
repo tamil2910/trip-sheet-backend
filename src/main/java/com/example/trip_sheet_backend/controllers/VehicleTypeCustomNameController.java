@@ -6,8 +6,8 @@ import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
+// import org.springframework.security.core.Authentication;
+// import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.common.controllers.BaseController;
 import com.example.trip_sheet_backend.dtos.VehicleTypeDtos.VehicleTypeCreateRequestDto;
 import com.example.trip_sheet_backend.models.Tenant;
-import com.example.trip_sheet_backend.models.UserAccount;
+// import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VehicleType;
 import com.example.trip_sheet_backend.models.VehicleType.typeVehicle;
 import com.example.trip_sheet_backend.models.VehicleTypeCustomName;
@@ -41,8 +41,8 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
 
   // private final VehicleTypeCustomNamesService service;
   private final VehicleTypeService vehicleTypeService;
-  private final TenantService tenantService;
-  private final UserAccountRepository userAccountRepository;
+  // private final TenantService tenantService;
+  // private final UserAccountRepository userAccountRepository;
 
   public VehicleTypeCustomNameController(VehicleTypeCustomNamesRepository repository, VehicleTypeCustomNamesService service, 
     VehicleTypeRepository vehicleTypeRepository, VehicleTypeService vehicleTypeService, TenantService tenantService,
@@ -52,26 +52,18 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
     this.vehicleTypeRepository = vehicleTypeRepository;
     // this.service = service;
     this.vehicleTypeService = vehicleTypeService;
-    this.tenantService = tenantService;
-    this.userAccountRepository = userAccountRepository;
+    // this.tenantService = tenantService;
+    // this.userAccountRepository = userAccountRepository;
   }
 
   @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
   @PostMapping("/add")
   public ResponseEntity<ApiResponse<VehicleTypeCustomName>> create_vehicle_type(@Valid @RequestBody VehicleTypeCreateRequestDto body, HttpServletRequest request) {
 
-    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    String createdBy = (String) auth.getDetails();
-
-    String token = request.getHeader("Authorization").replace("Bearer ", "");
-    UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
-
-    UserAccount userAccount = userAccountRepository.findById(userId)
-    .orElseThrow(() -> new RuntimeException("User not found!"));
-
-    if (userAccount.getTenant() == null) {
-        throw new RuntimeException("User does not belong to any tenant!");
-    }
+    // UUID userId = (UUID) request.getAttribute("userId");
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    String createdBy = (String) request.getAttribute("createdBy");
 
     if (body.getTypeOfVehicle() == null || body.getSeatCount() == null) {
       return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Type of vehicle and seat count are required to add vehicle type", null));
@@ -84,17 +76,17 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
 
     switch (type_of_vehicle) {
       case SEDAN, HATCHBACK -> {
-        if (body.getSeatCount() < 4 && body.getSeatCount() > 5) {
+        if (body.getSeatCount() < 4 || body.getSeatCount() > 5) {
           return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Seat count either can be 4 or 5 for sedan (or) hatchback vehicle type", null));
         }
       }
       case SUV -> {
-        if (body.getSeatCount() < 5 && body.getSeatCount() > 7) {
+        if (body.getSeatCount() < 5 || body.getSeatCount() > 7) {
           return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Seat count either can be 5 or 7 for sedan (or) hatchback vehicle type", null));
         }
       }
       case MUV -> {
-        if (body.getSeatCount() < 5 && body.getSeatCount() > 9) {
+        if (body.getSeatCount() < 5 || body.getSeatCount() > 9) {
           return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Seat count either can be 7 or 9 for sedan (or) hatchback vehicle type", null));
         }
       }
@@ -121,9 +113,7 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
     }
 
     // 3. Now handle customName table
-
-    Tenant tenant = this.tenantService.findByIdResource(userAccount.getTenant().getId());
-    Optional<VehicleTypeCustomName> customExist = this.repository.findByVehicleType_IdAndTenant_Id(vt.getId(), tenant.getId());
+    Optional<VehicleTypeCustomName> customExist = this.repository.findByVehicleType_IdAndTenant_Id(vt.getId(), tenantId);
 
     if (customExist.isPresent()) {
     return ResponseEntity.status(HttpStatus.BAD_REQUEST)
