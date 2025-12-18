@@ -24,6 +24,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.common.controllers.BaseController;
 import com.example.trip_sheet_backend.dtos.RoleGroupDtos.RoleGroupCreateDTO;
 import com.example.trip_sheet_backend.dtos.RoleGroupDtos.RoleGroupDTO;
+import com.example.trip_sheet_backend.dtos.RoleGroupDtos.RoleGroupResponseDto;
+import com.example.trip_sheet_backend.dtos.RoleGroupDtos.RoleGroupUpdateDto;
 import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.Tenant;
@@ -125,10 +127,10 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
   }
 
   @GetMapping("/byId/{id}")
-  public ResponseEntity<ApiResponse<RoleGroup>> getRoleGroupById(@PathVariable @NotNull UUID id, HttpServletRequest request) {
+  public ResponseEntity<ApiResponse<RoleGroupResponseDto>> getRoleGroupById(@PathVariable @NotNull UUID id, HttpServletRequest request) {
 
     UUID tenantId = (UUID) request.getAttribute("tenantId");
-    RoleGroup result = this.service.findByIdResource(tenantId, id);
+    RoleGroupResponseDto result = this.service.getById(tenantId, id);
     if (result == null) {
       return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Resource not found", null));
     }
@@ -136,15 +138,15 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
   }
 
   @PutMapping("/update/{id}")
-  public ResponseEntity<ApiResponse<RoleGroup>> updateRoleGroup(@PathVariable @NotNull UUID id, @Valid @RequestBody RoleGroup payload, HttpServletRequest request) {
+  public ResponseEntity<ApiResponse<RoleGroup>> updateRoleGroup(@PathVariable @NotNull UUID id, @Valid @RequestBody RoleGroupUpdateDto dto, HttpServletRequest request) {
 
     UUID tenantId = (UUID) request.getAttribute("tenantId");
+    // System.out.println(tenantId + " Tenant id is here!");
 
     UUID userId = (UUID) request.getAttribute("userId");
+    dto.setUpdatedBy(userId.toString());
 
-    payload.setUpdatedBy(userId.toString());
-
-    RoleGroup result = this.service.updateResource(tenantId,id, payload);
+    RoleGroup result = this.service.updateRoleGroup(tenantId, id, dto, userId);
 
     return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", result));
   }

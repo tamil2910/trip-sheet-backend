@@ -64,7 +64,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   }
 
   /** -------------------- READ BY ID -------------------- **/
-  @PreAuthorize("hasAuthority(@permissionResolver.readPermission(#root.this))")
+  // @PreAuthorize("hasAuthority(@permissionResolver.readPermission(#root.this))")
   @GetMapping("/{id}")
   public ApiResponse<T> getById(@PathVariable @NotNull ID id, HttpServletRequest request) {
 
@@ -77,7 +77,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   }
 
   /** -------------------- READ ALL (PAGINATION) -------------------- **/
-  @PreAuthorize("hasAuthority(@permissionResolver.readPermission(#root.this))")
+  // @PreAuthorize("hasAuthority(@permissionResolver.readPermission(#root.this))")
   @GetMapping
   public ApiResponse<Map<String, Object>> getAll(@RequestBody(required = false) Map<String, Object> filters,
     Pageable pageable,
@@ -101,17 +101,17 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   }
 
   /** -------------------- UPDATE -------------------- **/
-  @PreAuthorize("hasAuthority(@permissionResolver.updatePermission(#root.this))")
+  // @PreAuthorize("hasAuthority(@permissionResolver.updatePermission(#root.this))")
   @PutMapping("/{id}")
   public ApiResponse<T> update(@PathVariable @NotNull ID id, @Valid @RequestBody T payload, HttpServletRequest request) {
 
-    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    String updatedBy = (String) auth.getDetails();
+    // Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+    // String updatedBy = (String) auth.getDetails();
 
-    if (payload instanceof BaseModel base) {
-      base.setUpdatedBy(updatedBy);
-    }
-
+    // if (payload instanceof BaseModel base) {
+    //   base.setUpdatedBy(updatedBy);
+    // }
+    
     UUID tenantId = getCurrentTenantId(request);
     T result = baseService.updateResource(tenantId,id, payload);
 
