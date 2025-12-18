@@ -10,6 +10,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -172,7 +173,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     );
   }
 
-  @RequestMapping("/my-profile")
+  @GetMapping("/my-profile")
   public ResponseEntity<ApiResponse<UserAccount>> getMyProfileData(HttpServletRequest request) {
     UserAccount user = request.getAttribute("user") == null ? null : (UserAccount) request.getAttribute("user");
     return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", user));
