@@ -67,7 +67,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     @Valid @RequestBody UserAccountByFormDto body) {
 
     UUID tenantId = (UUID) request.getAttribute("tenantId");
-    String createdBy = (String) request.getAttribute("createdBy");
+    UUID createdBy = (UUID) request.getAttribute("createdBy");
     UserAccount userAccount = (UserAccount) request.getAttribute("user");
 
     if (body.getEmail() != null && userAccountRepository.existsByEmail(body.getEmail())) {
@@ -108,7 +108,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     // Assign Role entity
     payload.setRole(role);
 
-    payload.setCreatedBy(createdBy);
+    payload.setCreatedBy(createdBy.toString());
 
     payload.setCreatedByUser(userAccount);  
     
