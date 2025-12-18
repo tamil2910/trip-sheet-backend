@@ -54,12 +54,14 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
             HttpServletRequest request,
             @Valid @RequestBody Tenant body
     ) {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String createdBy = (String) auth.getDetails();
-        body.setCreatedBy(createdBy);
 
-        String token = request.getHeader("Authorization").replace("Bearer ", "");
-        UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
+        String createdBy = (String) request.getAttribute("createdBy");
+        UUID userId = (UUID) request.getAttribute("userId");
+        UUID tenantId = (UUID) request.getAttribute("tenantId");
+
+        if(tenantId != null) {
+                
+        }
 
         Admin admin = adminRepository.findByUserAccountId(userId)
                 .orElseThrow(() -> new RuntimeException("Admin not found"));
@@ -67,6 +69,7 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
         // Assign admin who created the tenant
         body.setAdmin(admin);
         body.setIsActive(true);
+        body.setCreatedBy(createdBy);
 
         // Create tenant globally (no tenantId filtering)
         Tenant createdTenant = service.create(body);

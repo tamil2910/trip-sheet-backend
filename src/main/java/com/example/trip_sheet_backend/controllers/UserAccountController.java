@@ -4,7 +4,6 @@ import java.util.UUID;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.security.SecurityProperties.User;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -66,18 +65,9 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     HttpServletRequest request, 
     @Valid @RequestBody UserAccountByFormDto body) {
 
-    String token = request.getHeader("Authorization").replace("Bearer ", "");
-
-    UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
-
-    UserAccount userAccount = userAccountRepository
-            .findById(userId)
-            .orElseThrow(() -> new RuntimeException("Admin resource not found!"));
-
-    if (userAccount.getTenant() == null) {
-      throw new RuntimeException("Tenant resource not found to add user!");
-    }
-    
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+    String createdBy = (String) request.getAttribute("createdBy");
+    UserAccount userAccount = (UserAccount) request.getAttribute("user");
 
     if (body.getEmail() != null && userAccountRepository.existsByEmail(body.getEmail())) {
       throw new RuntimeException("Email already exists");
@@ -86,9 +76,6 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     if (body.getPhone() != null && userAccountRepository.existsByPhone(body.getPhone())) {
         throw new RuntimeException("Phone already exists");
     }
-
-    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    String createdBy = (String) auth.getDetails();
 
     UserAccount payload = mapper.map(body, UserAccount.class);
 
@@ -106,7 +93,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
           .orElseThrow(() -> new RuntimeException("RoleGroup not found"));
   
       // IMPORTANT — TENANT SECURITY CHECK HERE
-      if (!roleGroup.getTenant().getId().equals(userAccount.getTenant().getId())) 
+      if (!roleGroup.getTenant().getId().equals(tenantId)) 
         throw new RuntimeException("RoleGroup does not belong to this tenant!");
 
       payload.getRoleGroups().add(roleGroup);
@@ -144,7 +131,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
       }
       
      // logged-in admin
-      UUID adminUserId = (UUID) request.getAttribute("userId");
+      // UUID adminUserId = (UUID) request.getAttribute("userId");
       UserAccount adminUserAccount = (UserAccount) request.getAttribute("user");
 
       // UserAccount adminUserAccount = userAccountRepository.findById(adminUserId)
@@ -185,5 +172,11 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     );
   }
 
+  @RequestMapping("/my-profile")
+  public ResponseEntity<ApiResponse<UserAccount>> getMyProfileData(HttpServletRequest request) {
+    UserAccount user = request.getAttribute("user") == null ? null : (UserAccount) request.getAttribute("user");
+    return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", user));
+  }
+  
 }
 

@@ -154,13 +154,13 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   }
 
   private UUID getCurrentTenantId(HttpServletRequest request) {
-
-      String token = request.getHeader("Authorization").replace("Bearer ", "");
-
-      UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
+      UUID tenantId = (UUID) request.getAttribute("tenantId");
       
-      UserAccount user = userAccountService.findByIdResource(userId);
-      return user.getTenant().getId();  
+      if (tenantId == null) {
+            throw new RuntimeException("Tenant not found!");
+      }
+      
+      return tenantId;  
   }
 
   protected String getCreatePermission() {
