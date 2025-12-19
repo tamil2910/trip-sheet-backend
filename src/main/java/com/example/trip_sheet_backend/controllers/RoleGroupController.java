@@ -114,10 +114,12 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
 
     Map<String, Object> response = new HashMap<>();
     response.put("data", result.getContent());
-    response.put("currentPage", result.getNumber());
+    response.put("currentPage", result.getNumber());           // page index (0-based)
+    response.put("pageSize", result.getSize());                // requested size
+    response.put("currentPageCount", result.getNumberOfElements()); // ⭐ NEW
     response.put("totalItems", result.getTotalElements());
     response.put("totalPages", result.getTotalPages());
-    response.put("pageSize", result.getSize());
+
     response.put("isFirst", result.isFirst());
     response.put("isLast", result.isLast());
     response.put("hasNext", result.hasNext());
@@ -177,10 +179,16 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
 
       Map<String, Object> response = new HashMap<>();
       response.put("data", result.getContent());
-      response.put("currentPage", result.getNumber());
+      response.put("currentPage", result.getNumber());           // page index (0-based)
+      response.put("pageSize", result.getSize());                // requested size
+      response.put("currentPageCount", result.getNumberOfElements()); // ⭐ NEW
       response.put("totalItems", result.getTotalElements());
       response.put("totalPages", result.getTotalPages());
-      response.put("pageSize", result.getSize());
+
+      response.put("isFirst", result.isFirst());
+      response.put("isLast", result.isLast());
+      response.put("hasNext", result.hasNext());
+      response.put("hasPrevious", result.hasPrevious());
 
       return new ApiResponse<>(true, "Search success", response);
   }

@@ -19,11 +19,11 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
 import com.example.trip_sheet_backend.common.services.BaseService;
 import com.example.trip_sheet_backend.models.TenantScoped;
-import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.UserAccountService.UserAccountService;
@@ -79,7 +79,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   /** -------------------- READ ALL (PAGINATION) -------------------- **/
   // @PreAuthorize("hasAuthority(@permissionResolver.readPermission(#root.this))")
   @GetMapping
-  public ApiResponse<Map<String, Object>> getAll(@RequestBody(required = false) Map<String, Object> filters,
+  public ApiResponse<Map<String, Object>> getAll(@RequestParam Map<String, Object> filters,
     Pageable pageable,
     HttpServletRequest request) {
 
@@ -88,10 +88,13 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
 
     Map<String, Object> response = new HashMap<>();
     response.put("data", result.getContent());
-    response.put("currentPage", result.getNumber());
+
+    response.put("currentPage", result.getNumber());           // page index (0-based)
+    response.put("pageSize", result.getSize());                // requested size
+    response.put("currentPageCount", result.getNumberOfElements()); // ⭐ NEW
     response.put("totalItems", result.getTotalElements());
     response.put("totalPages", result.getTotalPages());
-    response.put("pageSize", result.getSize());
+
     response.put("isFirst", result.isFirst());
     response.put("isLast", result.isLast());
     response.put("hasNext", result.hasNext());
@@ -137,7 +140,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   @GetMapping("/search")
   // @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
   public ApiResponse<Map<String, Object>> search(
-    @RequestBody(required = false) Map<String, Object> filters,
+    @RequestParam Map<String, Object> filters,
     Pageable pageable, HttpServletRequest request
   ) {
       UUID tenantId = getCurrentTenantId(request);
@@ -145,10 +148,17 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
 
       Map<String, Object> response = new HashMap<>();
       response.put("data", result.getContent());
-      response.put("currentPage", result.getNumber());
+
+      response.put("currentPage", result.getNumber());           // page index (0-based)
+      response.put("pageSize", result.getSize());                // requested size
+      response.put("currentPageCount", result.getNumberOfElements()); // ⭐ NEW
       response.put("totalItems", result.getTotalElements());
       response.put("totalPages", result.getTotalPages());
-      response.put("pageSize", result.getSize());
+
+      response.put("isFirst", result.isFirst());
+      response.put("isLast", result.isLast());
+      response.put("hasNext", result.hasNext());
+      response.put("hasPrevious", result.hasPrevious());
 
       return new ApiResponse<>(true, "Search success", response);
   }
@@ -156,9 +166,9 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   private UUID getCurrentTenantId(HttpServletRequest request) {
       UUID tenantId = (UUID) request.getAttribute("tenantId");
       
-      if (tenantId == null) {
-            throw new RuntimeException("Tenant not found!");
-      }
+      // if (tenantId == null) {
+      //       throw new RuntimeException("Tenant not found!");
+      // }
       
       return tenantId;  
   }
