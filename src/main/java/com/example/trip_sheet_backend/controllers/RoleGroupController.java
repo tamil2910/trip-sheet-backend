@@ -29,6 +29,7 @@ import com.example.trip_sheet_backend.dtos.RoleGroupDtos.RoleGroupUpdateDto;
 import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.PermissionRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -43,7 +44,7 @@ import jakarta.validation.constraints.NotNull;
 @RequestMapping("/role-group")
 public class RoleGroupController extends BaseController<RoleGroup, UUID>{
   private final RoleGroupServiceImp service;
-  private final TenantRepository tenantRepository;
+  // private final TenantRepository tenantRepository;
   private final PermissionRepository permissionRepository;
   // private ModelMapper mapper;
   public RoleGroupController(RoleGroupServiceImp service,
@@ -52,7 +53,7 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
     super(service);
     this.service = service;
     // this.mapper = mapper;
-    this.tenantRepository = tenantRepository;
+    // this.tenantRepository = tenantRepository;
     this.permissionRepository = permissionRepository;
   }
 
@@ -66,26 +67,50 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
       throw new RuntimeException("Permission IDs must not be empty or null");
     }
     
-    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    UserAccount currentUser = (UserAccount) request.getAttribute("user");
     
-    if (!(tenant.getId()).equals(body.getTenantId())) {
-      throw new RuntimeException("illegal Access! Tenant id is not matching with user account!");
-    }
+    // if (!(tenant.getId()).equals(body.getTenantId())) {
+    //   throw new RuntimeException("illegal Access! Tenant id is not matching with user account!");
+    // }
 
-    tenant = tenantRepository.findById(tenant.getId())
-      .orElseThrow(() -> new RuntimeException("Tenant resource not found!"));
+    // tenant = tenantRepository.findById(tenant.getId())
+    //   .orElseThrow(() -> new RuntimeException("Tenant resource not found!"));
 
     RoleGroup roleGroup = new RoleGroup();
 
-    boolean exists = this.service.existsByTenantIdAndName(tenant.getId(), body.getName());
-    if (exists) {
-        throw new RuntimeException("RoleGroup name already exists for this tenant!");
-    }
-
     roleGroup.setName(body.getName());
-    UUID createdBy = (UUID) request.getAttribute("createdBy");
-    roleGroup.setCreatedBy(createdBy.toString());
-    roleGroup.setTenant(tenant);
+    roleGroup.setCreatedBy(currentUser.getId().toString());
+
+    // ---------------- SUPER ADMIN FLOW ----------------
+    if (currentUser.getRole().getName().equals("SUPER_ADMIN")) {
+
+        // GLOBAL ROLE GROUP (NO TENANT)
+        roleGroup.setTenant(null);
+
+        boolean existsGlobal = this.service.existsByTenantIsNullAndName(body.getName());
+        if (existsGlobal) {
+            throw new RuntimeException("Global RoleGroup name already exists!");
+        }
+    }
+    // ---------------- ADMIN FLOW ----------------
+    else {
+
+        Tenant tenant = (Tenant) request.getAttribute("tenant");
+        if (tenant == null) {
+            throw new RuntimeException("Tenant context missing!");
+        }
+
+        if (!tenant.getId().equals(body.getTenantId())) {
+            throw new RuntimeException("Illegal access! Tenant mismatch.");
+        }
+
+        boolean exists = service.existsByTenantIdAndName(tenant.getId(), body.getName());
+        if (exists) {
+            throw new RuntimeException("RoleGroup already exists for this tenant!");
+        }
+
+        roleGroup.setTenant(tenant);
+    }
     
     // Fetch permissions
     Set<Permission> perms =
@@ -95,7 +120,8 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
     roleGroup.setPermissions(perms);
     
     // Save
-    RoleGroup result = this.service.createResource(tenant.getId(), roleGroup);
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+    RoleGroup result = this.baseService.createResource(tenantId,roleGroup);
 
       // Convert to DTO
     RoleGroupDTO dto = new RoleGroupDTO(result);

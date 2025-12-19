@@ -25,6 +25,7 @@ import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.AdminRepository;
 import com.example.trip_sheet_backend.repositories.PermissionRepository;
+import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -50,6 +51,7 @@ public class AuthController {
 
   private final UserAccountRepository userAccountRepository;
   private final JwtTokenUtil jwtTokenUtil;
+  private final RoleGroupRepository roleGroupRepository;
   @Autowired
   private final PasswordEncoder passwordEncoder;
   private final RoleRepository roleRepository;
@@ -61,16 +63,17 @@ public class AuthController {
   @Value("${GOOGLE_AUTH_CLIENT_ID}")
   private String googleClientId; // 👈 inject env variable here
   
-  public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, RoleRepository roleRepository, GoogleAuthService googleAuthService,
-    PasswordEncoder passwordEncoder, AdminRepository adminRepository,  ModelMapper mapper, PermissionRepository permissionRepository) {
+  public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, GoogleAuthService googleAuthService,
+    PasswordEncoder passwordEncoder, AdminRepository adminRepository,  ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository) {
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
-    this.roleRepository = roleRepository;
+    this.roleGroupRepository = roleGroupRepository;
     this.googleAuthService = googleAuthService;
     this.passwordEncoder = passwordEncoder;
     this.adminRepository = adminRepository;
     this.mapper = mapper;
     this.permissionRepository = permissionRepository;
+    this.roleRepository = roleRepository;
   }
 
   @PreAuthorize("permitAll()")
@@ -103,13 +106,22 @@ public class AuthController {
     UserAccount result = userAccountRepository.save(payload);
 
     if ("ADMIN".equals(body.getRole().getName())) {
-      Admin adminPayload = new Admin();
-      adminPayload.setUserAccount(result);
-      Admin adminResult = adminRepository.saveAndFlush(adminPayload);
 
-      return ResponseEntity.status(HttpStatus.CREATED)
+        RoleGroup preTenantGroup =
+            roleGroupRepository.findByNameAndTenantIsNull("ADMIN_PRE_TENANT")
+                .orElseThrow(() -> new RuntimeException("ADMIN_PRE_TENANT role group not found"));
+
+        result.getRoleGroups().add(preTenantGroup);
+        userAccountRepository.save(result);
+
+        Admin adminPayload = new Admin();
+        adminPayload.setUserAccount(result);
+        Admin adminResult = adminRepository.saveAndFlush(adminPayload);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
             .body(new ApiResponse<>(true, "Admin created successfully", adminResult));
     }
+
 
     return ResponseEntity.status(HttpStatus.CREATED)
             .body(new ApiResponse<>(true, "Resource created successfully", result));
@@ -211,114 +223,124 @@ public class AuthController {
     return new ApiResponse<>(true, "Login successful", response);
   }
 
-  @PostMapping("/google-signup")
-  public ApiResponse<Map<String, Object>> googleSignup(@RequestBody Map<String, Object> payload) {
-      try {
-          String idToken = (String) payload.get("idToken");
+    @PostMapping("/google-signup")
+    public ApiResponse<Map<String, Object>> googleSignup(@RequestBody Map<String, Object> payload) {
 
-          // ✅ Verify Google token
-          Payload googlePayload = this.googleAuthService.verifyToken(idToken);
-          if (googlePayload == null) {
-              return new ApiResponse<>(false, "Invalid Google ID token", null);
-          }
+        try {
+            String idToken = (String) payload.get("idToken");
 
-          String email = googlePayload.getEmail();
-          String name = (String) googlePayload.get("name");
-          String picture = (String) googlePayload.get("picture");
-          String googleId = googlePayload.getSubject();
+            // 1️⃣ Verify Google token
+            Payload googlePayload = googleAuthService.verifyToken(idToken);
+            if (googlePayload == null) {
+                return new ApiResponse<>(false, "Invalid Google ID token", null);
+            }
 
-          Optional<UserAccount> existingUser = userAccountRepository.findByEmail(email);
-          UserAccount user;
+            String email = googlePayload.getEmail();
+            String name = (String) googlePayload.get("name");
+            String picture = (String) googlePayload.get("picture");
+            String googleId = googlePayload.getSubject();
 
-          if (existingUser.isEmpty()) {
-              // ✅ Role resolution
-              Object roleObj = payload.get("role");
-              Role defaultRole = null;
+            Optional<UserAccount> existingUserOpt = userAccountRepository.findByEmail(email);
+            UserAccount user;
+            Role resolvedRole = null;
 
-              try {
-                  if (roleObj instanceof Map<?, ?> roleMap) {
-                      // Case 1: role = { "id": "uuid" }
-                      Object idObj = roleMap.get("id");
-                      if (idObj != null) {
-                          UUID roleId = UUID.fromString(idObj.toString());
-                          defaultRole = roleRepository.findById(roleId)
-                                  .orElseThrow(() -> new RuntimeException("Role not found for ID: " + roleId));
-                      }
-                  } else if (roleObj instanceof String roleStr) {
-                      // Case 2: role = "ADMIN" or "uuid"
-                      try {
-                          UUID roleId = UUID.fromString(roleStr);
-                          defaultRole = roleRepository.findById(roleId)
-                                  .orElseThrow(() -> new RuntimeException("Role not found for ID: " + roleId));
-                      } catch (IllegalArgumentException e) {
-                          // Not a UUID → treat as role name
-                          defaultRole = roleRepository.findByName(roleStr)
-                                  .orElseThrow(() -> new RuntimeException("Role not found for name: " + roleStr));
-                      }
-                  }
-              } catch (Exception e) {
-                  System.err.println("⚠️ Role resolution error: " + e.getMessage());
-              }
+            // 2️⃣ USER DOES NOT EXIST → CREATE
+            if (existingUserOpt.isEmpty()) {
 
-              // ✅ Fallback role
-              if (defaultRole == null) {
-                  defaultRole = roleRepository.findByName("USER")
-                          .orElseThrow(() -> new RuntimeException("Default role USER not found"));
-              }
+                // ---------- ROLE RESOLUTION ----------
+                Object roleObj = payload.get("role");
 
-              // ✅ Create new user
-              user = new UserAccount();
-              String baseName = name != null ? name : email.split("@")[0];
-              user.setUsername(generateUniqueUsername(baseName));
-              user.setEmail(email);
-              user.setGoogleId(googleId);
-              user.setProfilePicture(picture);
-              user.setRole(defaultRole);
-              user.setLoginType(UserAccount.LoginType.GOOGLE);
+                if (roleObj instanceof Map<?, ?> roleMap) {
+                    Object idObj = roleMap.get("id");
+                    if (idObj != null) {
+                        UUID roleId = UUID.fromString(idObj.toString());
+                        resolvedRole = roleRepository.findById(roleId)
+                                .orElseThrow(() -> new RuntimeException("Role not found for ID"));
+                    }
+                }
+                else if (roleObj instanceof String roleStr) {
+                    try {
+                        UUID roleId = UUID.fromString(roleStr);
+                        resolvedRole = roleRepository.findById(roleId)
+                                .orElseThrow(() -> new RuntimeException("Role not found for ID"));
+                    } catch (IllegalArgumentException ex) {
+                        resolvedRole = roleRepository.findByName(roleStr)
+                                .orElseThrow(() -> new RuntimeException("Role not found for name"));
+                    }
+                }
 
-              this.userAccountRepository.saveAndFlush(user);
-          } else {
-              user = existingUser.get();
-            //   System.out.println(user);
-          }
+                // ---------- FALLBACK ROLE ----------
+                if (resolvedRole == null) {
+                    resolvedRole = roleRepository.findByName("USER")
+                            .orElseThrow(() -> new RuntimeException("Default USER role not found"));
+                }
 
-          // ✅ Token generation
-          if (user.getRole() == null) {
-              throw new RuntimeException("User role cannot be null before token generation");
-          }
+                // ---------- CREATE USER ----------
+                user = new UserAccount();
+                String baseName = (name != null) ? name : email.split("@")[0];
 
-          // Load permissions from user's role groups
+                user.setUsername(generateUniqueUsername(baseName));
+                user.setEmail(email);
+                user.setGoogleId(googleId);
+                user.setProfilePicture(picture);
+                user.setRole(resolvedRole);
+                user.setLoginType(UserAccount.LoginType.GOOGLE);
+                user.setTenant(null); // IMPORTANT
+
+                userAccountRepository.saveAndFlush(user);
+
+                // ---------- 🔐 ADMIN PRE-TENANT ROLE GROUP ----------
+                if ("ADMIN".equals(resolvedRole.getName())) {
+
+                    RoleGroup preTenantGroup =
+                            roleGroupRepository.findByNameAndTenantIsNull("ADMIN_PRE_TENANT")
+                                    .orElseThrow(() ->
+                                            new RuntimeException("ADMIN_PRE_TENANT role group not found"));
+
+                    user.getRoleGroups().add(preTenantGroup);
+                    userAccountRepository.save(user);
+                }
+
+            } 
+            // 3️⃣ USER EXISTS → LOGIN
+            else {
+                user = existingUserOpt.get();
+                resolvedRole = user.getRole();
+            }
+
+            // 4️⃣ LOAD PERMISSIONS FROM ROLE GROUPS
             Set<String> effectivePermissions;
 
             if (user.getRoleGroups() != null && !user.getRoleGroups().isEmpty()) {
                 effectivePermissions =
-                    user.getRoleGroups().stream()
-                        .flatMap(g -> g.getPermissions().stream())
-                        .map(Permission::getName)
-                        .collect(Collectors.toSet());
+                        user.getRoleGroups()
+                            .stream()
+                            .flatMap(rg -> rg.getPermissions().stream())
+                            .map(Permission::getName)
+                            .collect(Collectors.toSet());
             } else {
-                effectivePermissions = Set.of(); // No permissions assigned yet
+                effectivePermissions = Set.of();
             }
 
+            // 5️⃣ GENERATE TOKEN
+            String token = jwtTokenUtil.generateToken(
+                    user,
+                    effectivePermissions,
+                    "google_login",
+                    user.getEmail()
+            );
 
-          String token = jwtTokenUtil.generateToken(
-            user,
-            effectivePermissions,
-            "login",
-            user.getEmail()
-          );
+            Map<String, Object> response = new HashMap<>();
+            response.put("token", token);
+            response.put("user", user);
 
-          Map<String, Object> response = new HashMap<>();
-          response.put("token", token);
-          response.put("user", user);
+            return new ApiResponse<>(true, "Google login/signup successful", response);
 
-          return new ApiResponse<>(true, "Google login/signup successful", response);
-
-      } catch (Exception e) {
-          e.printStackTrace();
-          return new ApiResponse<>(false, "Google verification failed: " + e.getMessage(), null);
-      }
-  }
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ApiResponse<>(false, "Google verification failed: " + e.getMessage(), null);
+        }
+    }
 
   private String generateUniqueUsername(String baseUsername) {
     String sanitized = baseUsername.trim().replaceAll("\\s+", "_").toLowerCase();

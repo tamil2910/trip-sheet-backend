@@ -13,9 +13,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 // import org.springframework.data.jpa.repository.JpaRepository;
 // import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.web.context.request.RequestAttributes;
+import org.springframework.web.context.request.RequestContextHolder;
 
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
+import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.TenantScoped;
+import com.example.trip_sheet_backend.models.UserAccount;
 
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
@@ -31,10 +35,39 @@ public class BaseServiceImp<T extends TenantScoped, ID extends Serializable> imp
     // this.specExecutor = specExecutor;
   }
 
-  @Override
-  public T createResource(UUID tenantId, T payload) {
-    return repository.save(payload);
-  }
+    @Override
+    public T createResource(UUID tenantId, T payload) {
+
+        UserAccount user =
+            (UserAccount) RequestContextHolder
+                .currentRequestAttributes()
+                .getAttribute("user", RequestAttributes.SCOPE_REQUEST);
+
+        if (user == null) {
+            throw new RuntimeException("Authenticated user context missing");
+        }
+
+        // GLOBAL
+        if (tenantId == null) {
+            if (!"SUPER_ADMIN".equals(user.getRole().getName())) {
+                throw new RuntimeException("ACCESS DENIED: Global resource creation forbidden");
+            }
+            payload.setTenant(null);
+            return repository.save(payload);
+        }
+
+        // TENANT
+        payload.setTenant(getTenantReference(tenantId));
+        return repository.save(payload);
+    }
+
+
+    private Tenant getTenantReference(UUID tenantId) {
+        Tenant t = new Tenant();
+        t.setId(tenantId);
+        return t;
+    }
+
 
   @Override
   public T findByIdResource(UUID tenantId, ID id) {

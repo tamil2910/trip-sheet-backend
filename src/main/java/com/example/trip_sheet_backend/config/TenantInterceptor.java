@@ -41,12 +41,20 @@ public class TenantInterceptor implements HandlerInterceptor {
     // Get roles from token
     String role = jwtTokenUtil.getRoleFromToken(token);
 
-    if (role.equals("SUPER_ADMIN")) {
+  if (role.equals("SUPER_ADMIN")) {
+
       request.setAttribute("tenantId", null);
       request.setAttribute("tenant", null);
       request.setAttribute("isSuperAdmin", true);
+
+      // 🔥 MISSING PART (THIS IS THE FIX)
+      request.setAttribute("user", user);
+      request.setAttribute("userId", user.getId());
+      request.setAttribute("createdBy", user.getId());
+      request.setAttribute("updatedBy", user.getId());
+
       return true;
-    }
+  }
 
     // Normal Users → set tenantId
     Tenant tenant = user.getTenant();

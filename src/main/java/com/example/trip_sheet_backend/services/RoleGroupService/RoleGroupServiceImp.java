@@ -90,4 +90,8 @@ public class RoleGroupServiceImp extends BaseServiceImp<RoleGroup, UUID> impleme
     return dto;
   }
 
+  public Boolean existsByTenantIsNullAndName(String name) {
+    return roleGroupRepository.existsByTenantIsNullAndName(name);
+  }
+
 }

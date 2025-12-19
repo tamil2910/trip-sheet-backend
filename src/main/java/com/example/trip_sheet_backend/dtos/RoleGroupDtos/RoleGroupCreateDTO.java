@@ -6,7 +6,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
+// import jakarta.validation.constraints.NotNull;
 import java.util.Set;
 import java.util.UUID;
 
@@ -20,7 +20,7 @@ public class RoleGroupCreateDTO {
     @NotBlank
     private String name;
 
-    @NotNull
+    // @NotNull
     private UUID tenantId;  // instead of Tenant entity
 
     // Permission ids assigned to this role group

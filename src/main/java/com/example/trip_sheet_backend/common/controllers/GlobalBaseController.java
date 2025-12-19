@@ -65,7 +65,7 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
   @GetMapping("generic/all")
 //   @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
   public ApiResponse<Map<String, Object>> getAll(
-          @RequestBody(required = false) Map<String, Object> filters,
+          @RequestParam Map<String, Object> filters,
           Pageable pageable
   ) {
       Page<T> result;
@@ -79,9 +79,11 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
       Map<String, Object> response = new HashMap<>();
       response.put("data", result.getContent());
       response.put("currentPage", result.getNumber());
+      response.put("pageSize", result.getSize());
+      response.put("currentPageCount", result.getNumberOfElements());
       response.put("totalItems", result.getTotalElements());
       response.put("totalPages", result.getTotalPages());
-      response.put("pageSize", result.getSize());
+
       response.put("isFirst", result.isFirst());
       response.put("isLast", result.isLast());
       response.put("hasNext", result.hasNext());
@@ -124,4 +126,32 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
 
       return new ApiResponse<>(true, "Resource deleted successfully", null);
   }
+
+  @GetMapping("/generic/search")
+  public ApiResponse<Map<String, Object>> search(
+          @RequestParam Map<String, String> filters,
+          Pageable pageable
+  ) {
+      // convert query params → Map<String, Object>
+      Map<String, Object> filterMap = new HashMap<>(filters);
+
+      Page<T> result = globalService.search(filterMap, pageable);
+
+      Map<String, Object> response = new HashMap<>();
+      response.put("data", result.getContent());
+
+      response.put("currentPage", result.getNumber());
+      response.put("pageSize", result.getSize());
+      response.put("currentPageCount", result.getNumberOfElements());
+      response.put("totalItems", result.getTotalElements());
+      response.put("totalPages", result.getTotalPages());
+
+      response.put("isFirst", result.isFirst());
+      response.put("isLast", result.isLast());
+      response.put("hasNext", result.hasNext());
+      response.put("hasPrevious", result.hasPrevious());
+
+      return new ApiResponse<>(true, "Search success", response);
+  }
+
 }

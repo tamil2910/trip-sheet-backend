@@ -2,8 +2,11 @@ package com.example.trip_sheet_backend.common.services;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,7 +16,9 @@ import org.springframework.data.jpa.domain.Specification;
 
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 
+import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
 
 public class GlobalBaseServiceImp<T, ID extends Serializable> implements GlobalBaseService<T, ID> {
 
@@ -54,24 +59,124 @@ public class GlobalBaseServiceImp<T, ID extends Serializable> implements GlobalB
         return repository.findAll(spec, pageable);
     }
 
-    private Specification<T> buildSpecification(Map<String, Object> filters) {
-        return (root, query, cb) -> {
-            if (filters == null || filters.isEmpty())
-                return cb.conjunction();
+private static final Set<String> RESERVED_PARAMS =
+        Set.of("page", "size", "sort");
 
-            List<Predicate> predicates = new ArrayList<>();
+private Specification<T> buildSpecification(Map<String, Object> filters) {
 
-            filters.forEach((key, value) -> {
-                if (value != null) {
-                    if (value instanceof String strVal) {
-                        predicates.add(cb.like(cb.lower(root.get(key)), "%" + strVal.toLowerCase()));
-                    } else {
-                        predicates.add(cb.equal(root.get(key), value));
+    return (root, query, cb) -> {
+
+        query.distinct(true);
+
+        if (filters == null || filters.isEmpty()) {
+            return cb.conjunction();
+        }
+
+        List<Predicate> predicates = new ArrayList<>();
+
+        filters.forEach((key, value) -> {
+
+            // 1️⃣ skip pagination & reserved params
+            if (value == null || RESERVED_PARAMS.contains(key)) {
+                return;
+            }
+
+            // 2️⃣ skip unknown fields safely
+            if (!hasField(root, key)) {
+                return;
+            }
+
+            try {
+                Path<?> path = root.get(key);
+                Class<?> fieldType = path.getJavaType();
+                String stringValue = value.toString().trim();
+
+                /* ---------- STRING ---------- */
+                if (fieldType.equals(String.class)) {
+
+                    // exact match fields
+                    if (key.equalsIgnoreCase("email")
+                        || key.equalsIgnoreCase("phone")) {
+
+                        predicates.add(cb.equal(path, stringValue));
+                    }
+                    // LIKE search fields
+                    else {
+                        predicates.add(
+                            cb.like(
+                                cb.lower(path.as(String.class)),
+                                "%" + stringValue.toLowerCase() + "%"
+                            )
+                        );
                     }
                 }
-            });
 
-            return cb.and(predicates.toArray(new Predicate[0]));
-        };
+                /* ---------- UUID ---------- */
+                else if (fieldType.equals(UUID.class)) {
+                    predicates.add(
+                        cb.equal(path, UUID.fromString(stringValue))
+                    );
+                }
+
+                /* ---------- ENUM ---------- */
+                else if (fieldType.isEnum()) {
+                    Object enumValue = Arrays.stream(fieldType.getEnumConstants())
+                            .filter(e -> e.toString().equalsIgnoreCase(stringValue))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (enumValue != null) {
+                        predicates.add(cb.equal(path, enumValue));
+                    }
+                }
+
+                /* ---------- BOOLEAN / NUMBER ---------- */
+                else {
+                    Object convertedValue = convertValue(fieldType, stringValue);
+                    predicates.add(cb.equal(path, convertedValue));
+                }
+
+            } catch (Exception ignored) {
+                // never break search because of one bad param
+            }
+        });
+
+        return cb.and(predicates.toArray(new Predicate[0]));
+    };
+
+}
+
+    private boolean hasField(Root<T> root, String field) {
+        try {
+            root.get(field);
+            return true;
+        } catch (IllegalArgumentException e) {
+            return false;
+        }
     }
+
+
+    private Object convertValue(Class<?> fieldType, String value) {
+
+        if (fieldType.equals(Integer.class) || fieldType.equals(int.class)) {
+            return Integer.parseInt(value);
+        }
+        if (fieldType.equals(Long.class) || fieldType.equals(long.class)) {
+            return Long.parseLong(value);
+        }
+        if (fieldType.equals(Boolean.class) || fieldType.equals(boolean.class)) {
+            return Boolean.parseBoolean(value);
+        }
+        if (fieldType.equals(Double.class) || fieldType.equals(double.class)) {
+            return Double.parseDouble(value);
+        }
+
+        return value;
+    }
+
+
+
+
+
+
 }

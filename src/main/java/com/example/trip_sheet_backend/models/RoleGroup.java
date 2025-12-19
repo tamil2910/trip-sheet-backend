@@ -31,7 +31,7 @@ public class RoleGroup extends BaseModel implements TenantScoped {
     private String name;  // Example: "Dispatch Operators", "Billing Team"
 
     @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.MERGE)
-    @JoinColumn(name = "tenant_id", nullable = false)
+    @JoinColumn(name = "tenant_id", nullable = true)
     private Tenant tenant;   // Role group belongs to specific vendor
 
     @ManyToMany(fetch = FetchType.LAZY)
@@ -46,4 +46,11 @@ public class RoleGroup extends BaseModel implements TenantScoped {
     public Tenant getTenant() {
         return tenant;
     }
+
+    @Override
+    public void setTenant(Tenant tenant) {
+        this.tenant = tenant;
+    }
+
+
 }

@@ -35,4 +35,10 @@ public class VendorDelegationHistory extends BaseModel implements TenantScoped {
   public Tenant getTenant() {
       return trip != null ? trip.getTenant() : null;
   }
+
+  @Override
+  public void setTenant(Tenant tenant) {
+    // TODO Auto-generated method stub
+    throw new UnsupportedOperationException("Unimplemented method 'setTenant'");
+  }
 }
