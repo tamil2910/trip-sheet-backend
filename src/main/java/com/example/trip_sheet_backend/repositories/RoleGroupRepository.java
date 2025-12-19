@@ -14,4 +14,5 @@ public interface RoleGroupRepository extends BaseRepository<RoleGroup, UUID> {
   Boolean existsByTenantIdAndName(UUID tenantId, String name);
   boolean existsByTenantIsNullAndName(String name);
   Optional<RoleGroup> findByNameAndTenantIsNull(String name);
+  Optional<RoleGroup> findByNameAndTenantId(String name, UUID tenantId);
 }
