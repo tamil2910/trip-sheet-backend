@@ -47,7 +47,7 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
         this.roleGroupRepository = roleGroupRepository;
     }
 
-@PreAuthorize("hasAuthority('CAN_REGISTER_TENANT')")
+// @PreAuthorize("hasAuthority('CAN_REGISTER_TENANT')")
 @PostMapping("/register")
 public ResponseEntity<ApiResponse<Tenant>> createTenant(
         HttpServletRequest request,
