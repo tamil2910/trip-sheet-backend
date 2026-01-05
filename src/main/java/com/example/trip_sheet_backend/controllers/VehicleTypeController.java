@@ -26,7 +26,6 @@ public class VehicleTypeController extends GlobalBaseController<VehicleType, UUI
     this.service = service;
   }
 
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
   public ResponseEntity<ApiResponse<VehicleType>> create_vehicle_type(@RequestBody VehicleType body) {
 
     if (body.getTypeOfVehicle() == null || body.getSeatCount() == null) {

@@ -58,8 +58,6 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
   }
 
   @PostMapping("/create")
-  // @PreAuthorize("hasAuthority('ROLE_GROUP_CREATE')")
-  @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
   public ResponseEntity<ApiResponse<RoleGroupDTO>> createRoleGroup(HttpServletRequest request,
      @Valid @RequestBody RoleGroupCreateDTO body) {
       

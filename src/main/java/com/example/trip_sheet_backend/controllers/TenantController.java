@@ -47,14 +47,14 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
         this.roleGroupRepository = roleGroupRepository;
     }
 
-// @PreAuthorize("hasAuthority('CAN_REGISTER_TENANT')")
+@PreAuthorize("hasAuthority('CAN_REGISTER_TENANT')")
 @PostMapping("/register")
 public ResponseEntity<ApiResponse<Tenant>> createTenant(
         HttpServletRequest request,
         @Valid @RequestBody Tenant body
 ) {
 
-    String createdBy = (String) request.getAttribute("createdBy");
+    UUID createdBy = (UUID) request.getAttribute("createdBy");
     UUID userId = (UUID) request.getAttribute("userId");
     UUID tenantId = (UUID) request.getAttribute("tenantId");
 
@@ -70,7 +70,7 @@ public ResponseEntity<ApiResponse<Tenant>> createTenant(
     // 2️⃣ Create tenant
     body.setAdmin(admin);
     body.setIsActive(true);
-    body.setCreatedBy(createdBy);
+    body.setCreatedBy(createdBy.toString());
 
     Tenant createdTenant = service.create(body);
 

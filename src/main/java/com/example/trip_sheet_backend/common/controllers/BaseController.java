@@ -138,7 +138,6 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   }
 
   @GetMapping("/search")
-  // @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
   public ApiResponse<Map<String, Object>> search(
     @RequestParam Map<String, Object> filters,
     Pageable pageable, HttpServletRequest request

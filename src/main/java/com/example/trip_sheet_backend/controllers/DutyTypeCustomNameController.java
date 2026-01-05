@@ -41,7 +41,6 @@ public class DutyTypeCustomNameController {
     this.mapper = mapper;
   }
   
-//   @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
   @PostMapping("/create")
   public ResponseEntity<ApiResponse<DutyTypeCustomName>> create_duty_type(
           @Valid @RequestBody DutyTypeCreateRequestDto body, HttpServletRequest request) {

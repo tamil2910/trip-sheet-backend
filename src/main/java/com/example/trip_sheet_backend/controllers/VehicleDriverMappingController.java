@@ -28,7 +28,6 @@ public class VehicleDriverMappingController extends BaseController<VehicleDriver
     this.service = service;
   }
 
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN', 'ADMIN')")
   @PostMapping("/add")
   public ResponseEntity<ApiResponse<VehicleDriverMapping>> createVehicleAndDriverTogether(
           @Valid @RequestBody VehicleDriverCreateRequestDto body, HttpServletRequest request) {

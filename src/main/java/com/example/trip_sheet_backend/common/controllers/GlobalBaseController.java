@@ -30,7 +30,6 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
 
   /** -------------------- CREATE -------------------- **/
   @PostMapping("generic/create")
-//   @PreAuthorize("hasRole('SUPER_ADMIN')")
   public ResponseEntity<ApiResponse<T>> create(@Valid @RequestBody T payload) {
 
       if (payload instanceof BaseModel base) {
@@ -48,7 +47,6 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
 
   /** -------------------- READ BY ID -------------------- **/
   @GetMapping("/generic/byId/{id}")
-//   @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
   public ApiResponse<T> getById(@PathVariable @NotNull ID id) {
 
       T result = globalService.findById(id);
@@ -63,7 +61,6 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
 
   /** -------------------- READ ALL (PAGINATION) -------------------- **/
   @GetMapping("generic/all")
-//   @PreAuthorize("hasAnyRole('SUPER_ADMIN','ADMIN')")
   public ApiResponse<Map<String, Object>> getAll(
           @RequestParam Map<String, Object> filters,
           Pageable pageable
@@ -95,7 +92,6 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
 
   /** -------------------- UPDATE -------------------- **/
   @PutMapping("/generic/update/{id}")
-//   @PreAuthorize("hasRole('SUPER_ADMIN')")
   public ApiResponse<T> update(
           @PathVariable @NotNull ID id,
           @Valid @RequestBody T payload
@@ -113,7 +109,6 @@ public abstract class GlobalBaseController<T, ID extends Serializable> {
 
   /** -------------------- DELETE -------------------- **/
   @DeleteMapping("/generic/delete/{id}")
-//   @PreAuthorize("hasRole('SUPER_ADMIN')")
   public ApiResponse<Void> delete(@PathVariable @NotNull ID id) {
 
       T existing = globalService.findById(id);

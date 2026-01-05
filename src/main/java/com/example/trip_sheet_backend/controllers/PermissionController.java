@@ -30,7 +30,6 @@ public class PermissionController extends GlobalBaseController<Permission, UUID>
   }
 
   @PostMapping("/add")
-  @PreAuthorize("hasAnyRole('SUPER_ADMIN')")
   public ResponseEntity<ApiResponse<Permission>> create(@Valid @RequestBody Permission body) {
     Authentication auth = SecurityContextHolder.getContext().getAuthentication();
     String createdBy = (String) auth.getDetails();
