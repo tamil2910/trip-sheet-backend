@@ -63,7 +63,7 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
     // UUID userId = (UUID) request.getAttribute("userId");
     UUID tenantId = (UUID) request.getAttribute("tenantId");
     Tenant tenant = (Tenant) request.getAttribute("tenant");
-    String createdBy = (String) request.getAttribute("createdBy");
+    UUID createdBy = (UUID) request.getAttribute("createdBy");
 
     if (body.getTypeOfVehicle() == null || body.getSeatCount() == null) {
       return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Type of vehicle and seat count are required to add vehicle type", null));
@@ -107,7 +107,7 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
       vt.setDefaultName(vt.getTypeOfVehicle() + "_" + vt.getSeatCount());
       vt.setDescription(body.getDescription());
       vt.setIsGlobal(false);
-      vt.setCreatedBy(createdBy);
+      vt.setCreatedBy(createdBy.toString());
 
       vt = this.vehicleTypeService.create(vt);
     }
