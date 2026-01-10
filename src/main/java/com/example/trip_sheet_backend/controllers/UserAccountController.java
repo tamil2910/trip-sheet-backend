@@ -60,7 +60,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   }
   
 
-//  @PreAuthorize("hasAuthority('ROLE_GROUP_CREATE') or hasAnyRole('SUPER_ADMIN', 'ADMIN')")
+ @PreAuthorize("hasAuthority('CAN_CREATE_USERACCOUNT')")
   @PostMapping("/add")
   public ResponseEntity<ApiResponse<?>> createUser(
     HttpServletRequest request, 
@@ -120,6 +120,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
             .body(new ApiResponse<>(true, "Resource created successfully", result));
   }
 
+   @PreAuthorize("hasAuthority('CAN_ASSIGN_ROLEGROUP')")
   @PatchMapping("/assign-role-group/{userId}")
   public ResponseEntity<ApiResponse<?>> assignRoleGroup(
     HttpServletRequest request,
@@ -172,6 +173,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     );
   }
 
+  @PreAuthorize("hasAuthority('CAN_READ_USER')")
   @GetMapping("/my-profile")
   public ResponseEntity<ApiResponse<UserAccount>> getMyProfileData(HttpServletRequest request) {
     UserAccount user = request.getAttribute("user") == null ? null : (UserAccount) request.getAttribute("user");
