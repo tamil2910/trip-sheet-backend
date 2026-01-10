@@ -29,7 +29,7 @@ public class DutyTypeCustomName extends BaseModel implements TenantScoped {
   private String customName;
 
   @NotNull(message = "Duty type is required")
-  @ManyToOne(fetch = FetchType.LAZY)
+  @ManyToOne(fetch = FetchType.EAGER)
   @JoinColumn(name = "duty_type_id")
   private DutyType dutyType;
 
