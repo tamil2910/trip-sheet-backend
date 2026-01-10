@@ -6,11 +6,13 @@ import java.util.UUID;
 import org.modelmapper.ModelMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.trip_sheet_backend.common.controllers.BaseController;
 import com.example.trip_sheet_backend.dtos.DutyTypeDtos.DutyTypeCreateRequestDto;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.DutyTypeCustomName;
@@ -27,181 +29,204 @@ import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/custom_duty_type")
-public class DutyTypeCustomNameController {
+public class DutyTypeCustomNameController extends BaseController<DutyTypeCustomName, UUID> {
 
-  private final DutyTypeCustomNamesService service;
-  private final DutyTypeService dutyTypeservice;
-  private final DutyTypeCustomNamesRepository customNamesRepository;
-  private ModelMapper mapper;
+    private final DutyTypeCustomNamesService service;
+    private final DutyTypeService dutyTypeservice;
+    private final DutyTypeCustomNamesRepository customNamesRepository;
+    private ModelMapper mapper;
 
-  public DutyTypeCustomNameController(DutyTypeCustomNamesService service, ModelMapper mapper, DutyTypeService dutyTypeservice, DutyTypeRepository dutyTypeRepository, DutyTypeCustomNamesRepository customNamesRepository) {
-    this.service = service;
-    this.dutyTypeservice = dutyTypeservice;
-    this.customNamesRepository = customNamesRepository;
-    this.mapper = mapper;
-  }
-  
-  @PostMapping("/create")
-  public ResponseEntity<ApiResponse<DutyTypeCustomName>> create_duty_type(
-          @Valid @RequestBody DutyTypeCreateRequestDto body, HttpServletRequest request) {
+    public DutyTypeCustomNameController(DutyTypeCustomNamesService service, ModelMapper mapper,
+            DutyTypeService dutyTypeservice, DutyTypeRepository dutyTypeRepository,
+            DutyTypeCustomNamesRepository customNamesRepository) {
+        super(service);
+        this.service = service;
+        this.dutyTypeservice = dutyTypeservice;
+        this.customNamesRepository = customNamesRepository;
+        this.mapper = mapper;
+    }
 
-        String createdBy = (String) request.getAttribute("createdBy");
-        // UUID userId = (UUID) request.getAttribute("userId");
+    @PreAuthorize("hasAuthority('CAN_CREATE_DUTYTYPECUSTOMNAME')")
+    @PostMapping("/create")
+    public ResponseEntity<ApiResponse<DutyTypeCustomName>> create_duty_type(
+            @Valid @RequestBody DutyTypeCreateRequestDto body,
+            HttpServletRequest request) {
+
+        UUID createdBy = (UUID) request.getAttribute("createdBy");
         UUID tenantId = (UUID) request.getAttribute("tenantId");
         Tenant tenant = (Tenant) request.getAttribute("tenant");
 
+        // ---------- BASIC VALIDATION ----------
+        if (body.getTypeOfDuty() == null) {
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse<>(false, "type_of_duty is required", null));
+        }
 
+        if (body.getCustom_name() == null || body.getCustom_name().isBlank()) {
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse<>(false, "Custom duty name is required", null));
+        }
 
-      if (body.getTypeOfDuty() == null) {
-          return ResponseEntity.badRequest()
-                  .body(new ApiResponse<>(false, "type_of_duty is required", null));
-      }
-      typeDuty dutyType = body.getTypeOfDuty();
+        typeDuty dutyType = body.getTypeOfDuty();
 
-      DutyType payload = mapper.map(body, DutyType.class);
-      payload.setCreatedBy(createdBy);
+        DutyType payload = mapper.map(body, DutyType.class);
+        payload.setTypeOfDuty(dutyType);
+        payload.setCreatedBy(createdBy.toString());
 
-      DutyType savedDutyType = null;
+        DutyType savedDutyType;
 
-      // ✅ FIXED SWITCH — with breaks
-      switch (dutyType) {
+        // ---------- DUTY TYPE CREATION / REUSE ----------
+        switch (dutyType) {
 
-          case LOCAL:
-              if (body.getKm() == null || body.getHr() == null) {
-                  return ResponseEntity.badRequest()
-                          .body(new ApiResponse<>(false, "KM & HR required for LOCAL", null));
-              }
+            case LOCAL: {
+                if (body.getKm() == null || body.getHr() == null) {
+                    return ResponseEntity.badRequest()
+                            .body(new ApiResponse<>(false, "KM & HR required for LOCAL", null));
+                }
 
-              String name = body.getHr() + "hr_" + body.getKm() + "km";
+                String name = body.getHr() + "hr_" + body.getKm() + "km";
 
-              if (dutyTypeservice.findLocalDutyType(body.getKm(), body.getHr(), dutyType, name).isPresent()) {
-                  throw new RuntimeException("LOCAL duty with same KM/HR exists");
-              }
+                savedDutyType = dutyTypeservice
+                        .findLocalDutyType(body.getKm(), body.getHr(), dutyType, name)
+                        .orElseGet(() -> {
+                            payload.setName(name);
+                            return dutyTypeservice.create(payload);
+                        });
+                break;
+            }
 
-              payload.setName(name);
-              savedDutyType = dutyTypeservice.create(payload);
-              break;
+            case OUTSTATION: {
+                if (body.getKm() == null) {
+                    return ResponseEntity.badRequest()
+                            .body(new ApiResponse<>(false, "KM required for OUTSTATION", null));
+                }
 
-          case OUTSTATION:
-              if (body.getKm() == null) {
-                  return ResponseEntity.badRequest()
-                          .body(new ApiResponse<>(false, "KM required for OUTSTATION", null));
-              }
+                String name = "outstation_" + body.getKm() + "km_" +
+                        (body.getHr() != null ? body.getHr() + "hr" : "24hr");
 
-              String outName = "outstation_" + body.getKm() + "km_" +
-                      (body.getHr() != null ? body.getHr() + "hr" : "24hr");
+                savedDutyType = dutyTypeservice
+                        .findOutstation(body.getKm(), dutyType, name)
+                        .orElseGet(() -> {
+                            payload.setName(name);
+                            return dutyTypeservice.create(payload);
+                        });
+                break;
+            }
 
-              if (dutyTypeservice.findOutstation(body.getKm(), dutyType, outName).isPresent()) {
-                  throw new RuntimeException("OUTSTATION duty type exists");
-              }
+            case AIRPORT_TRANSFER_FIXED: {
+                if (body.getAirportTransferType() == null) {
+                    return ResponseEntity.badRequest()
+                            .body(new ApiResponse<>(false, "Airport transfer type required", null));
+                }
 
-              payload.setName(outName);
-              savedDutyType = dutyTypeservice.create(payload);
-              break;
+                String name = "airport_fixed_" + body.getAirportTransferType();
 
-          case AIRPORT_TRANSFER_FIXED:
-              if (dutyTypeservice.findAirportFixed(body.getAirportTransferType()).isPresent()) {
-                  throw new RuntimeException("Airport FIXED duty exists");
-              }
+                savedDutyType = dutyTypeservice
+                        .findAirportFixed(body.getAirportTransferType())
+                        .orElseGet(() -> {
+                            payload.setName(name);
+                            return dutyTypeservice.create(payload);
+                        });
+                break;
+            }
 
-              payload.setName("airport_fixed_" + body.getAirportTransferType());
-              savedDutyType = dutyTypeservice.create(payload);
-              break;
+            case AIRPORT_TRANSFER_KM: {
+                if (body.getKm() == null) {
+                    return ResponseEntity.badRequest()
+                            .body(new ApiResponse<>(false, "KM required for AIRPORT KM", null));
+                }
 
-          case AIRPORT_TRANSFER_KM:
-              if (body.getKm() == null) {
-                  return ResponseEntity.badRequest()
-                          .body(new ApiResponse<>(false, "KM required", null));
-              }
+                String name = "airport_km_" + body.getKm();
 
-              if (dutyTypeservice.findAirportKm(body.getKm()).isPresent()) {
-                  throw new RuntimeException("Airport KM-based duty exists");
-              }
+                savedDutyType = dutyTypeservice
+                        .findAirportKm(body.getKm())
+                        .orElseGet(() -> {
+                            payload.setName(name);
+                            return dutyTypeservice.create(payload);
+                        });
+                break;
+            }
 
-              payload.setName("airport_km_" + body.getKm());
-              savedDutyType = dutyTypeservice.create(payload);
-              break;
+            case MONTHLY_BOOKING_MAX_HR: {
+                if (body.getTotalKm() == null) {
+                    return ResponseEntity.badRequest()
+                            .body(new ApiResponse<>(false, "Total KM required", null));
+                }
 
-          case MONTHLY_BOOKING_MAX_HR:
-              String name1 = "monthly_bookings_max_hr_" + body.getTotalKm() + "km_" +
-                      (body.getMaxHrPerDay() != null ? body.getMaxHrPerDay() + "hr" : "24hr") +
-                      (body.getMaxDays() != null ? body.getMaxDays() + "days" : "30days");
+                String name = "monthly_max_hr_" + body.getTotalKm() + "km_" +
+                        (body.getMaxHrPerDay() != null ? body.getMaxHrPerDay() + "hr" : "24hr") +
+                        (body.getMaxDays() != null ? body.getMaxDays() + "days" : "30days");
 
-              if (dutyTypeservice.findMonthlyMaxHr(body.getTotalKm(), body.getMaxHrPerDay(), body.getMaxDays()).isPresent()) {
-                  throw new RuntimeException("Monthly max HR type exists");
-              }
+                savedDutyType = dutyTypeservice
+                        .findMonthlyMaxHr(body.getTotalKm(), body.getMaxHrPerDay(), body.getMaxDays())
+                        .orElseGet(() -> {
+                            payload.setName(name);
+                            return dutyTypeservice.create(payload);
+                        });
+                break;
+            }
 
-              payload.setName(name1);
-              savedDutyType = dutyTypeservice.create(payload);
-              break;
+            case MONTHLY_BOOKING_TOTAL_HR: {
+                if (body.getTotalKm() == null || body.getTotalHr() == null || body.getMaxDays() == null) {
+                    return ResponseEntity.badRequest()
+                            .body(new ApiResponse<>(false,
+                                    "totalKm, totalHr & maxDays required", null));
+                }
 
-          case MONTHLY_BOOKING_TOTAL_HR:
-              if (body.getTotalKm() == null || body.getTotalHr() == null || body.getMaxDays() == null) {
-                  return ResponseEntity.badRequest()
-                          .body(new ApiResponse<>(false, "totalKm, totalHr, maxDays required", null));
-              }
+                String name = "monthly_total_hr_" + body.getTotalKm() + "km_" +
+                        body.getTotalHr() + "hr_" + body.getMaxDays() + "days";
 
-              String name2 = "monthly_bookings_total_hr_" + body.getTotalKm() + "km_" +
-                      body.getTotalHr() + "hr" + body.getMaxDays() + "days";
+                savedDutyType = dutyTypeservice
+                        .findMonthlyTotalHr(body.getTotalKm(), body.getTotalHr(), body.getMaxDays())
+                        .orElseGet(() -> {
+                            payload.setName(name);
+                            return dutyTypeservice.create(payload);
+                        });
+                break;
+            }
 
-              if (dutyTypeservice.findMonthlyTotalHr(body.getTotalKm(), body.getTotalHr(), body.getMaxDays()).isPresent()) {
-                  throw new RuntimeException("Monthly total HR exists");
-              }
+            case PICKUP_DROP: {
+                if (body.getKm() == null) {
+                    return ResponseEntity.badRequest()
+                            .body(new ApiResponse<>(false, "KM required for PICKUP_DROP", null));
+                }
 
-              payload.setName(name2);
-              savedDutyType = dutyTypeservice.create(payload);
-              break;
+                String name = body.getKm() + "km";
 
-          case PICKUP_DROP:
-              if (body.getKm() == null) {
-                  return ResponseEntity.badRequest()
-                          .body(new ApiResponse<>(false, "KM required for PICKUP_DROP", null));
-              }
+                payload.setName(name);
+                savedDutyType = dutyTypeservice.create(payload);
+                break;
+            }
 
-              payload.setName(body.getKm() + "km");
-              savedDutyType = dutyTypeservice.create(payload);
-              break;
+            default:
+                return ResponseEntity.badRequest()
+                        .body(new ApiResponse<>(false, "Unhandled duty type", null));
+        }
 
-          default:
-              return ResponseEntity.badRequest()
-                      .body(new ApiResponse<>(false, "Unhandled type", null));
-      }
+        // ---------- CUSTOM DUTY NAME ----------
+        Optional<DutyTypeCustomName> customExists =
+                customNamesRepository.findByDutyTypeIdAndTenantId(
+                        savedDutyType.getId(), tenantId);
 
-      // ⛔ If failed to save duty type
-      if (savedDutyType == null) {
-          return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                  .body(new ApiResponse<>(false, "Duty type creation failed", null));
-      }
+        if (customExists.isPresent()) {
+            return ResponseEntity.badRequest()
+                    .body(new ApiResponse<>(false,
+                            "Custom duty name already exists for this tenant", null));
+        }
 
-      // 🍀 NOW CREATE CUSTOM DUTY TYPE
-      // Check duplicate for same tenant + dutyType
-      
-    //   Tenant tenant = this.tenantRepository.findById(tenantId)
-    //     .orElseThrow(() -> new RuntimeException("Tenant not found"));
+        DutyTypeCustomName custom = new DutyTypeCustomName();
+        custom.setCustomName(body.getCustom_name());
+        custom.setDutyType(savedDutyType);
+        custom.setTenant(tenant);
+        custom.setCreatedBy(createdBy.toString());
 
-      Optional<DutyTypeCustomName> customExists =
-              customNamesRepository.findByDutyTypeIdAndTenantId(savedDutyType.getId(), tenantId);
+        DutyTypeCustomName savedCustom =
+                service.createResource(tenantId, custom);
 
-      if (customExists.isPresent()) {
-          return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                  .body(new ApiResponse<>(false,
-                          "Custom duty name already exists for this tenant", null));
-      }
-
-      // Save custom name
-      DutyTypeCustomName custom = new DutyTypeCustomName();
-      custom.setCustomName(body.getCustom_name());   // 👈 custom name from request
-      custom.setDutyType(savedDutyType);
-      custom.setTenant(tenant);
-      custom.setCreatedBy(createdBy);
-
-      DutyTypeCustomName savedCustom = service.createResource(tenantId, custom);
-
-      return ResponseEntity.status(HttpStatus.CREATED)
-              .body(new ApiResponse<>(true,
-                      "Duty type + custom duty type created successfully",
-                      savedCustom));
-  }
-
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new ApiResponse<>(true,
+                        "Duty type + custom duty type created successfully",
+                        savedCustom));
+    }
 
 }

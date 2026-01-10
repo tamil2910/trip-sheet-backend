@@ -56,7 +56,7 @@ public class VehicleTypeCustomNameController extends BaseController<VehicleTypeC
     // this.userAccountRepository = userAccountRepository;
   }
 
-  
+  @PreAuthorize("hasAuthority('CAN_CREATE_VEHICLETYPECUSTOMNAME')")
   @PostMapping("/add")
   public ResponseEntity<ApiResponse<VehicleTypeCustomName>> create_vehicle_type(@Valid @RequestBody VehicleTypeCreateRequestDto body, HttpServletRequest request) {
 

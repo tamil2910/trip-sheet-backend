@@ -64,7 +64,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   }
 
   /** -------------------- READ BY ID -------------------- **/
-  // @PreAuthorize("hasAuthority(@permissionResolver.readPermission(#root.this))")
+  @PreAuthorize("hasAuthority(@permissionResolver.readPermission(#root.this))")
   @GetMapping("/{id}")
   public ApiResponse<T> getById(@PathVariable @NotNull ID id, HttpServletRequest request) {
 
@@ -77,7 +77,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   }
 
   /** -------------------- READ ALL (PAGINATION) -------------------- **/
-  // @PreAuthorize("hasAuthority(@permissionResolver.readPermission(#root.this))")
+  @PreAuthorize("hasAuthority(@permissionResolver.readPermission(#root.this))")
   @GetMapping
   public ApiResponse<Map<String, Object>> getAll(@RequestParam Map<String, Object> filters,
     Pageable pageable,
@@ -104,7 +104,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
   }
 
   /** -------------------- UPDATE -------------------- **/
-  // @PreAuthorize("hasAuthority(@permissionResolver.updatePermission(#root.this))")
+  @PreAuthorize("hasAuthority(@permissionResolver.updatePermission(#root.this))")
   @PutMapping("/{id}")
   public ApiResponse<T> update(@PathVariable @NotNull ID id, @Valid @RequestBody T payload, HttpServletRequest request) {
 
@@ -137,6 +137,7 @@ public abstract class BaseController<T extends TenantScoped, ID extends Serializ
     return new ApiResponse<>(true, "Resource deleted successfully", null);
   }
 
+  @PreAuthorize("hasAuthority(@permissionResolver.readPermission(#root.this))")
   @GetMapping("/search")
   public ApiResponse<Map<String, Object>> search(
     @RequestParam Map<String, Object> filters,

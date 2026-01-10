@@ -51,7 +51,7 @@ public class DutyTypeCreateRequestDto {
 
     private Boolean isGlobal = false;
 
-    @NotNull(message = "Tenant is required!")
+    // @NotNull(message = "Tenant is required!")
     private String tenant_id;
 
 }
