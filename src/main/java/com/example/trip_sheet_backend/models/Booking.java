@@ -42,11 +42,9 @@ public class Booking extends BaseModel implements TenantScoped {
   @JoinColumn(name = "vendor_id", nullable = false)
   private Tenant vendor; 
 
-  // OPTIONAL — booking may or may not be tied to a corporate
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "tenant_id")
-  private Tenant tenant; // corporate for which booking is made (optional)
-
+  private Tenant tenant; // Tenant context (taken from token) Could be vendor OR corporate
 
   @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<Trip> trips = new ArrayList<>();
@@ -59,6 +57,6 @@ public class Booking extends BaseModel implements TenantScoped {
 
   @Override
   public Tenant getTenant() {
-      return tenant != null ? tenant : vendor; 
+      return tenant; 
   }
 }

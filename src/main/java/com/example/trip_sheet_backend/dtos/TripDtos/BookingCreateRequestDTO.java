@@ -1,6 +1,5 @@
 package com.example.trip_sheet_backend.dtos.TripDtos;
 
-import java.time.LocalDate;
 import java.util.List;
 
 import com.example.trip_sheet_backend.models.Booking;
@@ -14,8 +13,8 @@ public class BookingCreateRequestDTO {
 
     private String bookingCode;
 
-    private LocalDate startDate;
-    private LocalDate endDate;
+    private Long startDate;
+    private Long endDate;
 
     private Booking.BookingType bookingType;
 
@@ -24,8 +23,8 @@ public class BookingCreateRequestDTO {
     // vendor creating booking
     private String vendorId;
 
-    // optional corporate tenant
-    private String tenantId;
+    // taken from token
+    // private String tenantId; //could be vendor tenant or corporate tenant
 
     // optional child trips (only for SINGLE bookings)
     private List<TripCreateRequestDTO> trips;

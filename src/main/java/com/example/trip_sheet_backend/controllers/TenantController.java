@@ -49,7 +49,7 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
 
 @PreAuthorize("hasAuthority('CAN_REGISTER_TENANT')")
 @PostMapping("/register")
-public ResponseEntity<ApiResponse<Tenant>> createTenant(
+public ResponseEntity<ApiResponse<Tenant>> registerTenant(
         HttpServletRequest request,
         @Valid @RequestBody Tenant body
 ) {
@@ -105,6 +105,38 @@ public ResponseEntity<ApiResponse<Tenant>> createTenant(
 
     return ResponseEntity.status(HttpStatus.CREATED)
             .body(new ApiResponse<>(true, "Tenant created successfully!", createdTenant));
+}
+
+@PreAuthorize("hasAuthority('CAN_CREATE_TENANT')")
+@PostMapping("/create_partner_tenant")
+public ResponseEntity<ApiResponse<?>> createPartnerTenant(
+        HttpServletRequest request,
+        @Valid @RequestBody Tenant body
+) {
+
+    UUID createdBy = (UUID) request.getAttribute("createdBy");
+    Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+
+    if (loggedInTenant == null) {
+        throw new RuntimeException("Tenant not found in token");
+    }
+
+    if (loggedInTenant.getTenantType() != Tenant.TenantType.VENDOR) {
+        throw new RuntimeException("Only vendors can create partner vendors");
+    }
+
+    Tenant partnerTenant = service.createOrGetPartnerVendor(
+            body,
+            loggedInTenant,
+            createdBy
+    );
+
+    return ResponseEntity.status(HttpStatus.CREATED)
+            .body(new ApiResponse<>(
+                    true,
+                    "Partner vendor created successfully",
+                    partnerTenant
+            ));
 }
 
 

@@ -53,8 +53,12 @@ public class Trip extends BaseModel implements TenantScoped {
   private Tenant previousVendor;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "tenant_id", nullable = false)
-  private Tenant tenant; // the corporate owning the trip
+  @JoinColumn(name = "organisation_id", nullable = false)
+  private Tenant organisation; // the corporate owning the trip
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "tenant_id")
+  private Tenant tenant; // Tenant context (taken from token) Could be vendor OR corporate
 
   private String notes;
 
@@ -72,6 +76,11 @@ public class Trip extends BaseModel implements TenantScoped {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "duty_type_id")
   private DutyType dutyType;
+
+  @NotNull
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "vehicle_type_id")
+  private VehicleType vehicleType;
 
   @OneToMany(mappedBy = "trip", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<TripStop> stops = new ArrayList<>();
