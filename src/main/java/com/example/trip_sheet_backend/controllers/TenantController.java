@@ -109,7 +109,7 @@ public ResponseEntity<ApiResponse<Tenant>> registerTenant(
 
 @PreAuthorize("hasAuthority('CAN_CREATE_TENANT')")
 @PostMapping("/create_partner_tenant")
-public ResponseEntity<ApiResponse<?>> createPartnerTenant(
+public ResponseEntity<ApiResponse<Tenant>> createPartnerTenant(
         HttpServletRequest request,
         @Valid @RequestBody Tenant body
 ) {
@@ -135,6 +135,38 @@ public ResponseEntity<ApiResponse<?>> createPartnerTenant(
             .body(new ApiResponse<>(
                     true,
                     "Partner vendor created successfully",
+                    partnerTenant
+            ));
+}
+
+@PreAuthorize("hasAuthority('CAN_CREATE_TENANT')")
+@PostMapping("/create_client_tenant")
+public ResponseEntity<ApiResponse<Tenant>> createClientTenant(
+        HttpServletRequest request,
+        @Valid @RequestBody Tenant body
+) {
+
+    UUID createdBy = (UUID) request.getAttribute("createdBy");
+    Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+
+    if (loggedInTenant == null) {
+        throw new RuntimeException("Tenant not found in token");
+    }
+
+    if (loggedInTenant.getTenantType() != Tenant.TenantType.VENDOR) {
+        throw new RuntimeException("Only vendors can create their clients");
+    }
+
+    Tenant partnerTenant = service.createOrGetCorporateTenant(
+            body,
+            loggedInTenant,
+            createdBy
+    );
+
+    return ResponseEntity.status(HttpStatus.CREATED)
+            .body(new ApiResponse<>(
+                    true,
+                    "Client/Organisation is created successfully",
                     partnerTenant
             ));
 }

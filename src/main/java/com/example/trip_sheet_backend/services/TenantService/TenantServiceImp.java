@@ -8,19 +8,25 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.common.services.GlobalBaseServiceImp;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
+import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
 
 @Service
 public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> implements TenantService {
   private final TenantRepository tenantRepository;
   private final VendorPartnerRepository vendorPartnerRepository;
+  private final VendorOrganisationRepository vendorOrganisationRepository;
 
-  public TenantServiceImp(TenantRepository repository, VendorPartnerRepository vendorPartnerRepository) {
+
+  public TenantServiceImp(TenantRepository repository, VendorPartnerRepository vendorPartnerRepository, 
+    VendorOrganisationRepository vendorOrganisationRepository) {
     super(repository);
     this.tenantRepository = repository;
     this.vendorPartnerRepository = vendorPartnerRepository;
+    this.vendorOrganisationRepository = vendorOrganisationRepository;
   }
 
     // GLOBAL READ ONLY FOR USERACCOUNT
@@ -60,9 +66,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
           VendorPartner partner = new VendorPartner();
           partner.setPrimaryVendor(primaryVendor);
           partner.setPartnerVendor(partnerTenant);
-          partner.setContractStatus(
-                  VendorPartner.ContractStatus.PENDING_APPROVAL
-          );
+          partner.setContractStatus(null);
           partner.setOnboardedAt(Instant.now().getEpochSecond());
           partner.setCreatedBy(createdBy.toString());
 
@@ -77,6 +81,59 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
           UUID createdBy
   ) {
       requestTenant.setTenantType(Tenant.TenantType.VENDOR);
+      requestTenant.setIsActive(true);
+      requestTenant.setCreatedBy(createdBy.toString());
+
+      return tenantRepository.save(requestTenant);
+  }
+
+
+  @Transactional(rollbackFor = Exception.class)
+  public Tenant createOrGetCorporateTenant(
+          Tenant requestTenant,
+          Tenant primaryVendor,
+          UUID createdBy
+  ) {
+
+      // 1️⃣ Find existing tenant by GST (or unique identifier)
+      Tenant organisationTenant = tenantRepository
+              .findByGstNumber(requestTenant.getGstNumber())
+              .orElseGet(() -> createNewCorporateTenant(
+                      requestTenant,
+                      createdBy
+              ));
+
+      // 2️⃣ Prevent self-linking
+      if (organisationTenant.getId().equals(primaryVendor.getId())) {
+          throw new RuntimeException("Vendor cannot be its own client/corporate tenant");
+      }
+
+      // 3️⃣ Check existing partnership
+      boolean alreadyLinked = vendorOrganisationRepository
+              .existsByVendorAndOrganisation(
+                      primaryVendor,
+                      organisationTenant
+              );
+
+      if (!alreadyLinked) {
+          VendorOrganisation organisation = new VendorOrganisation();
+          organisation.setVendor(primaryVendor);
+          organisation.setOrganisation(organisationTenant);
+          organisation.setContractStatus(null);
+          organisation.setOnboardedAt(Instant.now().getEpochSecond());
+          organisation.setCreatedBy(createdBy.toString());
+
+          vendorOrganisationRepository.save(organisation);
+      }
+
+      return organisationTenant;
+  }
+
+  private Tenant createNewCorporateTenant(
+          Tenant requestTenant,
+          UUID createdBy
+  ) {
+      requestTenant.setTenantType(Tenant.TenantType.ORGANISATION);
       requestTenant.setIsActive(true);
       requestTenant.setCreatedBy(createdBy.toString());
 
