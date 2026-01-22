@@ -1,13 +1,19 @@
 package com.example.trip_sheet_backend.controllers;
 
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
@@ -15,14 +21,20 @@ import com.example.trip_sheet_backend.models.Admin;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.models.VendorOrganisation;
+import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.repositories.AdminRepository;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
+import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
+import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.TenantService.TenantServiceImp;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.GetMapping;
+
 
 
 @RestController
@@ -33,18 +45,27 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
     private final AdminRepository adminRepository;
     private final UserAccountRepository userAccountRepository;
     private final RoleGroupRepository roleGroupRepository;
+    private final VendorPartnerRepository vendorPartnerRepository;
+    private final VendorOrganisationRepository vendorOrganisationRepository;
+
+
+
 
     public TenantController(
             TenantServiceImp service,
             AdminRepository adminRepository,
             UserAccountRepository userAccountRepository,
-            RoleGroupRepository roleGroupRepository
+            RoleGroupRepository roleGroupRepository,
+            VendorPartnerRepository vendorPartnerRepository,
+            VendorOrganisationRepository vendorOrganisationRepository
     ) {
         super(service);  // <-- THIS IS CORRECT (GlobalBaseService)
         this.service = service;
         this.adminRepository = adminRepository;
         this.userAccountRepository = userAccountRepository;
         this.roleGroupRepository = roleGroupRepository;
+        this.vendorPartnerRepository = vendorPartnerRepository;
+        this.vendorOrganisationRepository = vendorOrganisationRepository;
     }
 
 @PreAuthorize("hasAuthority('CAN_REGISTER_TENANT')")
@@ -169,6 +190,142 @@ public ResponseEntity<ApiResponse<Tenant>> createClientTenant(
                     "Client/Organisation is created successfully",
                     partnerTenant
             ));
+}
+
+
+@GetMapping("/partner-vendors")
+public ResponseEntity<ApiResponse<?>> getPartnerTenants(
+    @RequestParam Map<String, Object> filters,
+    Pageable pageable,
+    HttpServletRequest request
+) {
+
+  Tenant tenant = (Tenant) request.getAttribute("tenant");
+
+  if (tenant == null) {
+    throw new RuntimeException("Tenant not found in token");
+  }
+
+  if (tenant.getTenantType() != Tenant.TenantType.VENDOR) {
+    throw new RuntimeException("Only vendors can view partner vendors");
+  }
+
+  Page<VendorPartner> result =
+      vendorPartnerRepository.findByPrimaryVendor(tenant, pageable);
+
+  // Extract partner vendors only
+  List<Tenant> partnerVendors = result.getContent()
+      .stream()
+      .map(VendorPartner::getPartnerVendor)
+      .toList();
+
+  Map<String, Object> response = new HashMap<>();
+  response.put("data", partnerVendors);
+
+  response.put("currentPage", result.getNumber()); 
+  response.put("pageSize", result.getSize());
+  response.put("currentPageCount", result.getNumberOfElements());
+  response.put("totalItems", result.getTotalElements());
+  response.put("totalPages", result.getTotalPages());
+
+  response.put("isFirst", result.isFirst());
+  response.put("isLast", result.isLast());
+  response.put("hasNext", result.hasNext());
+  response.put("hasPrevious", result.hasPrevious());
+
+  return ResponseEntity.ok(
+      new ApiResponse<>(true, "Partner vendors fetched successfully", response)
+  );
+}
+
+@GetMapping("/my-clients")
+public ResponseEntity<ApiResponse<?>> getCorporateTenants(
+    @RequestParam Map<String, Object> filters,
+    Pageable pageable,
+    HttpServletRequest request
+) {
+
+  Tenant tenant = (Tenant) request.getAttribute("tenant");
+
+  if (tenant == null) {
+    throw new RuntimeException("Tenant not found in token");
+  }
+
+  if (tenant.getTenantType() != Tenant.TenantType.VENDOR) {
+    throw new RuntimeException("Only vendors can get their clients");
+  }
+
+  Page<VendorOrganisation> result =
+      vendorOrganisationRepository.findByVendor(tenant, pageable);
+
+  // Extract partner vendors only
+  List<Tenant> myClients = result.getContent()
+      .stream()
+      .map(VendorOrganisation::getOrganisation)
+      .toList();
+
+  Map<String, Object> response = new HashMap<>();
+  response.put("data", myClients);
+
+  response.put("currentPage", result.getNumber()); 
+  response.put("pageSize", result.getSize());
+  response.put("currentPageCount", result.getNumberOfElements());
+  response.put("totalItems", result.getTotalElements());
+  response.put("totalPages", result.getTotalPages());
+
+  response.put("isFirst", result.isFirst());
+  response.put("isLast", result.isLast());
+  response.put("hasNext", result.hasNext());
+  response.put("hasPrevious", result.hasPrevious());
+
+  return ResponseEntity.ok(
+      new ApiResponse<>(true, "Client List fetched successfully", response)
+  );
+}
+
+@GetMapping("/my-vendors")
+public ResponseEntity<ApiResponse<?>> getVendorTenants(
+    @RequestParam Map<String, Object> filters,
+    Pageable pageable,
+    HttpServletRequest request
+) {
+
+  Tenant tenant = (Tenant) request.getAttribute("tenant");
+
+  if (tenant == null) {
+    throw new RuntimeException("Tenant not found in token");
+  }
+
+  if (tenant.getTenantType() == Tenant.TenantType.VENDOR) {
+    throw new RuntimeException("Only Corporate/Organisation can get their vendors");
+  }
+
+  Page<VendorOrganisation> result =
+      vendorOrganisationRepository.findByOrganisation(tenant, pageable);
+
+  // Extract partner vendors only
+  List<Tenant> myVendors = result.getContent()
+      .stream()
+      .map(VendorOrganisation::getVendor)
+      .toList();
+
+  Map<String, Object> response = new HashMap<>();
+  response.put("data", myVendors);
+
+  response.put("currentPage", result.getNumber()); 
+  response.put("pageSize", result.getSize());
+  response.put("currentPageCount", result.getNumberOfElements());
+  response.put("totalItems", result.getTotalElements());
+  response.put("totalPages", result.getTotalPages());
+
+  response.put("isFirst", result.isFirst());
+  response.put("isLast", result.isLast());
+  response.put("hasNext", result.hasNext());
+  response.put("hasPrevious", result.hasPrevious());
+
+  return ResponseEntity.ok(
+      new ApiResponse<>(true, "Vendors List fetched successfully", response)
+  );
 }
 
 

@@ -4,7 +4,7 @@ import com.example.trip_sheet_backend.common.models.BaseModel;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.*;
-import jakarta.validation.Valid;
+// import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
@@ -31,9 +31,9 @@ public class Tenant extends BaseModel {
     private String contactEmail;
 
     @JsonIgnore
-    @Valid
+    // @Valid
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "admin_id", nullable = false)
+    @JoinColumn(name = "admin_id", nullable = true)
     private Admin admin;
 
     @Enumerated(EnumType.STRING)
