@@ -8,5 +8,5 @@ import com.example.trip_sheet_backend.models.PeopleBookerTenant;
 
 public interface PeopleBookerTenantRepository extends BaseRepository<PeopleBookerTenant, UUID> {
   Optional<PeopleBookerTenant> findByPhoneAndOrganisation_Id(String phone, UUID organisationId);
-  Optional<PeopleBookerTenant> findByNameAndPhoneAndOrganisation_Id(String name, String phone, String organisationId);
+  Optional<PeopleBookerTenant> findByNameAndPhoneAndOrganisation_Id(String name, String phone, UUID organisationId);
 }

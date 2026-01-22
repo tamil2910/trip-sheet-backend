@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.UUID;
 
 import org.modelmapper.ModelMapper;
+import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
@@ -20,6 +21,7 @@ import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeRepository;
 
+@Service
 public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripService {
   private final TripRepository repository;
   private final TenantRepository tenantRepository;
