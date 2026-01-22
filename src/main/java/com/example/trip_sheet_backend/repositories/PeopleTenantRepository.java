@@ -3,6 +3,8 @@ package com.example.trip_sheet_backend.repositories;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Repository;
 
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
@@ -35,4 +37,19 @@ public interface PeopleTenantRepository extends BaseRepository<PeopleTenant, UUI
     String phone,
     PeopleTenant.PeopleTenantType tenantType
   );
+
+  Page<PeopleTenant> findByOrganisation_Id(UUID organisationId, Pageable pageable);
+
+  Page<PeopleTenant> findByOrganisation_IdAndAttachedVendors_Id(
+      UUID organisationId,
+      UUID vendorId,
+      Pageable pageable
+  );
+
+  Page<PeopleTenant> findByTenantTypeAndAttachedVendors_Id(
+      PeopleTenant.PeopleTenantType tenantType,
+      UUID vendorId,
+      Pageable pageable
+  );
+
 }
