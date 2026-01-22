@@ -20,8 +20,11 @@ public class TripCreateRequestDTO {
     private String dutyTypeId;
     private String vehicleTypeId;
 
-    private String bookerId;
-    private String savedPassengerId;
+    // private String bookerId;
+    // private String savedPassengerId;
+    private List<String> passengerIds;
+    private String peopleBookerTenantId;
+
 
     // epoch seconds
     private Long pickupTime;

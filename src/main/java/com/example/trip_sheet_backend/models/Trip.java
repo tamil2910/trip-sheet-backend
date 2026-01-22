@@ -11,6 +11,8 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
@@ -84,6 +86,18 @@ public class Trip extends BaseModel implements TenantScoped {
 
   @OneToMany(mappedBy = "trip", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<TripStop> stops = new ArrayList<>();
+
+  @ManyToMany(fetch = FetchType.LAZY)
+  @JoinTable(
+    name = "trip_people_tenants",
+    joinColumns = @JoinColumn(name = "trip_id"),
+    inverseJoinColumns = @JoinColumn(name = "people_tenant_id")
+  )
+  private List<PeopleTenant> passengers = new ArrayList<>();
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "booker_id")
+  private PeopleBookerTenant booker;
 
 
   public enum TripStatus {
