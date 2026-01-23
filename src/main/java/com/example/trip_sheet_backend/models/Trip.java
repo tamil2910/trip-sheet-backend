@@ -95,9 +95,6 @@ public class Trip extends BaseModel implements TenantScoped {
   )
   private List<PeopleTenant> passengers = new ArrayList<>();
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "booker_id")
-  private PeopleBookerTenant booker;
 
 
   public enum TripStatus {

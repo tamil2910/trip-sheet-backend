@@ -22,7 +22,6 @@ import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.CreatePeopleRequestD
 import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.UpdatePeopleTenantRequestDto;
 import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Tenant;
-import com.example.trip_sheet_backend.repositories.PeopleBookerTenantRepository;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.PeopleTenantService.PeopleTenantServiceImp;
@@ -38,7 +37,7 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
 
   private final PeopleTenantServiceImp peopleTenantServiceImp;
 
-  public PeopleTenantController(PeopleTenantServiceImp peopleTenantServiceImp, PeopleBookerTenantRepository peopleBookerTenantRepository, PeopleTenantRepository peopleTenantRepository) {
+  public PeopleTenantController(PeopleTenantServiceImp peopleTenantServiceImp, PeopleTenantRepository peopleTenantRepository) {
     super(peopleTenantServiceImp);
     this.peopleTenantServiceImp = peopleTenantServiceImp;
     this.peopleTenantRepository = peopleTenantRepository;
@@ -199,6 +198,16 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
     if (body.getPhone() != null) person.setPhone(body.getPhone());
     if (body.getDesignation() != null) person.setDesignation(body.getDesignation());
     if (body.getGender() != null) person.setGender(body.getGender());
+  }
+
+  @Override
+  @PutMapping("/{id}")
+  public ApiResponse<PeopleTenant> update(
+      @PathVariable UUID id,
+      @Valid @RequestBody PeopleTenant payload,
+      HttpServletRequest request
+  ) {
+    throw new RuntimeException("Direct update not supported. Please use PUT /people-tenant/update/" + id);
   }
 
 }
