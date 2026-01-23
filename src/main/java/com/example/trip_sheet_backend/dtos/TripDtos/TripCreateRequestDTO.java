@@ -23,7 +23,7 @@ public class TripCreateRequestDTO {
     // private String bookerId;
     // private String savedPassengerId;
     private List<String> passengerIds;
-    private String peopleBookerTenantId;
+    private String bookerId;
 
 
     // epoch seconds

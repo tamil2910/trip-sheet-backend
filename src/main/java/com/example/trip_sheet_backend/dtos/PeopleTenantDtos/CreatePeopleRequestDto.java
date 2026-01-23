@@ -20,6 +20,11 @@ public class CreatePeopleRequestDto {
   private String organisationId;
 
   private PeopleTenant.PeopleTenantType tenantType;
+  private PeopleTenant.PeopleType peopleType;
+  private PeopleTenant.CreatorType creatorType;
+  
+  private String additionalContactId;
+  private String emergencyContactId;
 }
 
 

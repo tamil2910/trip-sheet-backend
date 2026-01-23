@@ -98,6 +98,12 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
       trip.setPassengers(people);
     }
 
+    if (createTripDto.getBookerId() != null) {
+      trip.setBooker(
+          peopleTenantRepository.findById(UUID.fromString(createTripDto.getBookerId()))
+          .orElseThrow(() -> new RuntimeException("Invalid booker"))
+      );
+    }
 
     trip.setStops(new ArrayList<>());
 

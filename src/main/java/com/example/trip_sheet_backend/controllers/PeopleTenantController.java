@@ -22,6 +22,7 @@ import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.CreatePeopleRequestD
 import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.UpdatePeopleTenantRequestDto;
 import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.PeopleTenant.CreatorType;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.PeopleTenantService.PeopleTenantServiceImp;
@@ -172,7 +173,10 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
         throw new RuntimeException("You cannot update another organisation's people");
       }
 
-      applyUpdates(person, body);
+      if (person.getCreatorType() == CreatorType.ORGANISATION) {
+        applyUpdates(person, body);
+      }
+
     }
 
     // VENDOR UPDATE RULE
@@ -180,6 +184,10 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
       // Vendor can only attach themselves — not modify core data
       if (!person.getAttachedVendors().contains(tenant)) {
         person.getAttachedVendors().add(tenant);
+      }
+      // Vendor can only update their own data
+      if (person.getCreatorType() == CreatorType.VENDOR) {
+        applyUpdates(person, body);
       }
     }
 
@@ -198,6 +206,18 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
     if (body.getPhone() != null) person.setPhone(body.getPhone());
     if (body.getDesignation() != null) person.setDesignation(body.getDesignation());
     if (body.getGender() != null) person.setGender(body.getGender());
+    if (body.getAdditionalContactId() != null) {
+      person.setAdditionalContact(peopleTenantRepository.findById(UUID.fromString(body.getAdditionalContactId()))
+      .orElseThrow(() -> new RuntimeException("Invalid additional contact")));
+    }
+    if (body.getEmergencyContactId() != null) {
+      person.setEmergencyContact(peopleTenantRepository.findById(UUID.fromString(body.getEmergencyContactId()))
+      .orElseThrow(() -> new RuntimeException("Invalid Emergency contact")));
+    }
+
+    if (body.getPeopleType() != null) {
+      person.setPeopleType(body.getPeopleType());
+    }
   }
 
   @Override

@@ -11,6 +11,7 @@ import com.example.trip_sheet_backend.common.services.BaseServiceImp;
 import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.CreatePeopleRequestDto;
 import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.PeopleTenant.CreatorType;
 import com.example.trip_sheet_backend.models.Tenant.TenantType;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
@@ -36,6 +37,16 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
       UUID createdBy
   ) {
 
+      final PeopleTenant additionalContact = dto.getAdditionalContactId() != null
+          ? repository.findById(UUID.fromString(dto.getAdditionalContactId()))
+              .orElseThrow(() -> new RuntimeException("Invalid additional contact"))
+          : null;
+  
+      final PeopleTenant emergencyContact = dto.getEmergencyContactId() != null
+          ? repository.findById(UUID.fromString(dto.getEmergencyContactId()))
+              .orElseThrow(() -> new RuntimeException("Invalid emergency contact"))
+          : null;
+
     // Organisation creates
     if (tokenTenant.getTenantType() == TenantType.ORGANISATION) {
 
@@ -45,6 +56,9 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
               PeopleTenant person = mapper.map(dto, PeopleTenant.class);
               person.setOrganisation(tokenTenant);
               person.setCreatedBy(createdBy.toString());
+              person.setCreatorType(CreatorType.ORGANISATION);
+              person.setAdditionalContact(additionalContact);
+              person.setEmergencyContact(emergencyContact);
               return repository.save(person);
           });
     }
@@ -84,6 +98,9 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
     person.setOrganisation(organisation);
     person.getAttachedVendors().add(tokenTenant);
     person.setCreatedBy(createdBy.toString());
+    person.setCreatorType(CreatorType.VENDOR);
+    person.setAdditionalContact(additionalContact);
+    person.setEmergencyContact(emergencyContact);
 
     return repository.save(person);
   }

@@ -14,4 +14,9 @@ public class UpdatePeopleTenantRequestDto {
   private String phone;
   private String designation;
   private PeopleTenant.GenderType gender;
+  
+  private PeopleTenant.PeopleType peopleType;
+
+  private String additionalContactId;
+  private String emergencyContactId;
 }

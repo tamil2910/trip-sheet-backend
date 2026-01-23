@@ -8,6 +8,7 @@ import com.example.trip_sheet_backend.common.models.BaseModel;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
@@ -55,6 +56,28 @@ public class PeopleTenant extends BaseModel implements TenantScoped {
   public enum PeopleTenantType {
     WALKIN
   }
+
+  @Enumerated(EnumType.STRING)
+  private PeopleType peopleType;
+
+  public enum PeopleType {
+    BOOKER, PASSENGER
+  }
+
+  @Enumerated(EnumType.STRING)
+  private CreatorType creatorType;
+
+  public enum CreatorType {
+    VENDOR, ORGANISATION
+  }
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "additional_contact_id")
+  private PeopleTenant additionalContact;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "emergency_contact_id")
+  private PeopleTenant emergencyContact;
 
   @Override
   public Tenant getTenant() {
