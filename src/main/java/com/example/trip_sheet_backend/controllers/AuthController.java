@@ -88,6 +88,10 @@ public class AuthController {
         throw new RuntimeException("Phone already exists");
     }
 
+    if (body.getTenantType() == null) {
+        throw new RuntimeException("Tenant type is required");
+    }
+
 
     UserAccount payload = mapper.map(body, UserAccount.class);
 
@@ -200,6 +204,11 @@ public class AuthController {
         dto.setTenantId(user.getTenant().getId());
         dto.setTenantName(user.getTenant().getTenantName());
     }
+
+    if(user.getTenantType() != null) {
+        dto.setTenantType(user.getTenantType().name());
+    }
+
 
     dto.setPermissions(effectivePermissions);
     // Fetch full Permission objects for grouping

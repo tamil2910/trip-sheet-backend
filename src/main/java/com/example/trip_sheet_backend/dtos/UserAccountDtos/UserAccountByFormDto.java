@@ -51,5 +51,5 @@ public class UserAccountByFormDto {
 
     private Boolean isActive = true;
 
-    private UserAccount.TenantType tenantType;   
+    private UserAccount.TenantType tenantType;
 }

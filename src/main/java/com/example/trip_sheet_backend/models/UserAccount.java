@@ -69,7 +69,8 @@ public class UserAccount extends BaseModel implements TenantScoped {
     private Boolean isActive = true;
 
     @Nullable
-    private TenantType tenantType;   
+    @Enumerated(EnumType.STRING)
+    private TenantType tenantType;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id")

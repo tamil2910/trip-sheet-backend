@@ -20,7 +20,6 @@ public class LoginUserResponseDTO {
     private Set<String> roleGroups;
     private UUID tenantId;
     private String tenantName;
-    // private Tenant.TenantType tenantType;
     private String tenantType;
     private Set<String> permissions;
 
