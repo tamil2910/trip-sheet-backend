@@ -102,6 +102,8 @@ public class AuthController {
     // Assign Role entity
     payload.setRole(role);
     payload.setTenant(null);
+    payload.setTenantType(body.getTenantType());
+
 
     UserAccount result = userAccountRepository.save(payload);
 
