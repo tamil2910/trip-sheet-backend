@@ -74,6 +74,24 @@ public class JwtTokenUtil {
                 .compact();
     }
 
+    public String generateTokenWithoutIdentifier(UserAccount user, Set<String> permissions, String type) {
+        return Jwts.builder()
+                .setSubject(user.getId().toString()) // or username/phone
+                .claim("role", user.getRole() != null ? user.getRole().getName() : null)
+                .claim("type", type)
+                .claim("user_id", user.getId().toString())
+                .claim("permissions", permissions) 
+                .claim("tenant_id", user.getTenant() != null ? user.getTenant().getId().toString() : null)
+                .claim("tenant_name", user.getTenant() != null ? user.getTenant().getTenantName() : null)
+                .claim("tenant_type", user.getTenant() != null && user.getTenant().getTenantType() != null
+                                ? user.getTenant().getTenantType().name()
+                                : null)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
 
     // ✅ Validate token
     public Boolean validateToken(String token) {

@@ -92,6 +92,9 @@ public class AuthController {
         throw new RuntimeException("Tenant type is required");
     }
 
+    if (body.getRole() == null) {
+        throw new RuntimeException("Role is required!");
+    }
 
     UserAccount payload = mapper.map(body, UserAccount.class);
 

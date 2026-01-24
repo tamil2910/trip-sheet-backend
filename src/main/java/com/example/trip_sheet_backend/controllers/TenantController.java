@@ -1,9 +1,12 @@
 package com.example.trip_sheet_backend.controllers;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,18 +20,22 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
+import com.example.trip_sheet_backend.dtos.AuthDtos.LoginUserResponseDTO;
 import com.example.trip_sheet_backend.models.Admin;
+import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.repositories.AdminRepository;
+import com.example.trip_sheet_backend.repositories.PermissionRepository;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
+import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.TenantService.TenantServiceImp;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -47,6 +54,8 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
     private final RoleGroupRepository roleGroupRepository;
     private final VendorPartnerRepository vendorPartnerRepository;
     private final VendorOrganisationRepository vendorOrganisationRepository;
+    private final JwtTokenUtil jwtTokenUtil;
+    private final PermissionRepository permissionRepository;
 
 
 
@@ -57,7 +66,8 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
             UserAccountRepository userAccountRepository,
             RoleGroupRepository roleGroupRepository,
             VendorPartnerRepository vendorPartnerRepository,
-            VendorOrganisationRepository vendorOrganisationRepository
+            VendorOrganisationRepository vendorOrganisationRepository,
+            JwtTokenUtil jwtTokenUtil, PermissionRepository permissionRepository
     ) {
         super(service);  // <-- THIS IS CORRECT (GlobalBaseService)
         this.service = service;
@@ -66,11 +76,13 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
         this.roleGroupRepository = roleGroupRepository;
         this.vendorPartnerRepository = vendorPartnerRepository;
         this.vendorOrganisationRepository = vendorOrganisationRepository;
+        this.jwtTokenUtil = jwtTokenUtil;
+        this.permissionRepository = permissionRepository;
     }
 
 @PreAuthorize("hasAuthority('CAN_REGISTER_TENANT')")
 @PostMapping("/register")
-public ResponseEntity<ApiResponse<Tenant>> registerTenant(
+public ResponseEntity<ApiResponse<?>> registerTenant(
         HttpServletRequest request,
         @Valid @RequestBody Tenant body
 ) {
@@ -124,8 +136,72 @@ public ResponseEntity<ApiResponse<Tenant>> registerTenant(
     // 5️⃣ Reload tenant (optional but fine)
     createdTenant = service.findByIdResource(createdTenant.getId());
 
+        // Load permissions from all assigned RoleGroups
+    Set<String> effectivePermissions;
+
+    effectivePermissions =
+        userAccount.getRoleGroups().stream()
+            .flatMap(group -> group.getPermissions().stream())
+            .map(Permission::getName)
+            .collect(Collectors.toSet());
+
+    // Fetch full Permission objects
+    List<Permission> permissionObjects =
+            permissionRepository.findAllByNameIn(effectivePermissions);
+
+        // 8️⃣ Group permissions by module
+    Map<String, Set<String>> grouped = new HashMap<>();
+
+    
+    for (Permission p : permissionObjects) {
+        String module = p.getModuleName();
+        grouped.putIfAbsent(module, new HashSet<>());
+        grouped.get(module).add(p.getName());
+    }
+
+    String identifier =
+        userAccount.getEmail() != null ? userAccount.getEmail()
+      : userAccount.getPhone() != null ? userAccount.getPhone()
+      : userAccount.getUsername();
+
+
+    // Generate JWT
+    String token = jwtTokenUtil.generateToken(
+            userAccount,
+            effectivePermissions,
+            "user_login",
+            identifier
+    );
+
+    LoginUserResponseDTO dto = new LoginUserResponseDTO();
+    dto.setId(userAccount.getId());
+    dto.setRole(userAccount.getRole() != null ? userAccount.getRole().getName() : null);
+    dto.setRoleGroups(
+        userAccount.getRoleGroups()
+            .stream()
+            .map(RoleGroup::getName)
+            .collect(Collectors.toSet())
+    );
+    dto.setUsername(userAccount.getUsername());
+    dto.setPermissions(effectivePermissions);
+    dto.setModulePermissions(grouped);
+
+    if (userAccount.getTenant() != null) {
+        dto.setTenantId(userAccount.getTenant().getId());
+        dto.setTenantName(userAccount.getTenant().getTenantName());
+        dto.setTenantType(userAccount.getTenant().getTenantType() != null
+                ? userAccount.getTenant().getTenantType().name()
+                : null);
+    }
+
+    // Response payload
+    Map<String, Object> response = new HashMap<>();
+    response.put("token", token);
+    response.put("user", dto);
+    response.put("tenant", createdTenant);
+
     return ResponseEntity.status(HttpStatus.CREATED)
-            .body(new ApiResponse<>(true, "Tenant created successfully!", createdTenant));
+            .body(new ApiResponse<>(true, "Tenant created successfully!", response));
 }
 
 @PreAuthorize("hasAuthority('CAN_CREATE_TENANT')")
