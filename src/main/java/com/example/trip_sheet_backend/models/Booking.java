@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
@@ -46,6 +47,7 @@ public class Booking extends BaseModel implements TenantScoped {
   @JoinColumn(name = "tenant_id")
   private Tenant tenant; // Tenant context (taken from token) Could be vendor OR corporate
 
+  @JsonManagedReference
   @OneToMany(mappedBy = "booking", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<Trip> trips = new ArrayList<>();
 

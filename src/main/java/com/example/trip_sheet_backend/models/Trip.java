@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
+import com.fasterxml.jackson.annotation.JsonBackReference;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
@@ -16,7 +18,7 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
-import jakarta.validation.constraints.NotNull;
+// import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -33,6 +35,8 @@ public class Trip extends BaseModel implements TenantScoped {
   @Enumerated(EnumType.STRING)
   private TripStatus tripStatus;
 
+  @JsonIgnore
+  @JsonBackReference
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "booking_id")
   private Booking booking;  // parent booking (optional)
@@ -64,22 +68,22 @@ public class Trip extends BaseModel implements TenantScoped {
 
   private String notes;
 
-  @NotNull
+  // @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "driver_id")
   private Driver driver;
 
-  @NotNull
+  // @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "vehicle_id")
   private Vehicle vehicle;
 
-  @NotNull
+  // @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "duty_type_id")
   private DutyType dutyType;
 
-  @NotNull
+  // @NotNull
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "vehicle_type_id")
   private VehicleType vehicleType;
@@ -104,6 +108,10 @@ public class Trip extends BaseModel implements TenantScoped {
       DISPATCHED, ARRIVED, STARTED, COMPLETED,
       CLOSED, CANCELLED, FAILED, NO_SHOW, EXPIRED
   }
+
+  private Long pickupTime;
+  private Long endDate;
+
 
   @Override
   public Tenant getTenant() {

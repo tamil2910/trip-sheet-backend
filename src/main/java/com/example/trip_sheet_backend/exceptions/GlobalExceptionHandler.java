@@ -42,6 +42,10 @@ public class GlobalExceptionHandler  {
 
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiResponse<String>> handleAllUncaughtException(Exception ex) {
+
+    System.out.println("===== FULL ERROR TRACE =====");
+    ex.printStackTrace();   // 🔥 REQUIRED
+    
     return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(new ApiResponse<>(false, "An unexpected error occurred: " + ex.getMessage(), null));
   }
