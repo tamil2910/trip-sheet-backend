@@ -11,10 +11,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.BaseController;
 import com.example.trip_sheet_backend.dtos.TripDtos.BookingCreateRequestDTO;
-import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.BookingResponseDTO;
+import com.example.trip_sheet_backend.mappers.BookingResponseMapper;
+// import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.models.Booking;
 import com.example.trip_sheet_backend.models.Tenant;
-import com.example.trip_sheet_backend.models.Trip;
+// import com.example.trip_sheet_backend.models.Trip;
 // import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.BookingService.BookingServiceImp;
@@ -38,7 +40,7 @@ public class BookingController extends BaseController<Booking, UUID>{
 
   @PreAuthorize("hasAuthority('CAN_CREATE_TRIP')")
   @PostMapping("/create")
-  public ResponseEntity<ApiResponse<Booking>> crateTrip(HttpServletRequest request, 
+  public ResponseEntity<ApiResponse<?>> crateTrip(HttpServletRequest request, 
     @Valid @RequestBody BookingCreateRequestDTO createRequestDTO) {
     UUID createdBy = (UUID) request.getAttribute("createdBy");
     // UserAccount user = (UserAccount) request.getAttribute("user");
@@ -46,7 +48,10 @@ public class BookingController extends BaseController<Booking, UUID>{
 
     // creating the trip
     Booking booking = this.bookingServiceImp.createBooking(createRequestDTO, tokenTenant, createdBy);
-    return ResponseEntity.ok(new ApiResponse<>(true, "Trip Created Successfully!", null));
+
+    BookingResponseDTO response = BookingResponseMapper.toDTO(booking);
+
+    return ResponseEntity.ok().body(new ApiResponse<>(true, "Trip created successfully!", response));
   }
 
 

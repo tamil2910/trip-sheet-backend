@@ -14,10 +14,13 @@ public class TripResponseDTO {
 
     private Trip.TripStatus tripStatus;
 
-    private String bookingId;
+    // private String bookingId;
 
     private String vendorId;
     private String vendorName;
+
+    private String organisationId;
+    private String organisationName;
 
     private String assignedByVendorId;
     private String assignedByVendorName;
@@ -25,14 +28,17 @@ public class TripResponseDTO {
     private String previousVendorId;
     private String previousVendorName;
 
-    private String tenantId;
-    private String tenantName;
+    // private String tenantId;
+    // private String tenantName;
 
     private String driverId;
     private String driverName;
 
     private String vehicleId;
     private String vehicleNumber;
+
+    private String vehicleTypeId;
+    private String vehicleTypeName;
 
     private String dutyTypeId;
     private String dutyTypeName;

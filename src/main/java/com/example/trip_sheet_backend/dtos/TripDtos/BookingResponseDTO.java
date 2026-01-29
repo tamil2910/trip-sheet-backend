@@ -19,7 +19,7 @@ public class BookingResponseDTO {
 
     private Booking.BookingType bookingType;
 
-    private Boolean autoGenerateTrips;
+    // private Boolean autoGenerateTrips;
 
     private String vendorId;
     private String vendorName;
