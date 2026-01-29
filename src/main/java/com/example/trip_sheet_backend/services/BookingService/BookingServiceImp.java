@@ -7,13 +7,17 @@ import java.util.List;
 import java.util.UUID;
 
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
 import com.example.trip_sheet_backend.dtos.TripDtos.BookingCreateRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.BookingResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStopRequestDTO;
+import com.example.trip_sheet_backend.mappers.BookingResponseMapper;
 import com.example.trip_sheet_backend.models.Booking;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.DutyType;
@@ -208,6 +212,15 @@ public class BookingServiceImp extends BaseServiceImp<Booking, UUID> implements 
 
       return tripRepository.save(trip);
   }
+
+  @Transactional(readOnly = true)
+  public Page<BookingResponseDTO> getBookings(UUID tenantId, Pageable pageable) {
+
+      Page<Booking> bookings = bookingRepository.findByTenant_Id(tenantId, pageable);
+
+      return bookings.map(BookingResponseMapper::toDTO);
+  }
+
 
 
 
