@@ -112,6 +112,10 @@ public class Trip extends BaseModel implements TenantScoped {
   private Long pickupTime;
   private Long endDate;
 
+  private Long startOtp;
+  private Long endOtp;
+
+
 
   @Override
   public Tenant getTenant() {
