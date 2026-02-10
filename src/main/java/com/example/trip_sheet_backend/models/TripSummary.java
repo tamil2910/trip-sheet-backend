@@ -1,7 +1,5 @@
 package com.example.trip_sheet_backend.models;
 
-import java.util.List;
-
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
 import jakarta.persistence.Entity;
@@ -9,7 +7,6 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
-import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -57,9 +54,6 @@ public class TripSummary extends BaseModel implements TenantScoped {
   public void setTenant(Tenant tenant) {
     this.tenant = tenant;
   }
-
-  @OneToMany(mappedBy = "tripId")
-  private List<TripCharges> tripCharges;
 
   @Override
   public Tenant getTenant() {
