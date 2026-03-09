@@ -17,6 +17,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.BookingCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.BookingResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStopRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
 import com.example.trip_sheet_backend.mappers.BookingResponseMapper;
 import com.example.trip_sheet_backend.models.Booking;
 import com.example.trip_sheet_backend.models.Driver;
@@ -221,6 +222,78 @@ public class BookingServiceImp extends BaseServiceImp<Booking, UUID> implements 
       return bookings.map(BookingResponseMapper::toDTO);
   }
 
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public BookingResponseDTO updateTripInBooking(
+      UUID bookingId,
+      UUID tripId,
+      TripUpdateRequestDTO dto,
+      Tenant tokenTenant,
+      UUID updatedBy
+  ) {
+      if (tokenTenant == null) {
+          throw new RuntimeException("Tenant not found in token");
+      }
+
+      Booking booking = bookingRepository.findById(bookingId)
+          .orElseThrow(() -> new RuntimeException("Booking not found"));
+
+      if (booking.getTenant() == null || !booking.getTenant().getId().equals(tokenTenant.getId())) {
+          throw new RuntimeException("You cannot update trip for another tenant booking");
+      }
+
+      Trip trip = booking.getTrips().stream()
+          .filter(t -> t.getId().equals(tripId))
+          .findFirst()
+          .orElseThrow(() -> new RuntimeException("Trip not found in this booking"));
+
+      if (dto.getVendorId() != null) {
+          Tenant vendor = tenantRepository.findById(UUID.fromString(dto.getVendorId()))
+              .orElseThrow(() -> new RuntimeException("Invalid vendorId"));
+          trip.setVendor(vendor);
+      }
+
+      if (dto.getDutyTypeId() != null) {
+          DutyType dutyType = dutyTypeRepository.findById(UUID.fromString(dto.getDutyTypeId()))
+              .orElseThrow(() -> new RuntimeException("Invalid dutyTypeId"));
+          trip.setDutyType(dutyType);
+      }
+      if (dto.getVehicleTypeId() != null) {
+          VehicleType vehicleType = vehicleTypeRepository.findById(UUID.fromString(dto.getVehicleTypeId()))
+              .orElseThrow(() -> new RuntimeException("Invalid vehicleTypeId"));
+          trip.setVehicleType(vehicleType);
+      }
+
+      if (dto.getDriverId() != null) {
+          Driver driver = driverRepository.findById(UUID.fromString(dto.getDriverId()))
+              .orElseThrow(() -> new RuntimeException("Invalid driverId"));
+          trip.setDriver(driver);
+      }
+
+      if (dto.getVehicleId() != null) {
+          Vehicle vehicle = vehicleRepository.findById(UUID.fromString(dto.getVehicleId()))
+              .orElseThrow(() -> new RuntimeException("Invalid vehicleId"));
+          trip.setVehicle(vehicle);
+      }
+
+      if (dto.getNotes() != null) {
+          trip.setNotes(dto.getNotes());
+      }
+
+      if (dto.getStops() != null) {
+          trip.getStops().clear();
+          for (TripStopRequestDTO stopDto : dto.getStops()) {
+              TripStop stop = mapper.map(stopDto, TripStop.class);
+              stop.setTrip(trip);
+              trip.getStops().add(stop);
+          }
+      }
+
+      trip.setUpdatedBy(updatedBy.toString());
+      tripRepository.save(trip);
+
+      return BookingResponseMapper.toDTO(booking);
+  }
 
 
 

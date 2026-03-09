@@ -10,7 +10,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.common.controllers.BaseController;
 import com.example.trip_sheet_backend.dtos.TripDtos.BookingCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.BookingResponseDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
 import com.example.trip_sheet_backend.mappers.BookingResponseMapper;
 // import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.models.Booking;
@@ -59,6 +62,27 @@ public class BookingController extends BaseController<Booking, UUID>{
     BookingResponseDTO response = BookingResponseMapper.toDTO(booking);
 
     return ResponseEntity.ok().body(new ApiResponse<>(true, "Trip created successfully!", response));
+  }
+
+  @PutMapping("/{bookingId}/trips/{tripId}")
+  public ResponseEntity<ApiResponse<?>> updateTripInBooking(
+      @PathVariable UUID bookingId,
+      @PathVariable UUID tripId,
+      @Valid @RequestBody TripUpdateRequestDTO body,
+      HttpServletRequest request
+  ) {
+    UUID updatedBy = (UUID) request.getAttribute("createdBy");
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+
+    BookingResponseDTO response = bookingServiceImp.updateTripInBooking(
+        bookingId,
+        tripId,
+        body,
+        tokenTenant,
+        updatedBy
+    );
+
+    return ResponseEntity.ok(new ApiResponse<>(true, "Trip updated successfully!", response));
   }
   // @PermitAll
   @GetMapping("/list")

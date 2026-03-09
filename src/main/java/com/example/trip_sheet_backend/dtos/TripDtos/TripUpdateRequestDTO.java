@@ -12,6 +12,7 @@ public class TripUpdateRequestDTO {
     private String driverId;
     private String vehicleId;
     private String dutyTypeId;
+    private String vehicleTypeId;
 
     private String notes;
 
