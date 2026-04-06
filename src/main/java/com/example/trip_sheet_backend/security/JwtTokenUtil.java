@@ -1,5 +1,6 @@
 package com.example.trip_sheet_backend.security;
 
+import java.nio.charset.StandardCharsets;
 import java.security.Key;
 import java.util.Date;
 import java.util.List;
@@ -8,6 +9,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.example.trip_sheet_backend.models.UserAccount;
@@ -21,19 +23,15 @@ import io.jsonwebtoken.security.Keys;
 @Component
 public class JwtTokenUtil {
 
- // Read directly from OS environment
-    private static final String SECRET_KEY =
-            System.getenv("JWT_SECRET");
-
     private final Key key;
 
-    public JwtTokenUtil() {
-        if (SECRET_KEY == null || SECRET_KEY.isEmpty()) {
+    public JwtTokenUtil(@Value("${jwt.secret:}") String secret) {
+        if (secret == null || secret.isBlank()) {
             throw new IllegalStateException(
-                "Missing env variable: JWT_SECRET"
+                "Missing property: jwt.secret (or env JWT_SECRET)"
             );
         }
-        this.key = Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
     private static final long EXPIRATION_TIME = 86400000; // 1 day in milliseconds
