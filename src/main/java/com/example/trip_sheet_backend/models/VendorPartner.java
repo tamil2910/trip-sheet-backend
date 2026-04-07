@@ -1,6 +1,10 @@
 package com.example.trip_sheet_backend.models;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.example.trip_sheet_backend.common.models.BaseModel;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 import jakarta.annotation.Nullable;
 import jakarta.persistence.Entity;
@@ -8,6 +12,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
@@ -48,5 +53,9 @@ public class VendorPartner extends BaseModel {
   }
 
   private Long onboardedAt;
+
+  @JsonManagedReference
+  @OneToMany(mappedBy = "vendorPartner")
+  private List<VendorPartnerRateCard> rateCards = new ArrayList<>();
 
 }

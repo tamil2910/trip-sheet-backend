@@ -1,17 +1,26 @@
 package com.example.trip_sheet_backend.services.BookingService;
 
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
 import com.example.trip_sheet_backend.dtos.TripDtos.BookingCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.BookingResponseDTO;
@@ -50,11 +59,15 @@ public class BookingServiceImp extends BaseServiceImp<Booking, UUID> implements 
   private final VehicleRepository vehicleRepository;
   private final ModelMapper mapper;
   private final TripRepository tripRepository;
+    private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
+    private final String geocodeBaseUrl;
 
   public BookingServiceImp(BookingRepository bookingRepository, TenantRepository tenantRepository,
     TripServiceImp tripServiceImp, DutyTypeRepository dutyTypeRepository, VehicleTypeRepository vehicleTypeRepository,
     PeopleTenantRepository peopleTenantRepository, DriverRepository driverRepository,
-    VehicleRepository vehicleRepository, ModelMapper mapper, TripRepository tripRepository
+        VehicleRepository vehicleRepository, ModelMapper mapper, TripRepository tripRepository,
+        @Value("${geocode.base-url:https://nominatim.openstreetmap.org}") String geocodeBaseUrl
   ) {
     super(bookingRepository);
     this.bookingRepository = bookingRepository;
@@ -67,6 +80,9 @@ public class BookingServiceImp extends BaseServiceImp<Booking, UUID> implements 
     this.vehicleRepository = vehicleRepository;
     this.mapper = mapper;
     this.tripRepository = tripRepository;
+    this.objectMapper = new ObjectMapper();
+    this.httpClient = HttpClient.newHttpClient();
+    this.geocodeBaseUrl = geocodeBaseUrl;
   }
 
   @Transactional(rollbackFor = Exception.class)
@@ -199,15 +215,29 @@ public class BookingServiceImp extends BaseServiceImp<Booking, UUID> implements 
           trip.setPassengers(passengers);
       }
 
-      // Stops
-      List<TripStop> stops = new ArrayList<>();
-      if (dto.getStops() != null) {
-          for (TripStopRequestDTO stopDto : dto.getStops()) {
-              TripStop stop = mapper.map(stopDto, TripStop.class);
-              stop.setTrip(trip);
-              stops.add(stop);
+    // Stops
+    List<TripStop> stops = new ArrayList<>();
+    if (dto.getStops() != null) {
+        for (TripStopRequestDTO stopDto : dto.getStops()) {
+          TripStop stop = mapper.map(stopDto, TripStop.class);
+          stop.setTrip(trip);
+                    boolean hasExactCoordinates = stopDto.getLatitude() != null && stopDto.getLongitude() != null;
+
+          if (stop.getLatitude() == null || stop.getLongitude() == null) {
+            // Fallback from backend resolver (implement this method/service)
+            double[] coords = findLatLngFromBackend(stopDto); // [lat, lng]
+
+            if (coords != null) {
+                if (stop.getLatitude() == null) stop.setLatitude(coords[0]);
+                if (stop.getLongitude() == null) stop.setLongitude(coords[1]);
+            }
           }
-      }
+
+          stop.setAccurate(hasExactCoordinates);
+
+          stops.add(stop);
+        }
+    }
 
       trip.setStops(stops);
 
@@ -285,6 +315,22 @@ public class BookingServiceImp extends BaseServiceImp<Booking, UUID> implements 
           for (TripStopRequestDTO stopDto : dto.getStops()) {
               TripStop stop = mapper.map(stopDto, TripStop.class);
               stop.setTrip(trip);
+              boolean hasExactCoordinates = stopDto.getLatitude() != null && stopDto.getLongitude() != null;
+
+              if (stop.getLatitude() == null || stop.getLongitude() == null) {
+                  double[] coords = findLatLngFromBackend(stopDto);
+                  if (coords != null) {
+                      if (stop.getLatitude() == null) {
+                          stop.setLatitude(coords[0]);
+                      }
+                      if (stop.getLongitude() == null) {
+                          stop.setLongitude(coords[1]);
+                      }
+                  }
+              }
+
+              stop.setAccurate(hasExactCoordinates);
+
               trip.getStops().add(stop);
           }
       }
@@ -293,6 +339,63 @@ public class BookingServiceImp extends BaseServiceImp<Booking, UUID> implements 
       tripRepository.save(trip);
 
       return BookingResponseMapper.toDTO(booking);
+  }
+
+  private double[] findLatLngFromBackend(TripStopRequestDTO stopDto) {
+      String query = buildGeocodeQuery(stopDto);
+      if (query == null || query.isBlank()) {
+          return null;
+      }
+
+      try {
+          String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
+          String requestUrl = geocodeBaseUrl + "/search?format=json&limit=1&q=" + encodedQuery;
+
+          HttpRequest request = HttpRequest.newBuilder()
+              .uri(URI.create(requestUrl))
+              .header("Accept", "application/json")
+              .header("User-Agent", "trip-sheet-backend/1.0")
+              .GET()
+              .build();
+
+          HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+
+          if (response.statusCode() < 200 || response.statusCode() >= 300) {
+              return null;
+          }
+
+          JsonNode root = objectMapper.readTree(response.body());
+          if (!root.isArray() || root.isEmpty()) {
+              return null;
+          }
+
+          JsonNode firstResult = root.get(0);
+          JsonNode latNode = firstResult.get("lat");
+          JsonNode lonNode = firstResult.get("lon");
+
+          if (latNode == null || lonNode == null) {
+              return null;
+          }
+
+          return new double[] {
+              Double.parseDouble(latNode.asText()),
+              Double.parseDouble(lonNode.asText())
+          };
+      } catch (Exception ex) {
+          return null;
+      }
+  }
+
+  private String buildGeocodeQuery(TripStopRequestDTO stopDto) {
+      if (stopDto.getFormattedAddress() != null && !stopDto.getFormattedAddress().isBlank()) {
+          return stopDto.getFormattedAddress();
+      }
+
+      if (stopDto.getAddressText() != null && !stopDto.getAddressText().isBlank()) {
+          return stopDto.getAddressText();
+      }
+
+      return null;
   }
 
 
