@@ -19,4 +19,5 @@ public class TripStopResponseDTO {
 
     private Double latitude;
     private Double longitude;
+    private Boolean accurate;
 }

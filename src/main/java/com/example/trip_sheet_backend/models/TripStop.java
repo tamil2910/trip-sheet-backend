@@ -33,6 +33,7 @@ public class TripStop extends BaseModel {
     private String formattedAddress;      // formatted Google address
     private Double latitude;
     private Double longitude;
+    private Boolean accurate;
 
     public enum StopType {
         PICKUP,

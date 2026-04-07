@@ -74,6 +74,7 @@ public class BookingResponseMapper {
                     stopDTO.setAddressText(stop.getAddressText());
                     stopDTO.setLatitude(stop.getLatitude());
                     stopDTO.setLongitude(stop.getLongitude());
+                    stopDTO.setAccurate(stop.getAccurate());
                     stopDTO.setSequenceNumber(stop.getSequenceNumber());
                     return stopDTO;
                 })

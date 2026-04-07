@@ -8,7 +8,7 @@ import lombok.Setter;
 @Getter @Setter
 public class TripCreateRequestDTO {
 
-    private String tenantId;  // corporate
+    private String tenantId;  // corporate  
     private String vendorId;  // executing vendor
 
     // Corporate owning the trip
