@@ -21,9 +21,6 @@ import lombok.Setter;
 public class VendorPartnerRateCardCreateRequestDTO {
 
   @NotNull
-  private UUID vendorPartnerId;
-
-  @NotNull
   private UUID vehicleTypeId;
 
   @NotNull

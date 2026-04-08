@@ -55,7 +55,7 @@ public class SecurityConfig {
   @Bean
   public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
       var config = new org.springframework.web.cors.CorsConfiguration();
-      config.addAllowedOrigin("http://localhost:4200"); // Angular app
+      config.addAllowedOrigin("http://localhost:4400"); // Angular app
       config.addAllowedHeader("*");
       config.addAllowedMethod("*");
       config.setAllowCredentials(true);

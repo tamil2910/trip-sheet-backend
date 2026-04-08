@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.dtos.AuthDtos.LoginUserResponseDTO;
+import com.example.trip_sheet_backend.dtos.TenantDtos.VendorPartnerSummaryDTO;
 import com.example.trip_sheet_backend.models.Admin;
 import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.RoleGroup;
@@ -290,9 +291,9 @@ public ResponseEntity<ApiResponse<?>> getPartnerTenants(
       vendorPartnerRepository.findByPrimaryVendor(tenant, pageable);
 
   // Extract partner vendors only
-  List<Tenant> partnerVendors = result.getContent()
+  List<VendorPartnerSummaryDTO> partnerVendors = result.getContent()
       .stream()
-      .map(VendorPartner::getPartnerVendor)
+      .map(VendorPartnerSummaryDTO::fromEntity)
       .toList();
 
   Map<String, Object> response = new HashMap<>();

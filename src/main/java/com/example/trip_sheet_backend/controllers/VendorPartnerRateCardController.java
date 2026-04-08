@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardApprovalRequestDTO;
+import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardBulkCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardResponseDTO;
 import com.example.trip_sheet_backend.models.Tenant;
@@ -35,20 +36,24 @@ public class VendorPartnerRateCardController {
   }
 
   @PostMapping("/create")
-  public ResponseEntity<ApiResponse<VendorPartnerRateCardResponseDTO>> createRateCard(
+  public ResponseEntity<ApiResponse<List<VendorPartnerRateCardResponseDTO>>> createRateCard(
       HttpServletRequest request,
-      @Valid @RequestBody VendorPartnerRateCardCreateRequestDTO body
+      @Valid @RequestBody VendorPartnerRateCardBulkCreateRequestDTO body
   ) {
     UUID createdBy = (UUID) request.getAttribute("createdBy");
     Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
 
-    VendorPartnerRateCard rateCard = vendorPartnerRateCardService.createRateCard(body, loggedInTenant, createdBy);
+    List<VendorPartnerRateCardResponseDTO> response = vendorPartnerRateCardService
+        .createRateCards(body, loggedInTenant, createdBy)
+        .stream()
+        .map(VendorPartnerRateCardResponseDTO::fromEntity)
+        .toList();
 
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(new ApiResponse<>(
             true,
-            "Vendor partner rate card created successfully",
-            VendorPartnerRateCardResponseDTO.fromEntity(rateCard)
+            "Vendor partner rate cards created successfully",
+            response
         ));
   }
 

@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardApprovalRequestDTO;
+import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardBulkCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardCreateRequestDTO;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.Tenant;
@@ -41,20 +42,38 @@ public class VendorPartnerRateCardServiceImp implements VendorPartnerRateCardSer
 
   @Override
   @Transactional(rollbackFor = Exception.class)
-  public VendorPartnerRateCard createRateCard(
-      VendorPartnerRateCardCreateRequestDTO body,
+  public List<VendorPartnerRateCard> createRateCards(
+      VendorPartnerRateCardBulkCreateRequestDTO body,
       Tenant loggedInTenant,
       UUID createdBy
   ) {
+    if (body == null || body.getRateCards() == null || body.getRateCards().isEmpty()) {
+      throw new RuntimeException("At least one rate card is required");
+    }
+
     VendorPartner vendorPartner = vendorPartnerRepository.findById(body.getVendorPartnerId())
         .orElseThrow(() -> new RuntimeException("Vendor partner relationship not found"));
 
     validateTenantLinkedToVendorPartner(loggedInTenant, vendorPartner);
 
-    if (!vendorPartner.getPartnerVendor().getId().equals(loggedInTenant.getId())) {
-      throw new RuntimeException("Only partner vendor can create rate cards");
+    if (!vendorPartner.getPrimaryVendor().getId().equals(loggedInTenant.getId())) {
+      throw new RuntimeException("Only primary vendor can create rate cards");
     }
 
+    applySharedVendorPartnerFields(vendorPartner, body);
+    vendorPartner.setUpdatedBy(createdBy.toString());
+    vendorPartnerRepository.save(vendorPartner);
+
+    return body.getRateCards().stream()
+        .map(rateCardRequest -> createSingleRateCard(vendorPartner, rateCardRequest, createdBy))
+        .toList();
+  }
+
+  private VendorPartnerRateCard createSingleRateCard(
+      VendorPartner vendorPartner,
+      VendorPartnerRateCardCreateRequestDTO body,
+      UUID createdBy
+  ) {
     VehicleType vehicleType = vehicleTypeRepository.findById(body.getVehicleTypeId())
         .orElseThrow(() -> new RuntimeException("Vehicle type not found"));
 
@@ -89,6 +108,21 @@ public class VendorPartnerRateCardServiceImp implements VendorPartnerRateCardSer
     rateCard.setCreatedBy(createdBy.toString());
 
     return vendorPartnerRateCardRepository.save(rateCard);
+  }
+
+  private void applySharedVendorPartnerFields(
+      VendorPartner vendorPartner,
+      VendorPartnerRateCardBulkCreateRequestDTO body
+  ) {
+    vendorPartner.setPaymentTimelineInDays(body.getPaymentTimelineInDays());
+    vendorPartner.setLocalBillingStructure(body.getLocalBillingStructure());
+    vendorPartner.setMinGtgKmLimit(body.getMinGtgKmLimit());
+    vendorPartner.setMinGtgHrLimit(body.getMinGtgHrLimit());
+    vendorPartner.setMaxGtgKmLimit(body.getMaxGtgKmLimit());
+    vendorPartner.setMaxGtgHrLimit(body.getMaxGtgHrLimit());
+    vendorPartner.setContractStatus(body.getContractStatus());
+    vendorPartner.setContractStartDate(body.getContractStartDate());
+    vendorPartner.setContractEndDate(body.getContractEndDate());
   }
 
   @Override

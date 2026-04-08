@@ -1,5 +1,4 @@
 package com.example.trip_sheet_backend.models;
-
 import java.util.ArrayList;
 import java.util.List;
 
@@ -15,6 +14,7 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -53,6 +53,23 @@ public class VendorPartner extends BaseModel {
   }
 
   private Long onboardedAt;
+
+  private Integer paymentTimelineInDays;
+
+  @Pattern(regexp = "^(gtg|ptd|maxlimitgtg|fixedlimitgtg)$", message = "localBillingStructure must be one of: gtg, ptd, maxlimitgtg, fixedlimitgtg")
+  private String localBillingStructure;
+
+  private Integer minGtgKmLimit;
+
+  private Integer minGtgHrLimit;
+
+  private Integer maxGtgKmLimit;
+
+  private Integer maxGtgHrLimit;
+
+  private Long contractStartDate;
+
+  private Long contractEndDate;
 
   @JsonManagedReference
   @OneToMany(mappedBy = "vendorPartner")
