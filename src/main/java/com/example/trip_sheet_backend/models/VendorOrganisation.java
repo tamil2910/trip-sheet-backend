@@ -1,16 +1,22 @@
 package com.example.trip_sheet_backend.models;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.lang.Nullable;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
+import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -39,10 +45,31 @@ public class VendorOrganisation extends BaseModel {
 
   private Long onboardedAt;
 
+  private Integer paymentTimelineInDays;
+
+  @Pattern(regexp = "^(gtg|ptd|maxlimitgtg|fixedlimitgtg)$", message = "localBillingStructure must be one of: gtg, ptd, maxlimitgtg, fixedlimitgtg")
+  private String localBillingStructure;
+
+  private Integer minGtgKmLimit;
+
+  private Integer minGtgHrLimit;
+
+  private Integer maxGtgKmLimit;
+
+  private Integer maxGtgHrLimit;
+
   @Nullable
   @Enumerated(EnumType.STRING)
   private ContractStatus contractStatus;
   // ACTIVE, REJECTED, SUSPENDED, TERMINATED, PENDING_APPROVAL
+
+  private Long contractStartDate;
+
+  private Long contractEndDate;
+
+  @JsonManagedReference
+  @OneToMany(mappedBy = "vendorOrganisation")
+  private List<VendorOrganisationRateCard> rateCards = new ArrayList<>();
 
   public enum ContractStatus {
     ACTIVE,

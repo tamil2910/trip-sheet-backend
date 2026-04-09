@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.dtos.AuthDtos.LoginUserResponseDTO;
+import com.example.trip_sheet_backend.dtos.TenantDtos.VendorOrganisationSummaryDTO;
 import com.example.trip_sheet_backend.dtos.TenantDtos.VendorPartnerSummaryDTO;
 import com.example.trip_sheet_backend.models.Admin;
 import com.example.trip_sheet_backend.models.Permission;
@@ -335,10 +336,10 @@ public ResponseEntity<ApiResponse<?>> getCorporateTenants(
   Page<VendorOrganisation> result =
       vendorOrganisationRepository.findByVendor(tenant, pageable);
 
-  // Extract partner vendors only
-  List<Tenant> myClients = result.getContent()
+  // Include vendor-organisation relationship id for downstream actions
+  List<VendorOrganisationSummaryDTO> myClients = result.getContent()
       .stream()
-      .map(VendorOrganisation::getOrganisation)
+      .map(VendorOrganisationSummaryDTO::fromEntity)
       .toList();
 
   Map<String, Object> response = new HashMap<>();
@@ -380,10 +381,10 @@ public ResponseEntity<ApiResponse<?>> getVendorTenants(
   Page<VendorOrganisation> result =
       vendorOrganisationRepository.findByOrganisation(tenant, pageable);
 
-  // Extract partner vendors only
-  List<Tenant> myVendors = result.getContent()
+  // Include vendor-organisation relationship id for downstream actions
+  List<VendorOrganisationSummaryDTO> myVendors = result.getContent()
       .stream()
-      .map(VendorOrganisation::getVendor)
+      .map(VendorOrganisationSummaryDTO::fromEntity)
       .toList();
 
   Map<String, Object> response = new HashMap<>();

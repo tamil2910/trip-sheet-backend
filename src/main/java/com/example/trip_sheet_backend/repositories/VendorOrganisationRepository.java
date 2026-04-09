@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.repositories;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -22,5 +23,9 @@ public interface VendorOrganisationRepository extends BaseRepository<VendorOrgan
 
   List<VendorOrganisation> findByOrganisation(Tenant organisation);
   Page<VendorOrganisation> findByOrganisation(Tenant organisation, Pageable pageable);
+
+  Optional<VendorOrganisation> findByVendorAndOrganisation_Id(Tenant vendor, UUID organisationId);
+
+  Optional<VendorOrganisation> findByOrganisationAndVendor_Id(Tenant organisation, UUID vendorId);
   
 }
