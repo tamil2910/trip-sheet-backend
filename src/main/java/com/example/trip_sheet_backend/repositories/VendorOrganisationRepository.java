@@ -20,6 +20,11 @@ public interface VendorOrganisationRepository extends BaseRepository<VendorOrgan
 
   List<VendorOrganisation> findByVendor(Tenant vendor);
   Page<VendorOrganisation> findByVendor(Tenant vendor, Pageable pageable);
+  Page<VendorOrganisation> findByVendorAndOrganisation_TenantType(
+      Tenant vendor,
+      Tenant.TenantType tenantType,
+      Pageable pageable
+  );
 
   List<VendorOrganisation> findByOrganisation(Tenant organisation);
   Page<VendorOrganisation> findByOrganisation(Tenant organisation, Pageable pageable);

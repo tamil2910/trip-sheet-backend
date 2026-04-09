@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.dtos.AuthDtos.LoginUserResponseDTO;
+import com.example.trip_sheet_backend.dtos.TenantDtos.MyClientSummaryDTO;
 import com.example.trip_sheet_backend.dtos.TenantDtos.VendorOrganisationSummaryDTO;
 import com.example.trip_sheet_backend.dtos.TenantDtos.VendorPartnerSummaryDTO;
 import com.example.trip_sheet_backend.models.Admin;
@@ -334,12 +335,16 @@ public ResponseEntity<ApiResponse<?>> getCorporateTenants(
   }
 
   Page<VendorOrganisation> result =
-      vendorOrganisationRepository.findByVendor(tenant, pageable);
+      vendorOrganisationRepository.findByVendorAndOrganisation_TenantType(
+          tenant,
+          Tenant.TenantType.ORGANISATION,
+          pageable
+      );
 
   // Include vendor-organisation relationship id for downstream actions
-  List<VendorOrganisationSummaryDTO> myClients = result.getContent()
+  List<MyClientSummaryDTO> myClients = result.getContent()
       .stream()
-      .map(VendorOrganisationSummaryDTO::fromEntity)
+      .map(MyClientSummaryDTO::fromEntity)
       .toList();
 
   Map<String, Object> response = new HashMap<>();
