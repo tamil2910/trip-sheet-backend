@@ -2,8 +2,13 @@ package com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos;
 
 import java.math.BigDecimal;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.UUID;
 
+import com.example.trip_sheet_backend.models.DutyType;
+import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.VehicleType;
+import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 import com.fasterxml.jackson.annotation.JsonFormat;
 
@@ -18,10 +23,10 @@ import lombok.Setter;
 @AllArgsConstructor
 public class VendorPartnerRateCardResponseDTO {
   private UUID id;
-  private UUID primaryVendorId;
-  private UUID vendorPartnerId;
-  private UUID vehicleTypeId;
-  private UUID dutyTypeId;
+  private TenantSummaryDTO primaryVendor;
+  private VendorPartnerSummaryDTO vendorPartner;
+  private VehicleTypeSummaryDTO vehicleType;
+  private DutyTypeSummaryDTO dutyType;
   private String city;
   private BigDecimal baseFare;
   private BigDecimal extraKmCharges;
@@ -31,9 +36,9 @@ public class VendorPartnerRateCardResponseDTO {
   private BigDecimal lateAllowanceCharges;
   private Integer switchCutOffHrs;
   private Integer switchCutOffKms;
-  private UUID switchDutyTypeId;
+  private DutyTypeSummaryDTO switchDutyType;
   private BigDecimal hourlyAllowance;
-  private UUID noShowDutyTypeId;
+  private DutyTypeSummaryDTO noShowDutyType;
   private Integer noOfDaysHourCutoff;
 
   @JsonFormat(pattern = "HH:mm")
@@ -50,10 +55,10 @@ public class VendorPartnerRateCardResponseDTO {
   public static VendorPartnerRateCardResponseDTO fromEntity(VendorPartnerRateCard rateCard) {
     return new VendorPartnerRateCardResponseDTO(
         rateCard.getId(),
-        rateCard.getPrimaryVendor().getId(),
-        rateCard.getVendorPartner().getId(),
-        rateCard.getVehicleType().getId(),
-        rateCard.getDutyType().getId(),
+        TenantSummaryDTO.fromEntity(rateCard.getPrimaryVendor()),
+        VendorPartnerSummaryDTO.fromEntity(rateCard.getVendorPartner()),
+        VehicleTypeSummaryDTO.fromEntity(rateCard.getVehicleType()),
+        DutyTypeSummaryDTO.fromEntity(rateCard.getDutyType()),
         rateCard.getCity(),
         rateCard.getBaseFare(),
         rateCard.getExtraKmCharges(),
@@ -63,9 +68,9 @@ public class VendorPartnerRateCardResponseDTO {
         rateCard.getLateAllowanceCharges(),
         rateCard.getSwitchCutOffHrs(),
         rateCard.getSwitchCutOffKms(),
-        rateCard.getSwitchDutyType() != null ? rateCard.getSwitchDutyType().getId() : null,
+        DutyTypeSummaryDTO.fromEntity(rateCard.getSwitchDutyType()),
         rateCard.getHourlyAllowance(),
-        rateCard.getNoShowDutyType() != null ? rateCard.getNoShowDutyType().getId() : null,
+        DutyTypeSummaryDTO.fromEntity(rateCard.getNoShowDutyType()),
         rateCard.getNoOfDaysHourCutoff(),
         rateCard.getEarlyAllowanceStartTime(),
         rateCard.getLateAllowanceStartTime(),
@@ -74,5 +79,187 @@ public class VendorPartnerRateCardResponseDTO {
         rateCard.getApprovedAt(),
         rateCard.getApprovedBy()
     );
+  }
+
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class TenantSummaryDTO {
+    private UUID id;
+    private String tenantName;
+    private String contactEmail;
+    private Tenant.TenantType tenantType;
+
+    public static TenantSummaryDTO fromEntity(Tenant tenant) {
+      if (tenant == null) {
+        return null;
+      }
+
+      return new TenantSummaryDTO(
+          tenant.getId(),
+          tenant.getTenantName(),
+          tenant.getContactEmail(),
+          tenant.getTenantType()
+      );
+    }
+  }
+
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class VendorPartnerSummaryDTO {
+    private UUID id;
+    private VendorPartner.ContractStatus contractStatus;
+    private Long onboardedAt;
+    private Integer paymentTimelineInDays;
+    private String localBillingStructure;
+    private Integer minGtgKmLimit;
+    private Integer minGtgHrLimit;
+    private Integer maxGtgKmLimit;
+    private Integer maxGtgHrLimit;
+    private Long contractStartDate;
+    private Long contractEndDate;
+    private List<RelatedRateCardSummaryDTO> vendorPartnerRateCardId;
+
+    public static VendorPartnerSummaryDTO fromEntity(VendorPartner vendorPartner) {
+      if (vendorPartner == null) {
+        return null;
+      }
+
+      return new VendorPartnerSummaryDTO(
+          vendorPartner.getId(),
+          vendorPartner.getContractStatus(),
+          vendorPartner.getOnboardedAt(),
+          vendorPartner.getPaymentTimelineInDays(),
+          vendorPartner.getLocalBillingStructure(),
+          vendorPartner.getMinGtgKmLimit(),
+          vendorPartner.getMinGtgHrLimit(),
+          vendorPartner.getMaxGtgKmLimit(),
+          vendorPartner.getMaxGtgHrLimit(),
+          vendorPartner.getContractStartDate(),
+          vendorPartner.getContractEndDate(),
+          vendorPartner.getRateCards() == null ? List.of() : vendorPartner.getRateCards().stream()
+              .filter(rateCard -> !Boolean.TRUE.equals(rateCard.getIsDeleted()))
+              .map(RelatedRateCardSummaryDTO::fromEntity)
+              .toList()
+      );
+    }
+  }
+
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class RelatedRateCardSummaryDTO {
+    private UUID id;
+    private VehicleTypeSummaryDTO vehicleType;
+    private DutyTypeSummaryDTO dutyType;
+    private String city;
+    private BigDecimal baseFare;
+    private BigDecimal extraKmCharges;
+    private BigDecimal extraHrCharges;
+    private BigDecimal dailyAllowanceCharges;
+    private BigDecimal earlyAllowanceCharges;
+    private BigDecimal lateAllowanceCharges;
+    private Integer switchCutOffHrs;
+    private Integer switchCutOffKms;
+    private DutyTypeSummaryDTO switchDutyType;
+    private BigDecimal hourlyAllowance;
+    private DutyTypeSummaryDTO noShowDutyType;
+    private Integer noOfDaysHourCutoff;
+
+    @JsonFormat(pattern = "HH:mm")
+    private LocalTime earlyAllowanceStartTime;
+
+    @JsonFormat(pattern = "HH:mm")
+    private LocalTime lateAllowanceStartTime;
+
+    private Integer allowanceCutOffHrs;
+    private VendorPartnerRateCard.ApprovalStatus approvalStatus;
+    private Long approvedAt;
+    private String approvedBy;
+
+    public static RelatedRateCardSummaryDTO fromEntity(VendorPartnerRateCard rateCard) {
+      if (rateCard == null) {
+        return null;
+      }
+
+      return new RelatedRateCardSummaryDTO(
+          rateCard.getId(),
+          VehicleTypeSummaryDTO.fromEntity(rateCard.getVehicleType()),
+          DutyTypeSummaryDTO.fromEntity(rateCard.getDutyType()),
+          rateCard.getCity(),
+          rateCard.getBaseFare(),
+          rateCard.getExtraKmCharges(),
+          rateCard.getExtraHrCharges(),
+          rateCard.getDailyAllowanceCharges(),
+          rateCard.getEarlyAllowanceCharges(),
+          rateCard.getLateAllowanceCharges(),
+          rateCard.getSwitchCutOffHrs(),
+          rateCard.getSwitchCutOffKms(),
+          DutyTypeSummaryDTO.fromEntity(rateCard.getSwitchDutyType()),
+          rateCard.getHourlyAllowance(),
+          DutyTypeSummaryDTO.fromEntity(rateCard.getNoShowDutyType()),
+          rateCard.getNoOfDaysHourCutoff(),
+          rateCard.getEarlyAllowanceStartTime(),
+          rateCard.getLateAllowanceStartTime(),
+          rateCard.getAllowanceCutOffHrs(),
+          rateCard.getApprovalStatus(),
+          rateCard.getApprovedAt(),
+          rateCard.getApprovedBy()
+      );
+    }
+  }
+
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class VehicleTypeSummaryDTO {
+    private UUID id;
+    private String defaultName;
+    private Integer seatCount;
+    private VehicleType.typeVehicle typeOfVehicle;
+
+    public static VehicleTypeSummaryDTO fromEntity(VehicleType vehicleType) {
+      if (vehicleType == null) {
+        return null;
+      }
+
+      return new VehicleTypeSummaryDTO(
+          vehicleType.getId(),
+          vehicleType.getDefaultName(),
+          vehicleType.getSeatCount(),
+          vehicleType.getTypeOfVehicle()
+      );
+    }
+  }
+
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class DutyTypeSummaryDTO {
+    private UUID id;
+    private String name;
+    private DutyType.typeDuty typeOfDuty;
+    private Integer km;
+    private Integer hr;
+
+    public static DutyTypeSummaryDTO fromEntity(DutyType dutyType) {
+      if (dutyType == null) {
+        return null;
+      }
+
+      return new DutyTypeSummaryDTO(
+          dutyType.getId(),
+          dutyType.getName(),
+          dutyType.getTypeOfDuty(),
+          dutyType.getKm(),
+          dutyType.getHr()
+      );
+    }
   }
 }

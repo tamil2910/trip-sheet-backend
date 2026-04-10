@@ -1,11 +1,13 @@
 package com.example.trip_sheet_backend.models;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 import jakarta.annotation.Nullable;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -70,6 +72,9 @@ public class VendorPartner extends BaseModel {
   private Long contractStartDate;
 
   private Long contractEndDate;
+
+  @Column(name = "vendor_partner_rate_card_id")
+  private UUID vendorPartnerRateCardId;
 
   @JsonManagedReference
   @OneToMany(mappedBy = "vendorPartner")

@@ -13,4 +13,5 @@ public interface VendorPartnerRateCardService {
   List<VendorPartnerRateCard> createRateCards(VendorPartnerRateCardBulkCreateRequestDTO body, Tenant loggedInTenant, UUID createdBy);
   VendorPartnerRateCard reviewRateCard(UUID rateCardId, VendorPartnerRateCardApprovalRequestDTO body, Tenant loggedInTenant, UUID approvedBy);
   List<VendorPartnerRateCard> getRateCardsByVendorPartner(UUID vendorPartnerId, Tenant loggedInTenant);
+  VendorPartnerRateCard getActiveRateCardByVendorPartner(UUID vendorPartnerId, Tenant loggedInTenant);
 }

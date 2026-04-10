@@ -7,5 +7,5 @@ import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 
 public interface VendorPartnerRateCardRepository extends BaseRepository<VendorPartnerRateCard, UUID> {
-  List<VendorPartnerRateCard> findByVendorPartnerId(UUID vendorPartnerId);
+  List<VendorPartnerRateCard> findByVendorPartnerIdAndIsDeletedFalse(UUID vendorPartnerId);
 }
