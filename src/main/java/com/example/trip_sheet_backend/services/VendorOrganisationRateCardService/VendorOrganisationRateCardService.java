@@ -23,4 +23,5 @@ public interface VendorOrganisationRateCardService {
   );
 
   List<VendorOrganisationRateCard> getRateCardsByVendorOrganisation(UUID vendorOrganisationId, Tenant loggedInTenant);
+  VendorOrganisationRateCard getActiveRateCardByVendorOrganisation(UUID vendorOrganisationId, Tenant loggedInTenant);
 }

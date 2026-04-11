@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.services.VendorOrganisationRateCardServic
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -59,7 +60,14 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       throw new RuntimeException("Only vendor can create rate cards");
     }
 
+    List<VendorOrganisationRateCard> existingRateCards = getNonDeletedRateCards(vendorOrganisation.getId());
+    if (!existingRateCards.isEmpty() && !isContractExpired(vendorOrganisation)) {
+      throw new RuntimeException("Rate cards already exist for this vendor organisation. Update the existing rate card until the current contract expires");
+    }
+
     applySharedVendorOrganisationFields(vendorOrganisation, body);
+    vendorOrganisation.setContractStatus(VendorOrganisation.ContractStatus.PENDING_APPROVAL);
+    vendorOrganisation.setActive(false);
     vendorOrganisation.setUpdatedBy(createdBy.toString());
     vendorOrganisationRepository.save(vendorOrganisation);
 
@@ -146,12 +154,31 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       throw new RuntimeException("Invalid approval status");
     }
 
+    List<VendorOrganisationRateCard> nonDeletedRateCards = getNonDeletedRateCards(vendorOrganisation.getId());
+    Optional<VendorOrganisationRateCard> currentActiveRateCard = findCurrentActiveRateCard(vendorOrganisation, nonDeletedRateCards);
+
+    if (body.getApprovalStatus() == VendorOrganisationRateCard.ApprovalStatus.APPROVED
+        && currentActiveRateCard.isPresent()
+        && !currentActiveRateCard.get().getId().equals(rateCard.getId())
+        && !isContractExpired(vendorOrganisation)) {
+      throw new RuntimeException("An active contract already exists for this vendor organisation. Approve a new rate card only after the current contract expires");
+    }
+
     rateCard.setApprovalStatus(body.getApprovalStatus());
     rateCard.setApprovedAt(Instant.now().toEpochMilli());
     rateCard.setApprovedBy(approvedBy.toString());
     rateCard.setUpdatedBy(approvedBy.toString());
 
-    return vendorOrganisationRateCardRepository.save(rateCard);
+    VendorOrganisationRateCard savedRateCard = vendorOrganisationRateCardRepository.save(rateCard);
+
+    if (body.getApprovalStatus() == VendorOrganisationRateCard.ApprovalStatus.APPROVED) {
+      vendorOrganisation.setContractStatus(VendorOrganisation.ContractStatus.ACTIVE);
+      vendorOrganisation.setActive(true);
+      vendorOrganisation.setUpdatedBy(approvedBy.toString());
+      vendorOrganisationRepository.save(vendorOrganisation);
+    }
+
+    return savedRateCard;
   }
 
   @Override
@@ -161,7 +188,23 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
 
     validateTenantLinkedToVendorOrganisation(loggedInTenant, vendorOrganisation);
 
-    return vendorOrganisationRateCardRepository.findByVendorOrganisationId(vendorOrganisation.getId());
+    return vendorOrganisationRateCardRepository.findByVendorOrganisationIdAndIsDeletedFalse(vendorOrganisation.getId());
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public VendorOrganisationRateCard getActiveRateCardByVendorOrganisation(UUID vendorOrganisationId, Tenant loggedInTenant) {
+    VendorOrganisation vendorOrganisation = resolveVendorOrganisation(vendorOrganisationId, loggedInTenant);
+
+    validateTenantLinkedToVendorOrganisation(loggedInTenant, vendorOrganisation);
+
+    if (vendorOrganisation.getContractStatus() != VendorOrganisation.ContractStatus.ACTIVE
+        || isContractExpired(vendorOrganisation)) {
+      return null;
+    }
+
+    return findCurrentActiveRateCard(vendorOrganisation, getNonDeletedRateCards(vendorOrganisation.getId()))
+        .orElse(null);
   }
 
   private VendorOrganisation resolveVendorOrganisation(UUID vendorOrganisationId, Tenant loggedInTenant) {
@@ -198,6 +241,31 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
     if (!isVendor && !isOrganisation) {
       throw new RuntimeException("You are not allowed to access this vendor organisation rate card");
     }
+  }
+
+  private List<VendorOrganisationRateCard> getNonDeletedRateCards(UUID vendorOrganisationId) {
+    return vendorOrganisationRateCardRepository.findByVendorOrganisationIdAndIsDeletedFalse(vendorOrganisationId);
+  }
+
+  private Optional<VendorOrganisationRateCard> findCurrentActiveRateCard(
+      VendorOrganisation vendorOrganisation,
+      List<VendorOrganisationRateCard> rateCards
+  ) {
+    if (rateCards == null || rateCards.isEmpty() || isContractExpired(vendorOrganisation)) {
+      return Optional.empty();
+    }
+
+    return rateCards.stream()
+        .filter(rateCard -> rateCard.getApprovalStatus() == VendorOrganisationRateCard.ApprovalStatus.APPROVED)
+        .max((left, right) -> Long.compare(
+            left.getApprovedAt() == null ? 0L : left.getApprovedAt(),
+            right.getApprovedAt() == null ? 0L : right.getApprovedAt()
+        ));
+  }
+
+  private boolean isContractExpired(VendorOrganisation vendorOrganisation) {
+    Long contractEndDate = vendorOrganisation.getContractEndDate();
+    return contractEndDate != null && contractEndDate < Instant.now().toEpochMilli();
   }
 
   private DutyType resolveDutyType(UUID dutyTypeId) {

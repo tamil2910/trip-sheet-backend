@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardApprovalRequestDTO;
@@ -80,11 +81,23 @@ public class VendorOrganisationRateCardController {
   }
 
   @GetMapping("/vendor-organisation/{vendorOrganisationId}")
-  public ResponseEntity<ApiResponse<List<VendorOrganisationRateCardResponseDTO>>> getRateCardsByVendorOrganisation(
+  public ResponseEntity<ApiResponse<?>> getRateCardsByVendorOrganisation(
       @PathVariable UUID vendorOrganisationId,
+      @RequestParam(required = false) String contractStatus,
       HttpServletRequest request
   ) {
     Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+
+    if (contractStatus != null && contractStatus.equalsIgnoreCase("active")) {
+      VendorOrganisationRateCard activeRateCard = vendorOrganisationRateCardService
+          .getActiveRateCardByVendorOrganisation(vendorOrganisationId, loggedInTenant);
+
+      return ResponseEntity.ok(new ApiResponse<>(
+          true,
+          "Active vendor organisation rate card fetched successfully",
+          activeRateCard == null ? null : VendorOrganisationRateCardResponseDTO.fromEntity(activeRateCard)
+      ));
+    }
 
     List<VendorOrganisationRateCardResponseDTO> response = vendorOrganisationRateCardService
         .getRateCardsByVendorOrganisation(vendorOrganisationId, loggedInTenant)
