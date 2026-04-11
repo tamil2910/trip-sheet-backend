@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardBulkCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardCreateRequestDTO;
+import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardUpdateRequestDTO;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.VehicleType;
@@ -95,28 +96,100 @@ public class VendorPartnerRateCardServiceImp implements VendorPartnerRateCardSer
     VendorPartnerRateCard rateCard = new VendorPartnerRateCard();
     rateCard.setPrimaryVendor(vendorPartner.getPrimaryVendor());
     rateCard.setVendorPartner(vendorPartner);
-    rateCard.setVehicleType(vehicleType);
-    rateCard.setDutyType(dutyType);
-    rateCard.setCity(body.getCity().trim());
-    rateCard.setBaseFare(body.getBaseFare());
-    rateCard.setExtraKmCharges(body.getExtraKmCharges());
-    rateCard.setExtraHrCharges(body.getExtraHrCharges());
-    rateCard.setDailyAllowanceCharges(body.getDailyAllowanceCharges());
-    rateCard.setEarlyAllowanceCharges(body.getEarlyAllowanceCharges());
-    rateCard.setLateAllowanceCharges(body.getLateAllowanceCharges());
-    rateCard.setSwitchCutOffHrs(body.getSwitchCutOffHrs());
-    rateCard.setSwitchCutOffKms(body.getSwitchCutOffKms());
-    rateCard.setSwitchDutyType(switchDutyType);
-    rateCard.setHourlyAllowance(body.getHourlyAllowance());
-    rateCard.setNoShowDutyType(noShowDutyType);
-    rateCard.setNoOfDaysHourCutoff(body.getNoOfDaysHourCutoff());
-    rateCard.setEarlyAllowanceStartTime(body.getEarlyAllowanceStartTime());
-    rateCard.setLateAllowanceStartTime(body.getLateAllowanceStartTime());
-    rateCard.setAllowanceCutOffHrs(body.getAllowanceCutOffHrs());
+    applyRateCardFields(
+        rateCard,
+        vehicleType,
+        dutyType,
+        body.getCity(),
+        body.getBaseFare(),
+        body.getExtraKmCharges(),
+        body.getExtraHrCharges(),
+        body.getDailyAllowanceCharges(),
+        body.getEarlyAllowanceCharges(),
+        body.getLateAllowanceCharges(),
+        body.getSwitchCutOffHrs(),
+        body.getSwitchCutOffKms(),
+        switchDutyType,
+        body.getHourlyAllowance(),
+        noShowDutyType,
+        body.getNoOfDaysHourCutoff(),
+        body.getEarlyAllowanceStartTime(),
+        body.getLateAllowanceStartTime(),
+        body.getAllowanceCutOffHrs()
+    );
     rateCard.setApprovalStatus(VendorPartnerRateCard.ApprovalStatus.PENDING_APPROVAL);
     rateCard.setCreatedBy(createdBy.toString());
 
     return vendorPartnerRateCardRepository.save(rateCard);
+  }
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public VendorPartnerRateCard updateRateCard(
+      UUID rateCardId,
+      VendorPartnerRateCardUpdateRequestDTO body,
+      Tenant loggedInTenant,
+      UUID updatedBy
+  ) {
+    VendorPartnerRateCard rateCard = vendorPartnerRateCardRepository.findById(rateCardId)
+        .orElseThrow(() -> new RuntimeException("Vendor partner rate card not found"));
+
+    if (Boolean.TRUE.equals(rateCard.getIsDeleted())) {
+      throw new RuntimeException("Vendor partner rate card not found");
+    }
+
+    VendorPartner vendorPartner = rateCard.getVendorPartner();
+    validateTenantLinkedToVendorPartner(loggedInTenant, vendorPartner);
+
+    if (!vendorPartner.getPrimaryVendor().getId().equals(loggedInTenant.getId())) {
+      throw new RuntimeException("Only primary vendor can update rate cards");
+    }
+
+    VehicleType vehicleType = vehicleTypeRepository.findById(body.getVehicleTypeId())
+        .orElseThrow(() -> new RuntimeException("Vehicle type not found"));
+
+    DutyType dutyType = dutyTypeRepository.findById(body.getDutyTypeId())
+        .orElseThrow(() -> new RuntimeException("Duty type not found"));
+
+    DutyType switchDutyType = resolveDutyType(body.getSwitchDutyTypeId());
+    DutyType noShowDutyType = resolveDutyType(body.getNoShowDutyTypeId());
+
+    applyRateCardFields(
+        rateCard,
+        vehicleType,
+        dutyType,
+        body.getCity(),
+        body.getBaseFare(),
+        body.getExtraKmCharges(),
+        body.getExtraHrCharges(),
+        body.getDailyAllowanceCharges(),
+        body.getEarlyAllowanceCharges(),
+        body.getLateAllowanceCharges(),
+        body.getSwitchCutOffHrs(),
+        body.getSwitchCutOffKms(),
+        switchDutyType,
+        body.getHourlyAllowance(),
+        noShowDutyType,
+        body.getNoOfDaysHourCutoff(),
+        body.getEarlyAllowanceStartTime(),
+        body.getLateAllowanceStartTime(),
+        body.getAllowanceCutOffHrs()
+    );
+    rateCard.setApprovalStatus(VendorPartnerRateCard.ApprovalStatus.PENDING_APPROVAL);
+    rateCard.setApprovedAt(null);
+    rateCard.setApprovedBy(null);
+    rateCard.setUpdatedBy(updatedBy.toString());
+
+    VendorPartnerRateCard savedRateCard = vendorPartnerRateCardRepository.save(rateCard);
+
+    vendorPartner.setContractStatus(VendorPartner.ContractStatus.PENDING_APPROVAL);
+    if (Objects.equals(vendorPartner.getVendorPartnerRateCardId(), rateCard.getId())) {
+      vendorPartner.setVendorPartnerRateCardId(null);
+    }
+    vendorPartner.setUpdatedBy(updatedBy.toString());
+    vendorPartnerRepository.save(vendorPartner);
+
+    return savedRateCard;
   }
 
   private void applySharedVendorPartnerFields(
@@ -275,5 +348,46 @@ public class VendorPartnerRateCardServiceImp implements VendorPartnerRateCardSer
 
     return dutyTypeRepository.findById(dutyTypeId)
         .orElseThrow(() -> new RuntimeException("Duty type not found for id: " + dutyTypeId));
+  }
+
+  private void applyRateCardFields(
+      VendorPartnerRateCard rateCard,
+      VehicleType vehicleType,
+      DutyType dutyType,
+      String city,
+      java.math.BigDecimal baseFare,
+      java.math.BigDecimal extraKmCharges,
+      java.math.BigDecimal extraHrCharges,
+      java.math.BigDecimal dailyAllowanceCharges,
+      java.math.BigDecimal earlyAllowanceCharges,
+      java.math.BigDecimal lateAllowanceCharges,
+      Integer switchCutOffHrs,
+      Integer switchCutOffKms,
+      DutyType switchDutyType,
+      java.math.BigDecimal hourlyAllowance,
+      DutyType noShowDutyType,
+      Integer noOfDaysHourCutoff,
+      java.time.LocalTime earlyAllowanceStartTime,
+      java.time.LocalTime lateAllowanceStartTime,
+      Integer allowanceCutOffHrs
+  ) {
+    rateCard.setVehicleType(vehicleType);
+    rateCard.setDutyType(dutyType);
+    rateCard.setCity(city.trim());
+    rateCard.setBaseFare(baseFare);
+    rateCard.setExtraKmCharges(extraKmCharges);
+    rateCard.setExtraHrCharges(extraHrCharges);
+    rateCard.setDailyAllowanceCharges(dailyAllowanceCharges);
+    rateCard.setEarlyAllowanceCharges(earlyAllowanceCharges);
+    rateCard.setLateAllowanceCharges(lateAllowanceCharges);
+    rateCard.setSwitchCutOffHrs(switchCutOffHrs);
+    rateCard.setSwitchCutOffKms(switchCutOffKms);
+    rateCard.setSwitchDutyType(switchDutyType);
+    rateCard.setHourlyAllowance(hourlyAllowance);
+    rateCard.setNoShowDutyType(noShowDutyType);
+    rateCard.setNoOfDaysHourCutoff(noOfDaysHourCutoff);
+    rateCard.setEarlyAllowanceStartTime(earlyAllowanceStartTime);
+    rateCard.setLateAllowanceStartTime(lateAllowanceStartTime);
+    rateCard.setAllowanceCutOffHrs(allowanceCutOffHrs);
   }
 }

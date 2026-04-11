@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardBulkCreateRequestDTO;
+import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardUpdateRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.VendorOrganisationRateCard;
 
@@ -14,6 +15,13 @@ public interface VendorOrganisationRateCardService {
       Tenant loggedInTenant,
       UUID createdBy
   );
+
+    VendorOrganisationRateCard updateRateCard(
+      UUID rateCardId,
+      VendorOrganisationRateCardUpdateRequestDTO body,
+      Tenant loggedInTenant,
+      UUID updatedBy
+    );
 
   VendorOrganisationRateCard reviewRateCard(
       UUID rateCardId,

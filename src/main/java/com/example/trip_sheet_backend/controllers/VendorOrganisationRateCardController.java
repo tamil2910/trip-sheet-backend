@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardBulkCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardResponseDTO;
+import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardUpdateRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.VendorOrganisationRateCard;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -79,6 +80,29 @@ public class VendorOrganisationRateCardController {
         VendorOrganisationRateCardResponseDTO.fromEntity(rateCard)
     ));
   }
+
+    @PutMapping("/{rateCardId}/update")
+    public ResponseEntity<ApiResponse<VendorOrganisationRateCardResponseDTO>> updateRateCard(
+            @PathVariable UUID rateCardId,
+            HttpServletRequest request,
+            @Valid @RequestBody VendorOrganisationRateCardUpdateRequestDTO body
+    ) {
+        UUID updatedBy = (UUID) request.getAttribute("createdBy");
+        Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+
+        VendorOrganisationRateCard rateCard = vendorOrganisationRateCardService.updateRateCard(
+                rateCardId,
+                body,
+                loggedInTenant,
+                updatedBy
+        );
+
+        return ResponseEntity.ok(new ApiResponse<>(
+                true,
+                "Vendor organisation rate card updated successfully",
+                VendorOrganisationRateCardResponseDTO.fromEntity(rateCard)
+        ));
+    }
 
   @GetMapping("/vendor-organisation/{vendorOrganisationId}")
   public ResponseEntity<ApiResponse<?>> getRateCardsByVendorOrganisation(

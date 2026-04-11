@@ -18,6 +18,7 @@ import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartn
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardBulkCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardResponseDTO;
+import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardUpdateRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -80,6 +81,29 @@ public class VendorPartnerRateCardController {
         VendorPartnerRateCardResponseDTO.fromEntity(rateCard)
     ));
   }
+
+    @PutMapping("/{rateCardId}/update")
+    public ResponseEntity<ApiResponse<VendorPartnerRateCardResponseDTO>> updateRateCard(
+            @PathVariable UUID rateCardId,
+            HttpServletRequest request,
+            @Valid @RequestBody VendorPartnerRateCardUpdateRequestDTO body
+    ) {
+        UUID updatedBy = (UUID) request.getAttribute("createdBy");
+        Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+
+        VendorPartnerRateCard rateCard = vendorPartnerRateCardService.updateRateCard(
+                rateCardId,
+                body,
+                loggedInTenant,
+                updatedBy
+        );
+
+        return ResponseEntity.ok(new ApiResponse<>(
+                true,
+                "Vendor partner rate card updated successfully",
+                VendorPartnerRateCardResponseDTO.fromEntity(rateCard)
+        ));
+    }
 
   @GetMapping("/vendor-partner/{vendorPartnerId}")
   public ResponseEntity<ApiResponse<?>> getRateCardsByVendorPartner(
