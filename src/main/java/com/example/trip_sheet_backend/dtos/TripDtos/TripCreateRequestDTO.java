@@ -2,13 +2,18 @@ package com.example.trip_sheet_backend.dtos.TripDtos;
 
 import java.util.List;
 
+import com.example.trip_sheet_backend.models.Trip;
+
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter @Setter
 public class TripCreateRequestDTO {
 
-    private String tenantId;  // corporate  
+    private String tripCode;
+    private Trip.TripType tripType;
+    private String parentTripId;
+
     private String vendorId;  // executing vendor
 
     // Corporate owning the trip
@@ -29,6 +34,8 @@ public class TripCreateRequestDTO {
     // epoch seconds
     private Long pickupTime;
 
+    // epoch seconds (conditional)
+    private Long startDate;
     // epoch seconds (conditional)
     private Long endDate;
 

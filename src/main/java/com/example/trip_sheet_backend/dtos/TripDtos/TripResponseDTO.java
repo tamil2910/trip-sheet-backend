@@ -11,39 +11,30 @@ import lombok.Setter;
 public class TripResponseDTO {
 
     private String id;
+    private String tripCode;
 
     private Trip.TripStatus tripStatus;
+    private Trip.TripType tripType;
 
-    // private String bookingId;
+    private TripRelationResponseDTO vendor;
+    private TripRelationResponseDTO organisation;
+    private TripRelationResponseDTO assignedByVendor;
+    private TripRelationResponseDTO previousVendor;
 
-    private String vendorId;
-    private String vendorName;
-
-    private String organisationId;
-    private String organisationName;
-
-    private String assignedByVendorId;
-    private String assignedByVendorName;
-
-    private String previousVendorId;
-    private String previousVendorName;
-
-    // private String tenantId;
-    // private String tenantName;
-
-    private String driverId;
-    private String driverName;
-
-    private String vehicleId;
-    private String vehicleNumber;
-
-    private String vehicleTypeId;
-    private String vehicleTypeName;
-
-    private String dutyTypeId;
-    private String dutyTypeName;
+    private TripRelationResponseDTO driver;
+    private TripBasicRelationResponseDTO vehicle;
+    private TripBasicRelationResponseDTO vehicleType;
+    private TripBasicRelationResponseDTO dutyType;
+    private TripRelationResponseDTO booker;
+    private List<TripRelationResponseDTO> passengers;
 
     private String notes;
+
+    private Long pickupTime;
+    private Long startDate;
+    private Long endDate;
+    private Long startOtp;
+    private Long endOtp;
 
     private List<TripStopResponseDTO> stops;
 }

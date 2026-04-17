@@ -3,6 +3,7 @@ package com.example.trip_sheet_backend.services.TripService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.stereotype.Service;
@@ -73,26 +74,43 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
           UUID.fromString(createTripDto.getVehicleTypeId()))
       .orElseThrow(() -> new RuntimeException("Invalid vehicle type"));
 
-  Driver driver = driverRepository.findById(
-          UUID.fromString(createTripDto.getDriverId()))
-      .orElseThrow(() -> new RuntimeException("Invalid driver"));
+  Driver driver = null;
+  if (createTripDto.getDriverId() != null && !createTripDto.getDriverId().isBlank()) {
+    driver = driverRepository.findById(UUID.fromString(createTripDto.getDriverId()))
+        .orElseThrow(() -> new RuntimeException("Invalid driver"));
+  }
 
-  Vehicle vehicle = vehicleRepository.findById(
-          UUID.fromString(createTripDto.getVehicleId()))
-      .orElseThrow(() -> new RuntimeException("Invalid vehicle"));
+  Vehicle vehicle = null;
+  if (createTripDto.getVehicleId() != null && !createTripDto.getVehicleId().isBlank()) {
+    vehicle = vehicleRepository.findById(UUID.fromString(createTripDto.getVehicleId()))
+        .orElseThrow(() -> new RuntimeException("Invalid vehicle"));
+  }
 
   // ✅ Create Trip manually (avoid mapper poisoning)
   Trip trip = new Trip();
+  trip.setTripCode(createTripDto.getTripCode());
+  trip.setTripType(createTripDto.getTripType());
   trip.setOrganisation(organisation);
   trip.setTenant(tenant);
   trip.setDutyType(dutyType);
   trip.setVehicleType(vehicleType);
   trip.setDriver(driver);
   trip.setVehicle(vehicle);
+
+  if (createTripDto.getParentTripId() != null && !createTripDto.getParentTripId().isBlank()) {
+    Trip parentTrip = repository.findById(UUID.fromString(createTripDto.getParentTripId()))
+        .orElseThrow(() -> new RuntimeException("Invalid parent trip"));
+    trip.setParentTrip(parentTrip);
+  }
+
   trip.setCreatedBy(createdBy.toString());
   trip.setTripStatus(Trip.TripStatus.CREATED);
   trip.setNotes(createTripDto.getNotes());
-  // trip.setPickupTime(createTripDto.getPickupTime());
+  trip.setPickupTime(createTripDto.getPickupTime());
+  trip.setStartDate(createTripDto.getStartDate());
+  trip.setEndDate(createTripDto.getEndDate());
+  trip.setStartOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
+  trip.setEndOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
   trip.setTripStatus(Trip.TripStatus.CREATED);
   // Vendor auto-assign
   if ("VENDOR".equals(tenant.getTenantType().toString())) {

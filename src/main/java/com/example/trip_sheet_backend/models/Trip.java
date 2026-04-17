@@ -4,10 +4,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
-import com.fasterxml.jackson.annotation.JsonBackReference;
-import com.fasterxml.jackson.annotation.JsonIgnore;
+// import com.fasterxml.jackson.annotation.JsonBackReference;
+// import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -23,25 +24,38 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import jakarta.persistence.Index;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "trips")
+@Table(
+  name = "trips",
+  indexes = {
+    @Index(name = "idx_trip_code", columnList = "trip_code"),
+    @Index(name = "idx_trip_status", columnList = "trip_status"),
+    @Index(name = "idx_vendor_id", columnList = "vendor_id"),
+    @Index(name = "idx_organisation_id", columnList = "organisation_id"),
+    @Index(name = "idx_driver_id", columnList = "driver_id"),
+    @Index(name = "idx_vehicle_id", columnList = "vehicle_id"),
+    @Index(name = "idx_duty_type_id", columnList = "duty_type_id"),
+    @Index(name = "idx_vehicle_type_id", columnList = "vehicle_type_id")
+  }
+)
 public class Trip extends BaseModel implements TenantScoped {
 
+  @Column(name = "trip_code")
+  private String tripCode;
+
   @Enumerated(EnumType.STRING)
+  @Column(name = "trip_status")
   private TripStatus tripStatus;
 
-  @JsonIgnore
-  @JsonBackReference
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "booking_id")
-  private Booking booking;  // parent booking (optional)
+  @Enumerated(EnumType.STRING)
+  private TripType tripType; // SINGLE, MULTI_DAY, RECURRING
 
-  // Delegation
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "parent_trip_id")
   private Trip parentTrip;
@@ -109,13 +123,24 @@ public class Trip extends BaseModel implements TenantScoped {
       CLOSED, CANCELLED, FAILED, NO_SHOW, EXPIRED
   }
 
+    public enum TripType {
+      SINGLE,
+      MULTI_DAY,
+      RECURRING
+    }
+
+  @Column(columnDefinition = "BIGINT")
   private Long pickupTime;
+
+  @Column(columnDefinition = "BIGINT")
+  private Long startDate;
+  @Column(columnDefinition = "BIGINT")
   private Long endDate;
 
+  @Column(columnDefinition = "BIGINT")
   private Long startOtp;
+  @Column(columnDefinition = "BIGINT")
   private Long endOtp;
-
-
 
   @Override
   public Tenant getTenant() {
