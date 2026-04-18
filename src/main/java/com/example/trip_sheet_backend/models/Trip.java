@@ -129,6 +129,18 @@ public class Trip extends BaseModel implements TenantScoped {
       RECURRING
     }
 
+    public enum RecurrenceFrequency {
+        WEEKLY,
+        MONTHLY
+    }
+
+    private Integer recurrenceInterval;
+
+    private String daysOfWeek; // MON,WED,FRI for WEEKLY recurrence
+
+    @Enumerated(EnumType.STRING)
+    private RecurrenceFrequency recurrenceFrequency;
+
   @Column(columnDefinition = "BIGINT")
   private Long pickupTime;
 

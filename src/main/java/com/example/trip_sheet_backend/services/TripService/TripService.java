@@ -1,5 +1,6 @@
 package com.example.trip_sheet_backend.services.TripService;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.example.trip_sheet_backend.common.services.BaseService;
@@ -10,4 +11,5 @@ import com.example.trip_sheet_backend.models.Trip;
 
 public interface TripService extends BaseService<Trip, UUID> {
   Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID createdBy);
+  List<Trip> createBulkTrips(List<TripCreateRequestDTO> createTripDtos, Tenant tenant, UUID createdBy);
 }

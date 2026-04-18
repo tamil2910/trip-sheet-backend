@@ -14,6 +14,11 @@ public class TripCreateRequestDTO {
     private Trip.TripType tripType;
     private String parentTripId;
 
+    // Recurrence fields (used when tripType is RECURRING)
+    private Integer recurrenceInterval;
+    private String daysOfWeek;
+    private Trip.RecurrenceFrequency recurrenceFrequency;
+
     private String vendorId;  // executing vendor
 
     // Corporate owning the trip

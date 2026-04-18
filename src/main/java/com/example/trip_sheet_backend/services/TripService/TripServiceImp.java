@@ -1,7 +1,11 @@
 package com.example.trip_sheet_backend.services.TripService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
@@ -28,6 +32,13 @@ import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
 import com.example.trip_sheet_backend.repositories.VehicleRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeRepository;
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.DayOfWeek;
+import java.time.LocalTime;
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripService {
@@ -90,6 +101,9 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
   Trip trip = new Trip();
   trip.setTripCode(createTripDto.getTripCode());
   trip.setTripType(createTripDto.getTripType());
+  trip.setRecurrenceInterval(createTripDto.getRecurrenceInterval());
+  trip.setDaysOfWeek(createTripDto.getDaysOfWeek());
+  trip.setRecurrenceFrequency(createTripDto.getRecurrenceFrequency());
   trip.setOrganisation(organisation);
   trip.setTenant(tenant);
   trip.setDutyType(dutyType);
@@ -178,38 +192,263 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
     }
   }
 
-  System.out.println("===== DEBUG NULL CHECK =====");
-
-  System.out.println("Organisation name = " + organisation.getTenantName());
-  System.out.println("DutyType name = " + dutyType.getName());
-  System.out.println("VehicleType name = " + vehicleType.getDefaultName());
-
-  if (trip.getBooker() != null) {
-    System.out.println("Booker name = " + trip.getBooker().getName());
+  if (trip.getTripType() == Trip.TripType.MULTI_DAY) {
+    return createMultiDayTrips(trip);
   }
 
-  if (trip.getPassengers() != null) {
-    trip.getPassengers().forEach(p ->
-        System.out.println("Passenger " + p.getId() + " name=" + p.getName())
-    );
+  if (trip.getTripType() == Trip.TripType.RECURRING) {
+    return createRecurringTrips(trip);
   }
 
-  if (trip.getStops() != null) {
-    trip.getStops().forEach(s ->
-        System.out.println("Stop address=" + s.getAddressText())
-    );
+  return repository.save(trip);
+}
+
+@Override
+@Transactional(rollbackFor = Exception.class)
+public List<Trip> createBulkTrips(List<TripCreateRequestDTO> createTripDtos, Tenant tenant, UUID createdBy) {
+  if (createTripDtos == null || createTripDtos.isEmpty()) {
+    throw new RuntimeException("Trip list cannot be empty for bulk create");
   }
 
+  List<Trip> createdTrips = new ArrayList<>();
+  Trip firstCreatedTrip = null;
 
-  try {
-    return repository.save(trip);
-  } catch (Exception e) {
-    e.printStackTrace();
-    throw e;
+  for (TripCreateRequestDTO dto : createTripDtos) {
+    Trip createdTrip = createTrip(dto, tenant, createdBy);
+
+    if (firstCreatedTrip == null) {
+      firstCreatedTrip = createdTrip;
+      createdTrips.add(createdTrip);
+      continue;
+    }
+
+    createdTrip.setParentTrip(firstCreatedTrip);
+    Trip updatedTrip = repository.save(createdTrip);
+    createdTrips.add(updatedTrip);
   }
 
+  return createdTrips;
+}
 
-  // return repository.save(trip);
+private Trip createMultiDayTrips(Trip templateTrip) {
+  if (templateTrip.getStartDate() == null || templateTrip.getEndDate() == null) {
+    throw new RuntimeException("startDate and endDate are required for MULTI_DAY trip");
+  }
+
+  LocalDate start = Instant.ofEpochSecond(templateTrip.getStartDate())
+      .atZone(ZoneOffset.UTC)
+      .toLocalDate();
+  LocalDate end = Instant.ofEpochSecond(templateTrip.getEndDate())
+      .atZone(ZoneOffset.UTC)
+      .toLocalDate();
+
+  if (end.isBefore(start)) {
+    throw new RuntimeException("endDate must be greater than or equal to startDate for MULTI_DAY trip");
+  }
+
+  Trip firstTrip = null;
+  Trip seriesParentTrip = null;
+
+  LocalDate current = start;
+  while (!current.isAfter(end)) {
+    Trip dailyTrip = cloneTripTemplate(templateTrip);
+    long tripDateTimeEpoch = buildTripDateTimeEpoch(current, templateTrip.getPickupTime());
+
+    dailyTrip.setStartDate(tripDateTimeEpoch);
+    dailyTrip.setEndDate(tripDateTimeEpoch);
+    dailyTrip.setPickupTime(templateTrip.getPickupTime());
+    dailyTrip.setParentTrip(seriesParentTrip);
+    dailyTrip.setTripStatus(Trip.TripStatus.CREATED);
+    dailyTrip.setStartOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
+    dailyTrip.setEndOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
+
+    Trip savedTrip = repository.save(dailyTrip);
+    if (firstTrip == null) {
+      firstTrip = savedTrip;
+      seriesParentTrip = savedTrip;
+    }
+    current = current.plusDays(1);
+  }
+
+  return firstTrip;
+}
+
+private Trip createRecurringTrips(Trip templateTrip) {
+  if (templateTrip.getStartDate() == null || templateTrip.getEndDate() == null) {
+    throw new RuntimeException("startDate and endDate are required for RECURRING trip");
+  }
+  if (templateTrip.getRecurrenceFrequency() == null) {
+    throw new RuntimeException("recurrenceFrequency is required for RECURRING trip");
+  }
+  if (templateTrip.getRecurrenceInterval() == null || templateTrip.getRecurrenceInterval() < 1) {
+    throw new RuntimeException("recurrenceInterval must be at least 1 for RECURRING trip");
+  }
+
+  LocalDate start = Instant.ofEpochSecond(templateTrip.getStartDate())
+      .atZone(ZoneOffset.UTC)
+      .toLocalDate();
+  LocalDate end = Instant.ofEpochSecond(templateTrip.getEndDate())
+      .atZone(ZoneOffset.UTC)
+      .toLocalDate();
+
+  if (end.isBefore(start)) {
+    throw new RuntimeException("endDate must be greater than or equal to startDate for RECURRING trip");
+  }
+
+  Set<DayOfWeekValue> allowedDays = parseAllowedDays(templateTrip.getDaysOfWeek(), templateTrip.getRecurrenceFrequency());
+
+  Trip firstTrip = null;
+  Trip seriesParentTrip = null;
+
+  if (templateTrip.getRecurrenceFrequency() == Trip.RecurrenceFrequency.MONTHLY) {
+    LocalDate current = start;
+    while (!current.isAfter(end)) {
+      Trip recurringTrip = cloneTripTemplate(templateTrip);
+      long tripDateTimeEpoch = buildTripDateTimeEpoch(current, templateTrip.getPickupTime());
+
+      recurringTrip.setStartDate(tripDateTimeEpoch);
+      recurringTrip.setEndDate(tripDateTimeEpoch);
+      recurringTrip.setPickupTime(templateTrip.getPickupTime());
+      recurringTrip.setParentTrip(seriesParentTrip);
+      recurringTrip.setTripStatus(Trip.TripStatus.CREATED);
+      recurringTrip.setStartOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
+      recurringTrip.setEndOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
+
+      Trip savedTrip = repository.save(recurringTrip);
+      if (firstTrip == null) {
+        firstTrip = savedTrip;
+        seriesParentTrip = savedTrip;
+      }
+      current = current.plusMonths(templateTrip.getRecurrenceInterval());
+    }
+    return firstTrip;
+  }
+
+  LocalDate cursor = start;
+  while (!cursor.isAfter(end)) {
+    long weeksFromStart = ChronoUnit.WEEKS.between(start, cursor);
+    boolean matchesInterval = weeksFromStart % templateTrip.getRecurrenceInterval() == 0;
+
+    if (matchesInterval && allowedDays.contains(DayOfWeekValue.from(cursor.getDayOfWeek()))) {
+      Trip recurringTrip = cloneTripTemplate(templateTrip);
+      long tripDateTimeEpoch = buildTripDateTimeEpoch(cursor, templateTrip.getPickupTime());
+
+      recurringTrip.setStartDate(tripDateTimeEpoch);
+      recurringTrip.setEndDate(tripDateTimeEpoch);
+      recurringTrip.setPickupTime(templateTrip.getPickupTime());
+      recurringTrip.setParentTrip(seriesParentTrip);
+      recurringTrip.setTripStatus(Trip.TripStatus.CREATED);
+      recurringTrip.setStartOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
+      recurringTrip.setEndOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
+
+      Trip savedTrip = repository.save(recurringTrip);
+      if (firstTrip == null) {
+        firstTrip = savedTrip;
+        seriesParentTrip = savedTrip;
+      }
+    }
+
+    cursor = cursor.plusDays(1);
+  }
+
+  return firstTrip;
+}
+
+private Trip cloneTripTemplate(Trip source) {
+  Trip clone = new Trip();
+  clone.setTripCode(source.getTripCode());
+  clone.setTripType(source.getTripType());
+  clone.setRecurrenceInterval(source.getRecurrenceInterval());
+  clone.setDaysOfWeek(source.getDaysOfWeek());
+  clone.setRecurrenceFrequency(source.getRecurrenceFrequency());
+  clone.setOrganisation(source.getOrganisation());
+  clone.setTenant(source.getTenant());
+  clone.setVendor(source.getVendor());
+  clone.setAssignedByVendor(source.getAssignedByVendor());
+  clone.setPreviousVendor(source.getPreviousVendor());
+  clone.setNotes(source.getNotes());
+  clone.setDriver(source.getDriver());
+  clone.setVehicle(source.getVehicle());
+  clone.setDutyType(source.getDutyType());
+  clone.setVehicleType(source.getVehicleType());
+  clone.setPassengers(source.getPassengers() == null ? null : new ArrayList<>(source.getPassengers()));
+  clone.setBooker(source.getBooker());
+  clone.setPickupTime(source.getPickupTime());
+  clone.setStartDate(source.getStartDate());
+  clone.setEndDate(source.getEndDate());
+  clone.setCreatedBy(source.getCreatedBy());
+  clone.setTripStatus(Trip.TripStatus.CREATED);
+
+  clone.setStops(new ArrayList<>());
+  if (source.getStops() != null) {
+    for (TripStop stop : source.getStops()) {
+      TripStop copiedStop = new TripStop();
+      copiedStop.setSequenceNumber(stop.getSequenceNumber());
+      copiedStop.setStopType(stop.getStopType());
+      copiedStop.setAddressText(stop.getAddressText());
+      copiedStop.setFormattedAddress(stop.getFormattedAddress());
+      copiedStop.setLatitude(stop.getLatitude());
+      copiedStop.setLongitude(stop.getLongitude());
+      copiedStop.setAccurate(stop.getAccurate());
+      copiedStop.setTrip(clone);
+      clone.getStops().add(copiedStop);
+    }
+  }
+
+  return clone;
+}
+
+private long buildTripDateTimeEpoch(LocalDate date, Long pickupTime) {
+  LocalTime parsedPickupTime = parsePickupTime(pickupTime);
+  return date.atTime(parsedPickupTime).toEpochSecond(ZoneOffset.UTC);
+}
+
+private LocalTime parsePickupTime(Long pickupTime) {
+  if (pickupTime == null || pickupTime <= 0) {
+    return LocalTime.MIDNIGHT;
+  }
+
+  // pickupTime is stored as epoch seconds; take only the UTC time-of-day part.
+  return Instant.ofEpochSecond(pickupTime)
+      .atZone(ZoneOffset.UTC)
+      .toLocalTime()
+      .withSecond(0)
+      .withNano(0);
+}
+
+private Set<DayOfWeekValue> parseAllowedDays(String daysOfWeek, Trip.RecurrenceFrequency frequency) {
+  Set<DayOfWeekValue> allowedDays = new HashSet<>();
+
+  if (daysOfWeek == null || daysOfWeek.isBlank()) {
+    if (frequency == Trip.RecurrenceFrequency.WEEKLY) {
+      throw new RuntimeException("daysOfWeek is required for WEEKLY recurring trip");
+    }
+    return allowedDays;
+  }
+
+  if (frequency != Trip.RecurrenceFrequency.WEEKLY) {
+    return allowedDays;
+  }
+
+  Arrays.stream(daysOfWeek.split(","))
+      .map(String::trim)
+      .filter(value -> !value.isBlank())
+      .map(DayOfWeekValue::from)
+      .forEach(allowedDays::add);
+
+  return allowedDays;
+}
+
+private enum DayOfWeekValue {
+  MON, TUE, WED, THU, FRI, SAT, SUN;
+
+  static DayOfWeekValue from(String value) {
+    return DayOfWeekValue.valueOf(value.trim().substring(0, 3).toUpperCase(Locale.ROOT));
+  }
+
+  static DayOfWeekValue from(DayOfWeek value) {
+    return DayOfWeekValue.valueOf(value.name().substring(0, 3).toUpperCase(Locale.ROOT));
+  }
 }
 
 

@@ -65,6 +65,27 @@ public class TripController extends BaseController<Trip, UUID> {
     );
   }
 
+  @PreAuthorize("hasAuthority('CAN_CREATE_TRIP')")
+  @PostMapping("/bulk-create")
+  public ResponseEntity<ApiResponse<List<TripResponseDTO>>> createBulkTrips(
+      HttpServletRequest request,
+      @Valid @RequestBody List<TripCreateRequestDTO> createTripDtos
+  ) {
+    UUID createdBy = (UUID) request.getAttribute("createdBy");
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+
+    if (tokenTenant == null) {
+      throw new RuntimeException("Tenant not found in token");
+    }
+
+    List<Trip> trips = tripServiceImp.createBulkTrips(createTripDtos, tokenTenant, createdBy);
+    List<TripResponseDTO> response = trips.stream().map(TripResponseMapper::toDTO).toList();
+
+    return ResponseEntity.ok(
+        new ApiResponse<>(true, "Bulk trips created successfully!", response)
+    );
+  }
+
   @Override
   @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
   @GetMapping("/{id}")
@@ -178,6 +199,9 @@ public class TripController extends BaseController<Trip, UUID> {
     if (source.getTripCode() != null) target.setTripCode(source.getTripCode());
     if (source.getTripStatus() != null) target.setTripStatus(source.getTripStatus());
     if (source.getTripType() != null) target.setTripType(source.getTripType());
+    if (source.getRecurrenceInterval() != null) target.setRecurrenceInterval(source.getRecurrenceInterval());
+    if (source.getDaysOfWeek() != null) target.setDaysOfWeek(source.getDaysOfWeek());
+    if (source.getRecurrenceFrequency() != null) target.setRecurrenceFrequency(source.getRecurrenceFrequency());
     if (source.getParentTrip() != null) target.setParentTrip(source.getParentTrip());
 
     if (source.getVendor() != null) target.setVendor(source.getVendor());
