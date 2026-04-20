@@ -8,6 +8,7 @@ import java.time.Instant;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -125,10 +126,15 @@ public class TripController extends BaseController<Trip, UUID> {
       page = size > 0 ? Math.max(skip / size, 0) : 0;
     }
 
+    Sort sort = Sort.by(Sort.Direction.ASC, "pickupTime");
+    if (pageable != null && pageable.getSort().isSorted()) {
+      sort = pageable.getSort();
+    }
+
     Pageable effectivePageable = PageRequest.of(
         Math.max(page, 0),
         Math.max(size, 1),
-        pageable != null ? pageable.getSort() : Pageable.unpaged().getSort());
+        sort);
 
     String globalSearch = filters.get("searchValue") != null ? filters.get("searchValue").toString().trim() : null;
 

@@ -123,23 +123,23 @@ public class Trip extends BaseModel implements TenantScoped {
       CLOSED, CANCELLED, FAILED, NO_SHOW, EXPIRED
   }
 
-    public enum TripType {
-      SINGLE,
-      MULTI_DAY,
-      RECURRING
-    }
+  public enum TripType {
+    SINGLE,
+    MULTI_DAY,
+    RECURRING
+  }
 
-    public enum RecurrenceFrequency {
-        WEEKLY,
-        MONTHLY
-    }
+  public enum RecurrenceFrequency {
+      WEEKLY,
+      MONTHLY
+  }
 
-    private Integer recurrenceInterval;
+  private Integer recurrenceInterval;
 
-    private String daysOfWeek; // MON,WED,FRI for WEEKLY recurrence
+  private String daysOfWeek; // MON,WED,FRI for WEEKLY recurrence
 
-    @Enumerated(EnumType.STRING)
-    private RecurrenceFrequency recurrenceFrequency;
+  @Enumerated(EnumType.STRING)
+  private RecurrenceFrequency recurrenceFrequency;
 
   @Column(columnDefinition = "BIGINT")
   private Long pickupTime;
