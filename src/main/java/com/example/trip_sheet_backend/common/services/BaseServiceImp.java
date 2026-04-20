@@ -9,7 +9,8 @@ import java.util.UUID;
 import jakarta.persistence.criteria.Path; // CORRECT
 
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;import org.springframework.data.domain.PageRequest;import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 // import org.springframework.data.jpa.repository.JpaRepository;
 // import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
@@ -23,6 +24,8 @@ import com.example.trip_sheet_backend.models.UserAccount;
 
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
 
 public class BaseServiceImp<T extends TenantScoped, ID extends Serializable> implements BaseService<T, ID> {
 
@@ -236,7 +239,10 @@ private Specification<T> buildSpecification(UUID tenantId, Map<String, Object> f
                 }
 
                 try {
-                    Path<Object> path = root.get(key);
+                    Path<?> path = resolvePath(root, key);
+                    if (path == null) {
+                        return;
+                    }
                     Class<?> fieldType = path.getJavaType();
                     String stringValue = value.toString().trim();
 
@@ -265,7 +271,7 @@ private Specification<T> buildSpecification(UUID tenantId, Map<String, Object> f
                         UUID uuidValue = (value instanceof UUID)
                                 ? (UUID) value
                                 : UUID.fromString(stringValue);
-                        predicates.add(cb.equal(path, uuidValue));
+                            predicates.add(cb.equal(path, uuidValue));
                     }
 
                     /* ---------- ENUM ---------- */
@@ -298,10 +304,25 @@ private Specification<T> buildSpecification(UUID tenantId, Map<String, Object> f
 
   private boolean hasField(Root<T> root, String field) {
       try {
-          root.get(field);
-          return true;
+          return resolvePath(root, field) != null;
       } catch (IllegalArgumentException e) {
           return false;
+      }
+  }
+
+  private Path<?> resolvePath(Root<T> root, String field) {
+      try {
+          String[] parts = field.split("\\.");
+          Path<?> path = root;
+          for (String part : parts) {
+              if (part == null || part.isBlank()) {
+                  return null;
+              }
+              path = path.get(part);
+          }
+          return path;
+      } catch (IllegalArgumentException ex) {
+          return null;
       }
   }
 
@@ -329,7 +350,98 @@ private Specification<T> buildSpecification(UUID tenantId, Map<String, Object> f
       return value;
   }
 
+public Page<T> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable) {
+    Specification<T> spec = (root, query, cb) -> {
+        query.distinct(true);
+        List<Predicate> predicates = new ArrayList<>();
+        if (tenantId != null) {
+            try {
+                predicates.add(cb.equal(root.join("tenant").get("id"), tenantId));
+            } catch (Exception ignored) {}
+        }
+        if (globalSearch != null && !globalSearch.isBlank()) {
+            String searchLower = "%" + globalSearch.toLowerCase() + "%";
+            List<Predicate> searchPredicates = new ArrayList<>();
+            String[] searchFields = {"tripCode", "notes"};
+            for (String field : searchFields) {
+                try {
+                    searchPredicates.add(cb.like(cb.lower(root.get(field).as(String.class)), searchLower));
+                } catch (Exception ignored) {}
+            }
+            try {
+                Join<Object, Object> driverJoin = root.join("driver", JoinType.LEFT);
+                searchPredicates.add(cb.like(cb.lower(driverJoin.get("fullName").as(String.class)), searchLower));
+            } catch (Exception ignored) {}
+            try {
+                Join<Object, Object> vehicleJoin = root.join("vehicle", JoinType.LEFT);
+                searchPredicates.add(cb.like(cb.lower(vehicleJoin.get("vehicleNumber").as(String.class)), searchLower));
+            } catch (Exception ignored) {}
+            try {
+                Join<Object, Object> bookerJoin = root.join("booker", JoinType.LEFT);
+                searchPredicates.add(cb.like(cb.lower(bookerJoin.get("name").as(String.class)), searchLower));
+            } catch (Exception ignored) {}
+            try {
+                Join<Object, Object> passengersJoin = root.join("passengers", JoinType.LEFT);
+                searchPredicates.add(cb.like(cb.lower(passengersJoin.get("name").as(String.class)), searchLower));
+            } catch (Exception ignored) {}
+            try {
+                Join<Object, Object> orgJoin = root.join("organisation", JoinType.LEFT);
+                searchPredicates.add(cb.like(cb.lower(orgJoin.get("tenantName").as(String.class)), searchLower));
+            } catch (Exception ignored) {}
+            try {
+                Join<Object, Object> vendorJoin = root.join("vendor", JoinType.LEFT);
+                searchPredicates.add(cb.like(cb.lower(vendorJoin.get("tenantName").as(String.class)), searchLower));
+            } catch (Exception ignored) {}
+            try {
+                Join<Object, Object> assignedByVendorJoin = root.join("assignedByVendor", JoinType.LEFT);
+                searchPredicates.add(cb.like(cb.lower(assignedByVendorJoin.get("tenantName").as(String.class)), searchLower));
+            } catch (Exception ignored) {}
+            try {
+                Join<Object, Object> previousVendorJoin = root.join("previousVendor", JoinType.LEFT);
+                searchPredicates.add(cb.like(cb.lower(previousVendorJoin.get("tenantName").as(String.class)), searchLower));
+            } catch (Exception ignored) {}
+            try {
+                Join<Object, Object> dutyTypeJoin = root.join("dutyType", JoinType.LEFT);
+                searchPredicates.add(cb.like(cb.lower(dutyTypeJoin.get("name").as(String.class)), searchLower));
+            } catch (Exception ignored) {}
+            try {
+                Join<Object, Object> vehicleTypeJoin = root.join("vehicleType", JoinType.LEFT);
+                searchPredicates.add(cb.like(cb.lower(vehicleTypeJoin.get("defaultName").as(String.class)), searchLower));
+            } catch (Exception ignored) {}
+            if (!searchPredicates.isEmpty()) {
+                predicates.add(cb.or(searchPredicates.toArray(new Predicate[0])));
+            }
+        }
+        if (filters != null) {
+            try {
+                Long startDateFilter = parseLong(filters.get("startDate"));
+                if (startDateFilter != null) {
+                    predicates.add(cb.greaterThanOrEqualTo(root.get("startDate"), startDateFilter));
+                }
+            } catch (Exception ignored) {}
+            try {
+                Long endDateFilter = parseLong(filters.get("endDate"));
+                if (endDateFilter != null) {
+                    predicates.add(cb.lessThanOrEqualTo(root.get("endDate"), endDateFilter));
+                }
+            } catch (Exception ignored) {}
+        }
+        predicates.add(cb.equal(root.get("isDeleted"), false));
+        return cb.and(predicates.toArray(new Predicate[0]));
+    };
+    return repository.findAll(spec, pageable);
+}
 
+private Long parseLong(Object value) {
+    if (value == null) return null;
+    if (value instanceof Long) return (Long) value;
+    try { return Long.parseLong(value.toString()); } catch (Exception ex) { return null; }
+}
 
+public static Pageable buildPageable(Integer skip, Integer limit) {
+    int pageNum = (skip != null && skip > 0) ? skip / Math.max(limit != null ? limit : 10, 1) : 0;
+    int pageSize = limit != null && limit > 0 ? limit : 10;
+    return PageRequest.of(pageNum, pageSize);
+}
 
 }

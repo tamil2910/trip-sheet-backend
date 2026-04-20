@@ -6,6 +6,7 @@ import java.util.List;
 import java.time.Instant;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -113,36 +114,66 @@ public class TripController extends BaseController<Trip, UUID> {
     HttpServletRequest request) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
 
-      Map<String, Object> effectiveFilters = new java.util.HashMap<>();
-      if (filters != null) {
-        effectiveFilters.putAll(filters);
-      }
-      effectiveFilters.put("isDeleted", false);
-
-      Page<Trip> result;
-      if (!effectiveFilters.isEmpty()) {
-        result = tripServiceImp.searchResources(tenantId, effectiveFilters, pageable);
-      } else {
-        result = tripServiceImp.getAllResources(tenantId, pageable);
+    Integer size = parseInt(filters.get("size"), null);
+    if (size == null) {
+      size = parseInt(filters.get("limit"), 10);
     }
 
-      List<TripResponseDTO> data = result.getContent().stream()
-          .map(TripResponseMapper::toDTO)
-          .toList();
+    Integer page = parseInt(filters.get("page"), null);
+    if (page == null) {
+      Integer skip = parseInt(filters.get("skip"), 0);
+      page = size > 0 ? Math.max(skip / size, 0) : 0;
+    }
 
-      Map<String, Object> response = new java.util.HashMap<>();
-      response.put("data", data);
-      response.put("currentPage", result.getNumber());
-      response.put("pageSize", result.getSize());
-      response.put("currentPageCount", result.getNumberOfElements());
-      response.put("totalItems", result.getTotalElements());
-      response.put("totalPages", result.getTotalPages());
-      response.put("isFirst", result.isFirst());
-      response.put("isLast", result.isLast());
-      response.put("hasNext", result.hasNext());
-      response.put("hasPrevious", result.hasPrevious());
+    Pageable effectivePageable = PageRequest.of(
+        Math.max(page, 0),
+        Math.max(size, 1),
+        pageable != null ? pageable.getSort() : Pageable.unpaged().getSort());
 
-      return new ApiResponse<>(true, "Trips fetched successfully!", response);
+    String globalSearch = filters.get("searchValue") != null ? filters.get("searchValue").toString().trim() : null;
+
+    Map<String, Object> effectiveFilters = new java.util.HashMap<>();
+    if (filters != null) {
+      for (String key : filters.keySet()) {
+        if (!key.equals("skip") && !key.equals("limit") && !key.equals("searchValue") &&
+            !key.equals("page") && !key.equals("size") && !key.equals("sort")) {
+          effectiveFilters.put(key, filters.get(key));
+        }
+      }
+    }
+
+    Page<Trip> result = tripServiceImp.searchResourcesWithGlobalSearch(tenantId, effectiveFilters, globalSearch, effectivePageable);
+
+    List<TripResponseDTO> data = result.getContent().stream()
+        .map(TripResponseMapper::toDTO)
+        .toList();
+
+    Map<String, Object> response = new java.util.HashMap<>();
+    response.put("data", data);
+    response.put("currentPage", result.getNumber());
+    response.put("pageSize", result.getSize());
+    response.put("currentPageCount", result.getNumberOfElements());
+    response.put("totalItems", result.getTotalElements());
+    response.put("totalPages", result.getTotalPages());
+    response.put("isFirst", result.isFirst());
+    response.put("isLast", result.isLast());
+    response.put("hasNext", result.hasNext());
+    response.put("hasPrevious", result.hasPrevious());
+    response.put("page", page);
+    response.put("size", size);
+
+    return new ApiResponse<>(true, "Trips fetched successfully!", response);
+  }
+
+  private Integer parseInt(Object value, Integer defaultValue) {
+    if (value == null) {
+      return defaultValue;
+    }
+    try {
+      return Integer.parseInt(value.toString());
+    } catch (Exception ex) {
+      return defaultValue;
+    }
   }
 
   @Override

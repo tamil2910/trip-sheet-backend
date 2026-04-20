@@ -5,11 +5,14 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -228,6 +231,11 @@ public List<Trip> createBulkTrips(List<TripCreateRequestDTO> createTripDtos, Ten
   }
 
   return createdTrips;
+}
+
+@Override
+public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable) {
+  return super.searchResourcesWithGlobalSearch(tenantId, filters, globalSearch, pageable);
 }
 
 private Trip createMultiDayTrips(Trip templateTrip) {
