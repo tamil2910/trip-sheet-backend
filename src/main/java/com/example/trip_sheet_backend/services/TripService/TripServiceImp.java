@@ -256,7 +256,7 @@ private Trip createMultiDayTrips(Trip templateTrip) {
 
     dailyTrip.setStartDate(tripDateTimeEpoch);
     dailyTrip.setEndDate(tripDateTimeEpoch);
-    dailyTrip.setPickupTime(templateTrip.getPickupTime());
+    dailyTrip.setPickupTime(tripDateTimeEpoch);
     dailyTrip.setParentTrip(seriesParentTrip);
     dailyTrip.setTripStatus(Trip.TripStatus.CREATED);
     dailyTrip.setStartOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
@@ -308,7 +308,7 @@ private Trip createRecurringTrips(Trip templateTrip) {
 
       recurringTrip.setStartDate(tripDateTimeEpoch);
       recurringTrip.setEndDate(tripDateTimeEpoch);
-      recurringTrip.setPickupTime(templateTrip.getPickupTime());
+      recurringTrip.setPickupTime(tripDateTimeEpoch);
       recurringTrip.setParentTrip(seriesParentTrip);
       recurringTrip.setTripStatus(Trip.TripStatus.CREATED);
       recurringTrip.setStartOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
@@ -335,7 +335,7 @@ private Trip createRecurringTrips(Trip templateTrip) {
 
       recurringTrip.setStartDate(tripDateTimeEpoch);
       recurringTrip.setEndDate(tripDateTimeEpoch);
-      recurringTrip.setPickupTime(templateTrip.getPickupTime());
+      recurringTrip.setPickupTime(tripDateTimeEpoch);
       recurringTrip.setParentTrip(seriesParentTrip);
       recurringTrip.setTripStatus(Trip.TripStatus.CREATED);
       recurringTrip.setStartOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));

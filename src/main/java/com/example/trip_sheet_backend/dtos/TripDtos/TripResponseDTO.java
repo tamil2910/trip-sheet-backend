@@ -11,6 +11,7 @@ import lombok.Setter;
 public class TripResponseDTO {
 
     private String id;
+    private String parentTripId;
     private String tripCode;
 
     private Trip.TripStatus tripStatus;

@@ -27,6 +27,9 @@ public final class TripResponseMapper {
         if (trip.getId() != null) {
             dto.setId(trip.getId().toString());
         }
+        if (trip.getParentTrip() != null && trip.getParentTrip().getId() != null) {
+            dto.setParentTripId(trip.getParentTrip().getId().toString());
+        }
 
         dto.setTripCode(trip.getTripCode());
         dto.setTripStatus(trip.getTripStatus());
