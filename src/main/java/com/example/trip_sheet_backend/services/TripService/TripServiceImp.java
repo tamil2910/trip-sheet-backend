@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.services.TripService;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -231,6 +232,48 @@ public List<Trip> createBulkTrips(List<TripCreateRequestDTO> createTripDtos, Ten
   }
 
   return createdTrips;
+}
+
+@Override
+@Transactional(readOnly = true)
+public List<Trip> getParentAndChildTrips(UUID tenantId, UUID tripId) {
+  Trip selectedTrip = findByIdResource(tenantId, tripId);
+  if (selectedTrip == null) {
+    return List.of();
+  }
+
+  Trip rootTrip = selectedTrip;
+  while (rootTrip.getParentTrip() != null) {
+    rootTrip = rootTrip.getParentTrip();
+  }
+
+  UUID rootTripId = rootTrip.getId();
+  List<Trip> relatedTrips = new ArrayList<>(repository.findAll((root, query, cb) -> {
+    query.distinct(true);
+
+    var tenantPredicate = cb.conjunction();
+    if (tenantId != null) {
+      try {
+        tenantPredicate = cb.equal(root.join("tenant").get("id"), tenantId);
+      } catch (Exception ignored) {
+        tenantPredicate = cb.conjunction();
+      }
+    }
+
+    var rootPredicate = cb.equal(root.get("id"), rootTripId);
+    var childPredicate = cb.equal(root.join("parentTrip").get("id"), rootTripId);
+
+    return cb.and(tenantPredicate, cb.or(rootPredicate, childPredicate));
+  }, Pageable.unpaged()).getContent());
+
+  relatedTrips.sort(Comparator.comparing(trip -> {
+    if (trip.getId() != null && trip.getId().equals(rootTripId)) {
+      return 0;
+    }
+    return 1;
+  }));
+
+  return relatedTrips;
 }
 
 @Override

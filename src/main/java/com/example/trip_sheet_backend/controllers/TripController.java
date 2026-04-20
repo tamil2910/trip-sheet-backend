@@ -269,4 +269,26 @@ public class TripController extends BaseController<Trip, UUID> {
     if (source.getEndOtp() != null) target.setEndOtp(source.getEndOtp());
   }
 
+  @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
+  @GetMapping("/parent-child-trips/{id}")
+  @SuppressWarnings({ "rawtypes", "unchecked" })
+  public ApiResponse<List<TripResponseDTO>> getParentAndChildTrips(
+      @PathVariable @NotNull UUID id,
+      HttpServletRequest request
+  ) {
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+
+    List<Trip> trips = tripServiceImp.getParentAndChildTrips(tenantId, id);
+    List<TripResponseDTO> response = trips.stream()
+        .map(TripResponseMapper::toDTO)
+        .toList();
+
+    return (ApiResponse<List<TripResponseDTO>>) (ApiResponse) new ApiResponse<>(
+        true,
+        "Parent and child trips fetched successfully!",
+        response
+    );
+  }
+
+
 }
