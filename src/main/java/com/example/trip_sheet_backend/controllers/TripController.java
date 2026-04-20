@@ -290,5 +290,26 @@ public class TripController extends BaseController<Trip, UUID> {
     );
   }
 
+  @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
+  @PutMapping("/split/{id}")
+  @SuppressWarnings({ "rawtypes", "unchecked" })
+  public ApiResponse<TripResponseDTO> splitChildTrip(
+      @PathVariable @NotNull UUID id,
+      HttpServletRequest request
+  ) {
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+
+    try {
+      Trip splitTrip = tripServiceImp.splitChildTrip(tenantId, id);
+      TripResponseDTO response = TripResponseMapper.toDTO(splitTrip);
+      return (ApiResponse<TripResponseDTO>) (ApiResponse) new ApiResponse<>(
+          true,
+          "Trip split from parent successfully!",
+          response
+      );
+    } catch (RuntimeException ex) {
+      return (ApiResponse<TripResponseDTO>) (ApiResponse) new ApiResponse<>(false, ex.getMessage(), null);
+    }
+  }
 
 }

@@ -18,6 +18,8 @@ public interface TripService extends BaseService<Trip, UUID> {
   List<Trip> createBulkTrips(List<TripCreateRequestDTO> createTripDtos, Tenant tenant, UUID createdBy);
 
   List<Trip> getParentAndChildTrips(UUID tenantId, UUID tripId);
+
+  Trip splitChildTrip(UUID tenantId, UUID tripId);
   
   Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable);
 }

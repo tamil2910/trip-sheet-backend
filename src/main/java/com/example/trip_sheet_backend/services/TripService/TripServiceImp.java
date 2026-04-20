@@ -43,6 +43,7 @@ import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
+import jakarta.persistence.criteria.JoinType;
 
 @Service
 public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripService {
@@ -261,19 +262,30 @@ public List<Trip> getParentAndChildTrips(UUID tenantId, UUID tripId) {
     }
 
     var rootPredicate = cb.equal(root.get("id"), rootTripId);
-    var childPredicate = cb.equal(root.join("parentTrip").get("id"), rootTripId);
+    var childPredicate = cb.equal(root.join("parentTrip", JoinType.LEFT).get("id"), rootTripId);
 
     return cb.and(tenantPredicate, cb.or(rootPredicate, childPredicate));
   }, Pageable.unpaged()).getContent());
 
-  relatedTrips.sort(Comparator.comparing(trip -> {
-    if (trip.getId() != null && trip.getId().equals(rootTripId)) {
-      return 0;
-    }
-    return 1;
-  }));
+  relatedTrips.sort(Comparator.comparing(trip -> trip.getPickupTime() != null ? trip.getPickupTime() : Long.MAX_VALUE));
 
   return relatedTrips;
+}
+
+@Override
+@Transactional(rollbackFor = Exception.class)
+public Trip splitChildTrip(UUID tenantId, UUID tripId) {
+  Trip trip = findByIdResource(tenantId, tripId);
+  if (trip == null) {
+    throw new RuntimeException("Trip not found");
+  }
+
+  if (trip.getParentTrip() == null) {
+    throw new RuntimeException("Cannot split a parent trip. Only child trips can be detached from their parent.");
+  }
+
+  trip.setParentTrip(null);
+  return repository.save(trip);
 }
 
 @Override
