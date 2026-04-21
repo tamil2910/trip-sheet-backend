@@ -45,7 +45,7 @@ public class DriverInfoDto {
     // @NotNull(message = "User account ID is required!")
     // private String userAccountId;
 
-    @NotNull(message = "Role ID is required!")
+    // @NotNull(message = "Role ID is required!")
     private String roleId;
 
     private Double rating = 0.0;
