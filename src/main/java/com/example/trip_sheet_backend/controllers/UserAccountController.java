@@ -118,7 +118,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
             .body(new ApiResponse<>(true, "Resource created successfully", result));
   }
 
-   @PreAuthorize("hasAuthority('CAN_ASSIGN_ROLEGROUP')")
+  @PreAuthorize("hasAuthority('CAN_ASSIGN_ROLEGROUP') or hasRole('SUPER_ADMIN')")
   @PatchMapping("/assign-role-group/{userId}")
   public ResponseEntity<ApiResponse<?>> assignRoleGroup(
     HttpServletRequest request,
@@ -129,36 +129,37 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
         throw new RuntimeException("RoleGroup ID must not be null!");
       }
       
-     // logged-in admin
-      // UUID adminUserId = (UUID) request.getAttribute("userId");
+      // Logged-in admin
       UserAccount adminUserAccount = (UserAccount) request.getAttribute("user");
 
-      // UserAccount adminUserAccount = userAccountRepository.findById(adminUserId)
-      //   .orElseThrow(() -> new RuntimeException("Admin not found!"));
+      // Detect if the logged-in admin is a SUPER_ADMIN
+      boolean isSuperAdmin = adminUserAccount.getRole() != null && "SUPER_ADMIN".equals(adminUserAccount.getRole().getName());
 
-      // if (adminUserAccount.getTenant() == null) {
-      //     throw new RuntimeException("Admin does not belong to any tenant!");
-      // }
-
-      //  user we are updating
+      // User account we are updating
       UserAccount user = userAccountRepository.findById(userId)
             .orElseThrow(() -> new RuntimeException("Assigned User not found!"));
 
-      if (!user.getTenant().getId().equals(adminUserAccount.getTenant().getId())) {
-        throw new RuntimeException("Illegal Access! User belongs to another tenant!");
+      // Tenant isolation check (Bypassed for Super Admin)
+      if (!isSuperAdmin) {
+        if (user.getTenant() == null || adminUserAccount.getTenant() == null ||
+            !user.getTenant().getId().equals(adminUserAccount.getTenant().getId())) {
+          throw new RuntimeException("Illegal Access! User belongs to another tenant!");
+        }
       }
 
-      // fetch role group
+      // Fetch role group
       RoleGroup roleGroup = roleGroupRepository.findById(body.getRoleGroupId())
             .orElseThrow(() -> new RuntimeException("RoleGroup not found!"));
 
-
-      // Tenant isolation check
-      if (!roleGroup.getTenant().getId().equals(adminUserAccount.getTenant().getId())) {
+      // RoleGroup tenant isolation check (Bypassed for Super Admin)
+      if (!isSuperAdmin) {
+        if (roleGroup.getTenant() == null || adminUserAccount.getTenant() == null ||
+            !roleGroup.getTenant().getId().equals(adminUserAccount.getTenant().getId())) {
           throw new RuntimeException("Illegal Access! RoleGroup belongs to another tenant!");
+        }
       }
 
-      // assign
+      // Assign
       user.getRoleGroups().add(roleGroup);
 
       // optional tracking
@@ -179,4 +180,3 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   }
   
 }
-
