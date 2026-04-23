@@ -31,6 +31,9 @@ import lombok.Setter;
 )
 public class Driver extends BaseModel {
 
+    @Column(name = "driverCode", unique = true)
+    private String driverCode;
+
     @Column(name = "fullName")
     private String fullName;
 

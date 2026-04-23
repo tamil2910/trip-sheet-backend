@@ -1,9 +1,13 @@
 package com.example.trip_sheet_backend.services.VehicleDriverService;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.modelmapper.ModelMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -12,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.trip_sheet_backend.common.services.BaseService;
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
 import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleDriverCreateRequestDto;
+import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleDriverMappingResponseDto;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.UserAccount;
@@ -174,6 +179,27 @@ public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping
     }
 
     return mappingService.createResource(userAccount.getTenant().getId(), mapping);
+  }
+
+  @Override
+  public Map<String, Object> getAllMappedVehiclesWithDriver(UUID tenantId, Pageable pageable) {
+    Page<VehicleDriverMappingResponseDto> result = repository
+      .findAllMappedVehiclesWithDriverByTenantId(tenantId, pageable)
+      .map(VehicleDriverMappingResponseDto::fromEntity);
+
+    Map<String, Object> response = new HashMap<>();
+    response.put("data", result.getContent());
+    response.put("currentPage", result.getNumber());
+    response.put("pageSize", result.getSize());
+    response.put("currentPageCount", result.getNumberOfElements());
+    response.put("totalItems", result.getTotalElements());
+    response.put("totalPages", result.getTotalPages());
+    response.put("isFirst", result.isFirst());
+    response.put("isLast", result.isLast());
+    response.put("hasNext", result.hasNext());
+    response.put("hasPrevious", result.hasPrevious());
+
+    return response;
   }
 
 }

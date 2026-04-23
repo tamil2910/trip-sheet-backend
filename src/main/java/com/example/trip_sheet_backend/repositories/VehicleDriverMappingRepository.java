@@ -3,6 +3,10 @@ package com.example.trip_sheet_backend.repositories;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
@@ -14,5 +18,28 @@ public interface VehicleDriverMappingRepository extends BaseRepository<VehicleDr
       UUID driverId,
       UUID tenantId,
       Boolean isActive
+    );
+
+    @Query(
+      value = """
+        SELECT vdm
+        FROM VehicleDriverMapping vdm
+        LEFT JOIN FETCH vdm.driver d
+        LEFT JOIN FETCH d.account a
+        LEFT JOIN FETCH vdm.vehicle v
+        LEFT JOIN FETCH v.vehicleType vt
+        WHERE vdm.tenant.id = :tenantId
+          AND vdm.isDeleted = false
+        """,
+      countQuery = """
+        SELECT COUNT(vdm)
+        FROM VehicleDriverMapping vdm
+        WHERE vdm.tenant.id = :tenantId
+          AND vdm.isDeleted = false
+        """
+    )
+    Page<VehicleDriverMapping> findAllMappedVehiclesWithDriverByTenantId(
+      @Param("tenantId") UUID tenantId,
+      Pageable pageable
     );
 }

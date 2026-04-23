@@ -1,9 +1,12 @@
 package com.example.trip_sheet_backend.controllers;
 
+import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -37,6 +40,20 @@ public class VehicleDriverMappingController extends BaseController<VehicleDriver
 
       return ResponseEntity.ok(
               new ApiResponse<>(true, "Vehicle & Driver Created Successfully!", response)
+      );
+  }
+
+  @PreAuthorize("hasAuthority(@permissionResolver.readPermission(#root.this))")
+  @GetMapping("/mapped")
+  public ResponseEntity<ApiResponse<Map<String, Object>>> getAllMappedVehiclesWithDriver(
+      Pageable pageable,
+      HttpServletRequest request
+  ) {
+      UUID tenantId = (UUID) request.getAttribute("tenantId");
+      Map<String, Object> response = this.service.getAllMappedVehiclesWithDriver(tenantId, pageable);
+
+      return ResponseEntity.ok(
+          new ApiResponse<>(true, "Mapped vehicle-driver data fetched successfully", response)
       );
   }
 
