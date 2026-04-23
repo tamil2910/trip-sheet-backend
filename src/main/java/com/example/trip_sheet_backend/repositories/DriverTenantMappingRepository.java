@@ -1,8 +1,10 @@
 package com.example.trip_sheet_backend.repositories;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.stereotype.Repository;
 
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
@@ -14,4 +16,10 @@ public interface DriverTenantMappingRepository extends BaseRepository<DriverTena
   boolean existsByDriver_IdAndTenant_Id(UUID driverId, UUID tenantId);
 
   Optional<DriverTenantMapping> findByDriver_IdAndTenant_Id(UUID driverId, UUID tenantId);
+
+  @EntityGraph(attributePaths = {"driver", "driver.account", "tenant"})
+  List<DriverTenantMapping> findByTenant_Id(UUID tenantId);
+
+  @EntityGraph(attributePaths = {"driver", "driver.account", "tenant"})
+  Optional<DriverTenantMapping> findByTenant_IdAndDriver_Id(UUID tenantId, UUID driverId);
 }

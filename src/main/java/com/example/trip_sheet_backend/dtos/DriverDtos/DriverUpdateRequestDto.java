@@ -14,10 +14,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class DriverCreateOrLinkRequestDto {
-
-  @Nullable
-  private String uniqueCode;
+public class DriverUpdateRequestDto {
 
   @Nullable
   private String username;
@@ -32,13 +29,6 @@ public class DriverCreateOrLinkRequestDto {
   @Nullable
   @Pattern(regexp = "^[6-9]\\d{9}$", message = "Phone number must be 10 digits and start with 6-9")
   private String phone;
-
-  @Nullable
-  @Pattern(
-      regexp = "^(?=.*[A-Za-z])(?=.*\\d).{8,}$",
-      message = "Password must be at least 8 characters and include letters and numbers"
-  )
-  private String password;
 
   @Nullable
   private String profilePicture;
@@ -62,14 +52,11 @@ public class DriverCreateOrLinkRequestDto {
   private String bloodGroup;
 
   @Nullable
-  private Driver.DriverType driverType = Driver.DriverType.PERMANENT;
+  private Driver.DriverType driverType;
 
   @Nullable
-  private Double rating = 0.0;
+  private Double rating;
 
   @Nullable
-  private Boolean active = true;
-
-  @Nullable
-  private Boolean available = true;
+  private Boolean available;
 }
