@@ -408,6 +408,15 @@ public Page<T> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object
                 Join<Object, Object> vehicleTypeJoin = root.join("vehicleType", JoinType.LEFT);
                 searchPredicates.add(cb.like(cb.lower(vehicleTypeJoin.get("defaultName").as(String.class)), searchLower));
             } catch (Exception ignored) {}
+            try {
+                Join<Object, Object> passengerCustomValuesJoin = root.join("passengerCustomFieldValues", JoinType.LEFT);
+                searchPredicates.add(cb.like(cb.lower(passengerCustomValuesJoin.get("value").as(String.class)), searchLower));
+            } catch (Exception ignored) {}
+            try {
+                Join<Object, Object> passengerCustomValuesJoin = root.join("passengerCustomFieldValues", JoinType.LEFT);
+                Join<Object, Object> customFieldJoin = passengerCustomValuesJoin.join("customField", JoinType.LEFT);
+                searchPredicates.add(cb.like(cb.lower(customFieldJoin.get("name").as(String.class)), searchLower));
+            } catch (Exception ignored) {}
             if (!searchPredicates.isEmpty()) {
                 predicates.add(cb.or(searchPredicates.toArray(new Predicate[0])));
             }
@@ -423,6 +432,31 @@ public Page<T> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object
                 Long endDateFilter = parseLong(filters.get("endDate"));
                 if (endDateFilter != null) {
                     predicates.add(cb.lessThanOrEqualTo(root.get("endDate"), endDateFilter));
+                }
+            } catch (Exception ignored) {}
+            try {
+                Object customFieldIdFilter = filters.get("customFieldId");
+                if (customFieldIdFilter != null && !customFieldIdFilter.toString().isBlank()) {
+                    Join<Object, Object> passengerCustomValuesJoin = root.join("passengerCustomFieldValues", JoinType.LEFT);
+                    Join<Object, Object> customFieldJoin = passengerCustomValuesJoin.join("customField", JoinType.LEFT);
+                    predicates.add(cb.equal(customFieldJoin.get("id"), UUID.fromString(customFieldIdFilter.toString())));
+                }
+            } catch (Exception ignored) {}
+            try {
+                Object customFieldValueFilter = filters.get("customFieldValue");
+                if (customFieldValueFilter != null && !customFieldValueFilter.toString().isBlank()) {
+                    Join<Object, Object> passengerCustomValuesJoin = root.join("passengerCustomFieldValues", JoinType.LEFT);
+                    predicates.add(cb.like(
+                        cb.lower(passengerCustomValuesJoin.get("value").as(String.class)),
+                        "%" + customFieldValueFilter.toString().toLowerCase() + "%"));
+                }
+            } catch (Exception ignored) {}
+            try {
+                Object customFieldPassengerIdFilter = filters.get("customFieldPassengerId");
+                if (customFieldPassengerIdFilter != null && !customFieldPassengerIdFilter.toString().isBlank()) {
+                    Join<Object, Object> passengerCustomValuesJoin = root.join("passengerCustomFieldValues", JoinType.LEFT);
+                    Join<Object, Object> passengerJoin = passengerCustomValuesJoin.join("passenger", JoinType.LEFT);
+                    predicates.add(cb.equal(passengerJoin.get("id"), UUID.fromString(customFieldPassengerIdFilter.toString())));
                 }
             } catch (Exception ignored) {}
         }

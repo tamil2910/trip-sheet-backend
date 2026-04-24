@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.example.trip_sheet_backend.dtos.TripDtos.TripBasicRelationResponseDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripPassengerCustomFieldValueResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripRelationResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStopResponseDTO;
@@ -12,6 +13,7 @@ import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
+import com.example.trip_sheet_backend.models.TripPassengerCustomFieldValue;
 import com.example.trip_sheet_backend.models.TripStop;
 import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleType;
@@ -57,6 +59,8 @@ public final class TripResponseMapper {
                 .toList());
         }
 
+            dto.setPassengerCustomFieldValues(toPassengerCustomFieldValueDTOs(trip.getPassengerCustomFieldValues()));
+
         dto.setNotes(trip.getNotes());
         dto.setPickupTime(trip.getPickupTime());
         dto.setStartDate(trip.getStartDate());
@@ -88,6 +92,37 @@ public final class TripResponseMapper {
             stopDTO.setAccurate(stop.getAccurate());
             return stopDTO;
         }).toList();
+    }
+
+    private static List<TripPassengerCustomFieldValueResponseDTO> toPassengerCustomFieldValueDTOs(
+        List<TripPassengerCustomFieldValue> values) {
+        if (values == null) {
+            return Collections.emptyList();
+        }
+
+        return values.stream().map(item -> {
+            TripPassengerCustomFieldValueResponseDTO dto = new TripPassengerCustomFieldValueResponseDTO();
+            if (item.getId() != null) {
+                dto.setId(item.getId().toString());
+            }
+            dto.setPassenger(toPeopleRelation(item.getPassenger()));
+            dto.setCustomField(toCustomFieldRelation(item.getCustomField()));
+            dto.setValue(item.getValue());
+            return dto;
+        }).toList();
+    }
+
+    private static TripBasicRelationResponseDTO toCustomFieldRelation(com.example.trip_sheet_backend.models.CustomField customField) {
+        if (customField == null) {
+            return null;
+        }
+
+        TripBasicRelationResponseDTO ref = new TripBasicRelationResponseDTO();
+        if (customField.getId() != null) {
+            ref.setId(customField.getId().toString());
+        }
+        ref.setName(customField.getName());
+        return ref;
     }
 
     private static TripRelationResponseDTO toTenantRelation(Tenant tenant) {

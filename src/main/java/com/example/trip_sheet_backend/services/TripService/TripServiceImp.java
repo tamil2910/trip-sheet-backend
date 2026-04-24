@@ -18,13 +18,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripPassengerCustomFieldValueRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStopRequestDTO;
+import com.example.trip_sheet_backend.models.CustomField;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
+import com.example.trip_sheet_backend.models.TripPassengerCustomFieldValue;
 import com.example.trip_sheet_backend.models.TripStop;
 // import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.Vehicle;
@@ -32,6 +35,7 @@ import com.example.trip_sheet_backend.models.VehicleType;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.DutyTypeRepository;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
+import com.example.trip_sheet_backend.repositories.CustomFieldRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
 import com.example.trip_sheet_backend.repositories.VehicleRepository;
@@ -55,6 +59,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final PeopleTenantRepository peopleTenantRepository;
     private final DriverRepository driverRepository;
     private final VehicleRepository vehicleRepository;
+    private final CustomFieldRepository customFieldRepository;
 
 
     private final ModelMapper mapper;
@@ -62,7 +67,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
   public TripServiceImp(TripRepository repository, TenantRepository tenantRepository, 
     DutyTypeRepository dutyTypeRepository, VehicleTypeRepository vehicleTypeRepository, 
     PeopleTenantRepository peopleTenantRepository, ModelMapper mapper, DriverRepository driverRepository,
-      VehicleRepository vehicleRepository) {
+      VehicleRepository vehicleRepository, CustomFieldRepository customFieldRepository) {
     super(repository);
     this.repository = repository;
     this.tenantRepository = tenantRepository;
@@ -72,6 +77,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     this.peopleTenantRepository = peopleTenantRepository;
     this.driverRepository = driverRepository;
     this.vehicleRepository = vehicleRepository;
+    this.customFieldRepository = customFieldRepository;
   }
 
 @Override
@@ -145,6 +151,7 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
   }
 
   // ✅ Passengers
+  List<PeopleTenant> selectedPassengers = new ArrayList<>();
   if (createTripDto.getPassengerIds() != null && !createTripDto.getPassengerIds().isEmpty()) {
 
     List<UUID> ids = createTripDto.getPassengerIds()
@@ -165,6 +172,7 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
       }
     });
 
+    selectedPassengers = people;
     trip.setPassengers(people);
   }
 
@@ -194,6 +202,50 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
       TripStop stop = mapper.map(stopDto, TripStop.class);
       stop.setTrip(trip);
       trip.getStops().add(stop);
+    }
+  }
+
+  // ✅ Passenger custom fields
+  trip.setPassengerCustomFieldValues(new ArrayList<>());
+  if (createTripDto.getPassengerCustomFieldValues() != null && !createTripDto.getPassengerCustomFieldValues().isEmpty()) {
+
+    if (selectedPassengers.isEmpty()) {
+      throw new RuntimeException("passengerIds are required when passengerCustomFieldValues are provided");
+    }
+
+    Set<UUID> validPassengerIds = selectedPassengers.stream().map(PeopleTenant::getId).collect(java.util.stream.Collectors.toSet());
+    Set<String> payloadDuplicateGuard = new HashSet<>();
+
+    for (TripPassengerCustomFieldValueRequestDTO item : createTripDto.getPassengerCustomFieldValues()) {
+      UUID passengerId = UUID.fromString(item.getPassengerId());
+      UUID customFieldId = UUID.fromString(item.getCustomFieldId());
+
+      if (!validPassengerIds.contains(passengerId)) {
+        throw new RuntimeException("Custom-field value passenger must be present in passengerIds");
+      }
+
+      String uniqueKey = passengerId + "::" + customFieldId;
+      if (!payloadDuplicateGuard.add(uniqueKey)) {
+        throw new RuntimeException("Duplicate custom field provided for same passenger");
+      }
+
+      PeopleTenant passenger = selectedPassengers.stream()
+          .filter(p -> passengerId.equals(p.getId()))
+          .findFirst()
+          .orElseThrow(() -> new RuntimeException("Invalid passenger in custom-field values"));
+
+      CustomField customField = customFieldRepository
+          .findByIdAndTenant_Id(customFieldId, organisation.getId())
+          .orElseThrow(() -> new RuntimeException("Invalid custom field for organisation"));
+
+      TripPassengerCustomFieldValue valueRow = new TripPassengerCustomFieldValue();
+      valueRow.setTrip(trip);
+      valueRow.setPassenger(passenger);
+      valueRow.setCustomField(customField);
+      valueRow.setValue(item.getValue() == null ? null : item.getValue().trim());
+      valueRow.setCreatedBy(createdBy.toString());
+
+      trip.getPassengerCustomFieldValues().add(valueRow);
     }
   }
 
@@ -435,6 +487,18 @@ private Trip cloneTripTemplate(Trip source) {
   clone.setDutyType(source.getDutyType());
   clone.setVehicleType(source.getVehicleType());
   clone.setPassengers(source.getPassengers() == null ? null : new ArrayList<>(source.getPassengers()));
+  clone.setPassengerCustomFieldValues(new ArrayList<>());
+  if (source.getPassengerCustomFieldValues() != null) {
+    for (TripPassengerCustomFieldValue sourceValue : source.getPassengerCustomFieldValues()) {
+      TripPassengerCustomFieldValue copiedValue = new TripPassengerCustomFieldValue();
+      copiedValue.setTrip(clone);
+      copiedValue.setPassenger(sourceValue.getPassenger());
+      copiedValue.setCustomField(sourceValue.getCustomField());
+      copiedValue.setValue(sourceValue.getValue());
+      copiedValue.setCreatedBy(sourceValue.getCreatedBy());
+      clone.getPassengerCustomFieldValues().add(copiedValue);
+    }
+  }
   clone.setBooker(source.getBooker());
   clone.setPickupTime(source.getPickupTime());
   clone.setStartDate(source.getStartDate());

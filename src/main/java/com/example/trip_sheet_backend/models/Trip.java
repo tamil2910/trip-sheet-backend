@@ -113,6 +113,9 @@ public class Trip extends BaseModel implements TenantScoped {
   )
   private List<PeopleTenant> passengers = new ArrayList<>();
 
+  @OneToMany(mappedBy = "trip", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<TripPassengerCustomFieldValue> passengerCustomFieldValues = new ArrayList<>();
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "booker_id")
   private PeopleTenant booker;

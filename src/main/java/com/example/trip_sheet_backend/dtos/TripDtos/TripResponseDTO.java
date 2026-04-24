@@ -31,6 +31,7 @@ public class TripResponseDTO {
     private TripBasicRelationResponseDTO dutyType;
     private TripRelationResponseDTO booker;
     private List<TripRelationResponseDTO> passengers;
+    private List<TripPassengerCustomFieldValueResponseDTO> passengerCustomFieldValues;
 
     private String notes;
 

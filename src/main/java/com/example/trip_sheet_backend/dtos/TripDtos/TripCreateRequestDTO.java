@@ -34,6 +34,7 @@ public class TripCreateRequestDTO {
     // private String savedPassengerId;
     private List<String> passengerIds;
     private String bookerId;
+    private List<TripPassengerCustomFieldValueRequestDTO> passengerCustomFieldValues;
 
 
     // epoch seconds
