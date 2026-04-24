@@ -3,6 +3,9 @@ package com.example.trip_sheet_backend.services.DriverService;
 import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+
 import com.example.trip_sheet_backend.common.services.GlobalBaseService;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverCreateOrLinkRequestDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverCreateOrLinkResponseDto;
@@ -23,6 +26,14 @@ public interface DriverService extends GlobalBaseService<Driver, UUID> {
   DriverCodeLookupResponseDto getDriverByUniqueCode(Tenant tokenTenant, String uniqueCode);
 
   List<DriverTenantResponseDto> getDriversByTenant(Tenant tokenTenant);
+
+    Page<DriverTenantResponseDto> searchDriversByTenant(
+            Tenant tokenTenant,
+            String fullName,
+            String phone,
+            String email,
+            Pageable pageable
+    );
 
   DriverTenantResponseDto getDriverByTenant(Tenant tokenTenant, UUID driverId);
 

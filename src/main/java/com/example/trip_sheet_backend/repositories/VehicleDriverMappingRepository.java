@@ -30,16 +30,30 @@ public interface VehicleDriverMappingRepository extends BaseRepository<VehicleDr
         LEFT JOIN FETCH v.vehicleType vt
         WHERE vdm.tenant.id = :tenantId
           AND vdm.isDeleted = false
+          AND vdm.isActive = true
         """,
       countQuery = """
         SELECT COUNT(vdm)
         FROM VehicleDriverMapping vdm
         WHERE vdm.tenant.id = :tenantId
           AND vdm.isDeleted = false
+          AND vdm.isActive = true
         """
     )
     Page<VehicleDriverMapping> findAllMappedVehiclesWithDriverByTenantId(
       @Param("tenantId") UUID tenantId,
       Pageable pageable
+    );
+
+    Optional<VehicleDriverMapping> findByDriverIdAndVehicleIdAndTenantId(
+      UUID driverId,
+      UUID vehicleId,
+      UUID tenantId
+    );
+
+    Optional<VehicleDriverMapping> findByVehicleIdAndTenantIdAndIsActive(
+      UUID vehicleId,
+      UUID tenantId,
+      Boolean isActive
     );
 }

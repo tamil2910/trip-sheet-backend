@@ -1,8 +1,12 @@
 package com.example.trip_sheet_backend.controllers;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -10,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -65,6 +70,39 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     List<DriverTenantResponseDto> drivers = driverService.getDriversByTenant(tokenTenant);
     return ResponseEntity.ok(new ApiResponse<>(true, "Drivers fetched successfully", drivers));
+  }
+
+  @GetMapping("/search")
+  public ResponseEntity<ApiResponse<Map<String, Object>>> searchDrivers(
+      @RequestParam(required = false) String fullName,
+      @RequestParam(required = false) String phone,
+      @RequestParam(required = false) String email,
+      Pageable pageable,
+      HttpServletRequest request
+  ) {
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+
+    Page<DriverTenantResponseDto> result = driverService.searchDriversByTenant(
+        tokenTenant,
+        fullName,
+        phone,
+        email,
+        pageable
+    );
+
+    Map<String, Object> response = new HashMap<>();
+    response.put("data", result.getContent());
+    response.put("currentPage", result.getNumber());
+    response.put("pageSize", result.getSize());
+    response.put("currentPageCount", result.getNumberOfElements());
+    response.put("totalItems", result.getTotalElements());
+    response.put("totalPages", result.getTotalPages());
+    response.put("isFirst", result.isFirst());
+    response.put("isLast", result.isLast());
+    response.put("hasNext", result.hasNext());
+    response.put("hasPrevious", result.hasPrevious());
+
+    return ResponseEntity.ok(new ApiResponse<>(true, "Drivers fetched successfully", response));
   }
 
   @GetMapping("/by-code/{uniqueCode}")

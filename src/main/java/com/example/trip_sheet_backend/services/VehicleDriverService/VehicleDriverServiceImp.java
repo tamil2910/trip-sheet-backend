@@ -5,30 +5,29 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.example.trip_sheet_backend.common.services.BaseService;
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
+import com.example.trip_sheet_backend.dtos.DriverDtos.DriverCreateOrLinkRequestDto;
+import com.example.trip_sheet_backend.dtos.DriverDtos.DriverCreateOrLinkResponseDto;
+import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.DriverInfoDto;
+import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleCreateOrLinkResponseDto;
 import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleDriverCreateRequestDto;
+import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleDriverLinkRequestDto;
 import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleDriverMappingResponseDto;
-import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.Driver;
-import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.models.DriverTenantMapping;
+import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleDriverMapping;
-import com.example.trip_sheet_backend.models.VehicleTypeCustomName;
-import com.example.trip_sheet_backend.repositories.RoleRepository;
+import com.example.trip_sheet_backend.models.VehicleTenantMapping;
+import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
 import com.example.trip_sheet_backend.repositories.VehicleDriverMappingRepository;
-import com.example.trip_sheet_backend.repositories.VehicleTypeCustomNamesRepository;
-import com.example.trip_sheet_backend.security.JwtTokenUtil;
+import com.example.trip_sheet_backend.repositories.VehicleTenantMappingRepository;
 import com.example.trip_sheet_backend.services.DriverService.DriverService;
-import com.example.trip_sheet_backend.services.UserAccountService.UserAccountService;
 import com.example.trip_sheet_backend.services.VehicleService.VehicleService;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -36,149 +35,97 @@ import jakarta.servlet.http.HttpServletRequest;
 @Service
 public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping, UUID> implements VehicleDriverService {
 
-    private final RoleRepository roleRepository;
-    private final VehicleTypeCustomNamesRepository vehicleTypeCustomNamesRepository;
-
-  VehicleDriverMappingRepository repository;
-
+  private final VehicleDriverMappingRepository repository;
   private final VehicleService vehicleService;
   private final DriverService driverService;
-  private final UserAccountService userAccountService;
-  private final BaseService<VehicleDriverMapping, UUID> mappingService;
-  private final ModelMapper mapper;
-  private final JwtTokenUtil jwtTokenUtil;
+  private final DriverTenantMappingRepository driverTenantMappingRepository;
+  private final VehicleTenantMappingRepository vehicleTenantMappingRepository;
 
   public VehicleDriverServiceImp(
-    VehicleDriverMappingRepository repository, VehicleService vehicleService, DriverService driverService, UserAccountService userAccountService, BaseService<VehicleDriverMapping, UUID> mappingService, ModelMapper mapper, JwtTokenUtil jwtTokenUtil, VehicleTypeCustomNamesRepository vehicleTypeCustomNamesRepository, RoleRepository roleRepository) {
+      VehicleDriverMappingRepository repository,
+      VehicleService vehicleService,
+      DriverService driverService,
+      DriverTenantMappingRepository driverTenantMappingRepository,
+      VehicleTenantMappingRepository vehicleTenantMappingRepository
+  ) {
     super(repository);
+    this.repository = repository;
     this.vehicleService = vehicleService;
     this.driverService = driverService;
-    this.userAccountService = userAccountService;
-    this.mappingService = mappingService;
-    this.mapper = mapper;
-
-    this.repository = repository;
-    this.jwtTokenUtil = jwtTokenUtil;
-    this.roleRepository = roleRepository;
-    this.vehicleTypeCustomNamesRepository = vehicleTypeCustomNamesRepository;
+    this.driverTenantMappingRepository = driverTenantMappingRepository;
+    this.vehicleTenantMappingRepository = vehicleTenantMappingRepository;
   }
 
   @Transactional(rollbackFor = Exception.class)
   @Override
-  public VehicleDriverMapping createVehicleAndDriver(VehicleDriverCreateRequestDto dto, HttpServletRequest request) {
-    
-    Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-    String createdBy = (String) auth.getDetails();
+  public VehicleDriverMappingResponseDto createVehicleAndDriver(VehicleDriverCreateRequestDto dto, HttpServletRequest request) {
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UUID createdBy = (UUID) request.getAttribute("createdBy");
 
-    String token = request.getHeader("Authorization").replace("Bearer ", "");
-    UUID userId = UUID.fromString(jwtTokenUtil.getUserIdFromToken(token));
+    validateTenant(tokenTenant);
 
-    UserAccount userAccount = userAccountService.findByIdResource(userId);
-
-    if (userAccount.getTenant() == null) {
-        throw new RuntimeException("User does not belong to any tenant!");
-    }
-
-    // 1. Fetch related entities (FK lookup)
-    UUID vehicleTypeId =  UUID.fromString(dto.getVehicle_info().getVehicleTypeId());
-    VehicleTypeCustomName vehicleTypeCustomName = vehicleTypeCustomNamesRepository.findByIdAndTenant_Id(vehicleTypeId, userAccount.getTenant().getId()).orElseThrow(() -> new RuntimeException("Vehicle type custom name not found!"));
-    
-
-
-    // VehicleType vehicleType = vehicleTypeRepository.findById(vehicleTypeId).orElseThrow(() -> new RuntimeException("Vehicle type not found!"));
-
-    // if(vehicleType == null) {
-    //    throw new RuntimeException("Vehicle type resource not found!");
-    // }
-
-    Role role = roleRepository.findByName("DRIVER").orElseThrow(() -> new RuntimeException("DRIVER role is not found!"));
-    
-    String vehicleNumber = dto.getVehicle_info().getVehicleNumber();
-    Vehicle existingVehicle = vehicleService.findByVehicleNumberAndTenantId(vehicleNumber, userAccount.getTenant().getId());
-
-    if (existingVehicle != null) {
-      throw new RuntimeException("Vehicle with the same number already exists.");
-    }
-
-    // Create vehicle
-    // Vehicle vehicle = new Vehicle();
-    Vehicle vehicle = mapper.map(dto.getVehicle_info(), Vehicle.class);
-
-    // extra fields set from service
-    // mapper.map(dto.getVehicle_info(), Vehicle.class);
-    vehicle.setTenant(userAccount.getTenant());
-    vehicle.setVehicleType(vehicleTypeCustomName.getVehicleType());
-    vehicle.setCreatedBy(createdBy);
-    vehicle.setIsActive(true);
-
-
-    vehicle = vehicleService.create(vehicle);
-
-        // Create UserAccount for driver, and link it with driver model with driver info
-    UserAccount driverUser = new UserAccount();
-    VehicleDriverMapping vehicleDriverMapping = new VehicleDriverMapping();
-
-    String driverEmail = dto.getDriver_info().getEmail();
-    UserAccount existingDriver = userAccountService.findByEmail(driverEmail);
-
-    if (existingDriver != null) {
-      throw new RuntimeException("Driver with the same email already exists.");
-    }
-
-    String driverPhone = dto.getDriver_info().getPhone();
-    UserAccount existingDriverPhone = userAccountService.findByPhone(driverPhone);
-
-    if (existingDriverPhone != null) {
-      throw new RuntimeException("Driver with the same phone number already exists.");
-    }
-
-    if ((existingDriver != null || existingDriverPhone != null) & dto.getLinkTenant() == false) {
-      throw new RuntimeException("Driver with the same email or phone number already exists.");
-    } else {
-      if (dto.getLinkTenant() == true) {
-        vehicleDriverMapping.setTenant(userAccount.getTenant());
-        // write tenant driver mapping relationship here
-        // for that create TenantDriverMapping entity/model, create service, repository, controller
-
-      }
-    }
-
-
-
-    driverUser.setUsername(dto.getDriver_info().getFullName());
-    driverUser.setEmail(dto.getDriver_info().getEmail());
-    driverUser.setPhone(dto.getDriver_info().getPhone());
-    driverUser.setTenant(userAccount.getTenant());
-    driverUser.setRole(role);
-    driverUser.setCreatedBy(createdBy);
-
-    driverUser = this.userAccountService.createResource(userAccount.getTenant().getId(), driverUser);
-
-    Driver driverProfile = mapper.map(dto.getDriver_info(), Driver.class);
-    
-    driverProfile.setAccount(driverUser);
-    driverProfile.setCreatedBy(createdBy);
-
-    driverProfile = driverService.create(driverProfile);
-
-    // --------------------------------------------------
-    // 4. Create Vehicle-Driver Mapping
-    // --------------------------------------------------
-    VehicleDriverMapping mapping = new VehicleDriverMapping();
-    mapping.setVehicle(vehicle);
-    mapping.setDriver(driverProfile);
-    mapping.setTenant(userAccount.getTenant());
-    mapping.setIsActive(true);
-
-    Optional<VehicleDriverMapping> existingActive = repository.findByDriverIdAndTenantIdAndIsActive(
-      driverUser.getId(), userAccount.getTenant().getId(), true
+    VehicleCreateOrLinkResponseDto vehicleResponse = vehicleService.createOrLinkVehicle(
+        dto.getVehicle_info(),
+        tokenTenant,
+        createdBy
     );
 
-    if (existingActive.isPresent()) {
-        throw new RuntimeException("Driver already has an active vehicle mapping in this tenant.");
+    DriverCreateOrLinkRequestDto driverRequest = mapDriverRequest(dto.getDriver_info());
+    DriverCreateOrLinkResponseDto driverResponse = driverService.createOrLinkDriver(driverRequest, tokenTenant, createdBy);
+
+    if ("DRIVER_EXISTS".equals(driverResponse.getAction()) && Boolean.FALSE.equals(driverResponse.getLinkedToTenant())) {
+      DriverCreateOrLinkRequestDto linkRequest = new DriverCreateOrLinkRequestDto();
+      linkRequest.setUniqueCode(driverResponse.getUniqueCode());
+      linkRequest.setUsername(driverRequest.getUsername());
+      linkRequest.setEmail(driverRequest.getEmail());
+      linkRequest.setPhone(driverRequest.getPhone());
+      linkRequest.setPassword(driverRequest.getPassword());
+      driverResponse = driverService.createOrLinkDriver(linkRequest, tokenTenant, createdBy);
     }
 
-    return mappingService.createResource(userAccount.getTenant().getId(), mapping);
+    VehicleDriverMapping mapping = createOrActivateVehicleDriverMapping(
+        tokenTenant,
+        vehicleResponse.getVehicle().getId(),
+        driverResponse.getDriver().getId(),
+        createdBy
+    );
+
+    return VehicleDriverMappingResponseDto.fromEntity(mapping);
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  @Override
+  public VehicleDriverMappingResponseDto linkDriverAndVehicle(VehicleDriverLinkRequestDto dto, HttpServletRequest request) {
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+
+    VehicleDriverMapping mapping = createOrActivateVehicleDriverMapping(
+        tokenTenant,
+        dto.getVehicleId(),
+        dto.getDriverId(),
+        updatedBy
+    );
+
+    return VehicleDriverMappingResponseDto.fromEntity(mapping);
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  @Override
+  public VehicleDriverMappingResponseDto unlinkDriverAndVehicle(VehicleDriverLinkRequestDto dto, HttpServletRequest request) {
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+
+    validateTenant(tokenTenant);
+
+    VehicleDriverMapping mapping = repository.findByDriverIdAndVehicleIdAndTenantId(
+        dto.getDriverId(),
+        dto.getVehicleId(),
+        tokenTenant.getId()
+    ).orElseThrow(() -> new RuntimeException("Vehicle-driver mapping not found for this tenant"));
+
+    mapping.setIsActive(false);
+    mapping.setUpdatedBy(updatedBy.toString());
+    return VehicleDriverMappingResponseDto.fromEntity(repository.save(mapping));
   }
 
   @Override
@@ -202,4 +149,84 @@ public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping
     return response;
   }
 
+  private VehicleDriverMapping createOrActivateVehicleDriverMapping(
+      Tenant tokenTenant,
+      UUID vehicleId,
+      UUID driverId,
+      UUID updatedBy
+  ) {
+    validateTenant(tokenTenant);
+
+    DriverTenantMapping driverTenantMapping = driverTenantMappingRepository
+        .findByTenant_IdAndDriver_Id(tokenTenant.getId(), driverId)
+        .orElseThrow(() -> new RuntimeException("Driver is not linked to this tenant"));
+
+    VehicleTenantMapping vehicleTenantMapping = vehicleTenantMappingRepository
+        .findByTenant_IdAndVehicle_Id(tokenTenant.getId(), vehicleId)
+        .orElseThrow(() -> new RuntimeException("Vehicle is not linked to this tenant"));
+
+    Optional<VehicleDriverMapping> samePair = repository.findByDriverIdAndVehicleIdAndTenantId(
+        driverId,
+        vehicleId,
+        tokenTenant.getId()
+    );
+
+    if (samePair.isPresent()) {
+      VehicleDriverMapping mapping = samePair.get();
+      mapping.setIsActive(true);
+      mapping.setUpdatedBy(updatedBy.toString());
+      return repository.save(mapping);
+    }
+
+    repository.findByDriverIdAndTenantIdAndIsActive(driverId, tokenTenant.getId(), true)
+        .ifPresent(existing -> {
+          throw new RuntimeException("Driver already has an active vehicle mapping in this tenant");
+        });
+
+    repository.findByVehicleIdAndTenantIdAndIsActive(vehicleId, tokenTenant.getId(), true)
+        .ifPresent(existing -> {
+          throw new RuntimeException("Vehicle already has an active driver mapping in this tenant");
+        });
+
+    VehicleDriverMapping mapping = new VehicleDriverMapping();
+    mapping.setDriver(driverTenantMapping.getDriver());
+    mapping.setVehicle(vehicleTenantMapping.getVehicle());
+    mapping.setTenant(tokenTenant);
+    mapping.setIsActive(true);
+    mapping.setCreatedBy(updatedBy.toString());
+    mapping.setUpdatedBy(updatedBy.toString());
+    return repository.save(mapping);
+  }
+
+  private DriverCreateOrLinkRequestDto mapDriverRequest(DriverInfoDto body) {
+    DriverCreateOrLinkRequestDto request = new DriverCreateOrLinkRequestDto();
+    request.setUniqueCode(body.getUniqueCode());
+    request.setUsername(body.getUsername());
+    request.setFullName(body.getFullName());
+    request.setEmail(body.getEmail());
+    request.setPhone(body.getPhone());
+    request.setPassword(body.getPassword());
+    request.setProfilePicture(body.getProfilePicture());
+    request.setLicenseNumber(body.getLicenseNumber());
+    request.setLicenseExpiry(body.getLicenseExpiry());
+    request.setInsuranceNumber(body.getInsuranceNumber());
+    request.setInsuranceExpiry(body.getInsuranceExpiry());
+    request.setPoliceVerificationId(body.getPoliceVerificationId());
+    request.setBloodGroup(body.getBloodGroup());
+    request.setRating(body.getRating());
+    request.setActive(body.getActive());
+    request.setAvailable(body.getAvailable());
+
+    if (body.getDriverType() != null) {
+      request.setDriverType(Driver.DriverType.valueOf(body.getDriverType().name()));
+    }
+
+    return request;
+  }
+
+  private void validateTenant(Tenant tokenTenant) {
+    if (tokenTenant == null) {
+      throw new RuntimeException("Tenant not found in token");
+    }
+  }
 }

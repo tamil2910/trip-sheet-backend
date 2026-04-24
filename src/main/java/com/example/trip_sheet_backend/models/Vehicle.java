@@ -45,7 +45,8 @@
     private VehicleType vehicleType;
 
     @Nullable
-    private String VehicleUniqueCode;
+    @Column(name = "vehicle_unique_code", unique = true)
+    private String vehicleUniqueCode;
     
     @Nullable
     private String leftSideUrl;

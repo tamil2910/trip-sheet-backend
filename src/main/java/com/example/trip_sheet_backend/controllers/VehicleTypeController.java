@@ -4,6 +4,7 @@ import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -25,6 +26,7 @@ public class VehicleTypeController extends GlobalBaseController<VehicleType, UUI
     this.service = service;
   }
 
+  @PostMapping("/create")
   public ResponseEntity<ApiResponse<VehicleType>> create_vehicle_type(@RequestBody VehicleType body) {
 
     if (body.getTypeOfVehicle() == null || body.getSeatCount() == null) {
@@ -36,17 +38,17 @@ public class VehicleTypeController extends GlobalBaseController<VehicleType, UUI
 
     switch (type_of_vehicle) {
       case SEDAN, HATCHBACK -> {
-        if (body.getSeatCount() < 4 && body.getSeatCount() > 5) {
+        if (body.getSeatCount() < 4 || body.getSeatCount() > 5) {
           return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Seat count either can be 4 or 5 for sedan (or) hatchback vehicle type", null));
         }
       }
       case SUV -> {
-        if (body.getSeatCount() < 5 && body.getSeatCount() > 7) {
+        if (body.getSeatCount() < 5 || body.getSeatCount() > 7) {
           return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Seat count either can be 5 or 7 for sedan (or) hatchback vehicle type", null));
         }
       }
       case MUV -> {
-        if (body.getSeatCount() < 5 && body.getSeatCount() > 9) {
+        if (body.getSeatCount() < 5 || body.getSeatCount() > 9) {
           return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Seat count either can be 7 or 9 for sedan (or) hatchback vehicle type", null));
         }
       }

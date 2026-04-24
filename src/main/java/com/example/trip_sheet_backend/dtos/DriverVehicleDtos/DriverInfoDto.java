@@ -11,6 +11,12 @@ import lombok.*;
 @NoArgsConstructor
 public class DriverInfoDto {
 
+    @Nullable
+    private String uniqueCode;
+
+    @Nullable
+    private String username;
+
     @NotBlank(message = "Driver full name is required!")
     private String fullName;
 
@@ -22,6 +28,13 @@ public class DriverInfoDto {
     @Nullable
     @Pattern(regexp = "^[6-9]\\d{9}$", message = "Phone number must be 10 digits and start with 6-9")
     private String phone;
+
+    @Nullable
+    @Pattern(
+      regexp = "^(?=.*[A-Za-z])(?=.*\\d).{8,}$",
+      message = "Password must be at least 8 characters and include letters and numbers"
+    )
+    private String password;
 
     @NotBlank(message = "License number is required!")
     private String licenseNumber;

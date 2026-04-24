@@ -6,6 +6,8 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -163,6 +165,32 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     return driverTenantMappingRepository.findByTenant_Id(tokenTenant.getId()).stream()
         .map(DriverTenantResponseDto::fromEntity)
         .toList();
+  }
+
+  @Transactional(readOnly = true)
+  @Override
+  public Page<DriverTenantResponseDto> searchDriversByTenant(
+      Tenant tokenTenant,
+      String fullName,
+      String phone,
+      String email,
+      Pageable pageable
+  ) {
+    validateTenant(tokenTenant);
+
+    String normalizedFullName = normalize(fullName);
+    String normalizedPhone = normalize(phone);
+    String normalizedEmail = normalizeEmail(email);
+
+    return driverTenantMappingRepository
+        .searchByTenantAndDriverFilters(
+            tokenTenant.getId(),
+            normalizedFullName,
+            normalizedPhone,
+            normalizedEmail,
+            pageable
+        )
+        .map(DriverTenantResponseDto::fromEntity);
   }
 
   @Transactional(readOnly = true)
