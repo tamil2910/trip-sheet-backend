@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.models.Tenant;
 
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -65,6 +66,25 @@ public class JwtTokenUtil {
                 .claim("tenant_name", user.getTenant() != null ? user.getTenant().getTenantName() : null)
                 .claim("tenant_type", user.getTenant() != null && user.getTenant().getTenantType() != null
                                 ? user.getTenant().getTenantType().name()
+                                : null)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    public String generateToken(UserAccount user, Set<String> permissions, String type, String identifier, Tenant tenant) {
+        return Jwts.builder()
+                .setSubject(user.getId().toString())
+                .claim("role", user.getRole() != null ? user.getRole().getName() : null)
+                .claim("type", type)
+                .claim("user_id", user.getId().toString())
+                .claim("permissions", permissions)
+                .claim("identifier", identifier)
+                .claim("tenant_id", tenant != null ? tenant.getId().toString() : null)
+                .claim("tenant_name", tenant != null ? tenant.getTenantName() : null)
+                .claim("tenant_type", tenant != null && tenant.getTenantType() != null
+                                ? tenant.getTenantType().name()
                                 : null)
                 .setIssuedAt(new Date(System.currentTimeMillis()))
                 .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))

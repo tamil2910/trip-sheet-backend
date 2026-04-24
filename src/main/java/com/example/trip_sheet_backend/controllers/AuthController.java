@@ -22,11 +22,13 @@ import com.example.trip_sheet_backend.models.Admin;
 import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.RoleGroup;
+import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.AdminRepository;
 import com.example.trip_sheet_backend.repositories.PermissionRepository;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
+import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.GoogleAuthService;
@@ -57,6 +59,7 @@ public class AuthController {
   private final RoleRepository roleRepository;
   private final GoogleAuthService googleAuthService;
   private final AdminRepository adminRepository;
+    private final TenantRepository tenantRepository;
   private final PermissionRepository permissionRepository;
   private final ModelMapper mapper;
 
@@ -64,13 +67,14 @@ public class AuthController {
   private String googleClientId; // 👈 inject env variable here
   
   public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, GoogleAuthService googleAuthService,
-    PasswordEncoder passwordEncoder, AdminRepository adminRepository,  ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository) {
+        PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository) {
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
     this.roleGroupRepository = roleGroupRepository;
     this.googleAuthService = googleAuthService;
     this.passwordEncoder = passwordEncoder;
     this.adminRepository = adminRepository;
+        this.tenantRepository = tenantRepository;
     this.mapper = mapper;
     this.permissionRepository = permissionRepository;
     this.roleRepository = roleRepository;
@@ -160,6 +164,11 @@ public class AuthController {
     }
 
     UserAccount user = foundUser.get();
+        Tenant resolvedTenant = user.getTenant();
+
+        if (resolvedTenant == null) {
+            resolvedTenant = tenantRepository.findByAdmin_UserAccount_Id(user.getId()).orElse(null);
+        }
 
     // Load permissions from all assigned RoleGroups
     Set<String> effectivePermissions;
@@ -176,12 +185,9 @@ public class AuthController {
 
 
     // Generate JWT
-    String token = jwtTokenUtil.generateToken(
-            user,
-            effectivePermissions,
-            "user_login",
-            identifier
-    );
+    String token = resolvedTenant != null
+        ? jwtTokenUtil.generateToken(user, effectivePermissions, "user_login", identifier, resolvedTenant)
+        : jwtTokenUtil.generateToken(user, effectivePermissions, "user_login", identifier);
 
     // Build flat DTO (avoid returning entity)
     LoginUserResponseDTO dto = new LoginUserResponseDTO();
@@ -196,16 +202,16 @@ public class AuthController {
     dto.setUsername(user.getUsername());
     // dto.setTenantType(user.getTenantType() != null ? user.getTenantType().name() : null);
 
-    if (user.getTenant() != null && user.getTenant().getTenantType() != null) {
-        dto.setTenantType(user.getTenant().getTenantType().name());
+    if (resolvedTenant != null && resolvedTenant.getTenantType() != null) {
+        dto.setTenantType(resolvedTenant.getTenantType().name());
     } else {
         dto.setTenantType(null);
     }
 
 
-    if (user.getTenant() != null) {
-        dto.setTenantId(user.getTenant().getId());
-        dto.setTenantName(user.getTenant().getTenantName());
+    if (resolvedTenant != null) {
+        dto.setTenantId(resolvedTenant.getId());
+        dto.setTenantName(resolvedTenant.getTenantName());
     }
 
     if(user.getTenantType() != null) {

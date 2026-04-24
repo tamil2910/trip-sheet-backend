@@ -8,6 +8,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 
@@ -22,6 +23,9 @@ public class TenantInterceptor implements HandlerInterceptor {
 
   @Autowired
   private UserAccountRepository userAccountRepository;
+
+  @Autowired
+  private TenantRepository tenantRepository;
 
   @Override
   public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler)
@@ -60,9 +64,23 @@ public class TenantInterceptor implements HandlerInterceptor {
 
     // ---------------- NORMAL TENANT USERS ----------------
     Tenant tenant = user.getTenant();
+
+    if (tenant == null) {
+      String tenantIdFromToken = jwtTokenUtil.getTenantIdFromToken(token);
+      if (tenantIdFromToken != null && !tenantIdFromToken.isBlank()) {
+        tenant = tenantRepository.findById(UUID.fromString(tenantIdFromToken))
+            .orElse(null);
+      }
+    }
+
     setCommonAttributes(request, user);
-    request.setAttribute("tenantId", tenant.getId());
-    request.setAttribute("tenant", tenant);
+    if (tenant != null) {
+      request.setAttribute("tenantId", tenant.getId());
+      request.setAttribute("tenant", tenant);
+    } else {
+      request.setAttribute("tenantId", null);
+      request.setAttribute("tenant", null);
+    }
 
     return true;
   }

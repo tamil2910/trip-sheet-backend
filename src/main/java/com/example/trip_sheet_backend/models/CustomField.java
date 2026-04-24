@@ -23,7 +23,7 @@ import lombok.Setter;
 @Table(name = "custom_fields", uniqueConstraints = {
     @UniqueConstraint(columnNames = { "tenant_id", "name" })
 })
-public class CustomField extends BaseModel implements TenantScoped {
+public class CustomField extends BaseModel {
 
   @NotBlank(message = "Custom field name is required")
   private String name;
@@ -35,7 +35,6 @@ public class CustomField extends BaseModel implements TenantScoped {
 
   private Boolean isActive = true;
 
-  @Override
   public Tenant getTenant() {
     return tenant;
   }

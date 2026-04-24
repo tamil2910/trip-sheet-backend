@@ -12,4 +12,5 @@ import com.example.trip_sheet_backend.models.Tenant;
 public interface TenantRepository extends BaseRepository<Tenant, UUID> {
   Optional<Tenant> findByTenantName(String tenantName);
   Optional<Tenant> findByGstNumber(String gstNumber);
+  Optional<Tenant> findByAdmin_UserAccount_Id(UUID userAccountId);
 }

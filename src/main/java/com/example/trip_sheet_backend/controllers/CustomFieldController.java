@@ -61,7 +61,7 @@ public class CustomFieldController {
 
   @GetMapping("/vendor/list")
   public ResponseEntity<ApiResponse<List<CustomField>>> listOrganisationFieldsForVendor(
-      @RequestParam("organisationTenantId") UUID organisationTenantId,
+      @RequestParam("organisationId") UUID organisationId,
       HttpServletRequest request) {
 
     Tenant tenant = (Tenant) request.getAttribute("tenant");
@@ -74,7 +74,7 @@ public class CustomFieldController {
       throw new RuntimeException("Only vendor tenant can use this endpoint");
     }
 
-    List<CustomField> fields = customFieldService.getByOrganisationForVendor(tenant, organisationTenantId);
+    List<CustomField> fields = customFieldService.getByOrganisationForVendor(tenant, organisationId);
 
     return ResponseEntity.ok(new ApiResponse<>(true, "Custom fields fetched successfully", fields));
   }
