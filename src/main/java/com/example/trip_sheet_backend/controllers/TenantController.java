@@ -39,6 +39,8 @@ import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
+import com.example.trip_sheet_backend.services.PasswordResetService;
+import com.example.trip_sheet_backend.services.TenantService.TenantOnboardingResult;
 import com.example.trip_sheet_backend.services.TenantService.TenantServiceImp;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -59,6 +61,7 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
     private final VendorOrganisationRepository vendorOrganisationRepository;
     private final JwtTokenUtil jwtTokenUtil;
     private final PermissionRepository permissionRepository;
+    private final PasswordResetService passwordResetService;
 
 
 
@@ -70,7 +73,9 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
             RoleGroupRepository roleGroupRepository,
             VendorPartnerRepository vendorPartnerRepository,
             VendorOrganisationRepository vendorOrganisationRepository,
-            JwtTokenUtil jwtTokenUtil, PermissionRepository permissionRepository
+            JwtTokenUtil jwtTokenUtil,
+            PermissionRepository permissionRepository,
+            PasswordResetService passwordResetService
     ) {
         super(service);  // <-- THIS IS CORRECT (GlobalBaseService)
         this.service = service;
@@ -81,6 +86,7 @@ public class TenantController extends GlobalBaseController<Tenant, UUID> {
         this.vendorOrganisationRepository = vendorOrganisationRepository;
         this.jwtTokenUtil = jwtTokenUtil;
         this.permissionRepository = permissionRepository;
+        this.passwordResetService = passwordResetService;
     }
 
 @PreAuthorize("hasAuthority('CAN_REGISTER_TENANT')")
@@ -225,17 +231,26 @@ public ResponseEntity<ApiResponse<Tenant>> createPartnerTenant(
         throw new RuntimeException("Only vendors can create partner vendors");
     }
 
-    Tenant partnerTenant = service.createOrGetPartnerVendor(
+    TenantOnboardingResult partnerResult = service.createOrGetPartnerVendor(
             body,
             loggedInTenant,
             createdBy
     );
 
+    String message;
+    if (!partnerResult.isNewlyCreated()) {
+        message = "Partner vendor already exists. Linked without sending credentials";
+    } else if (partnerResult.isCredentialsEmailSent()) {
+        message = "Partner vendor created successfully. Login credentials sent to tenant contact email";
+    } else {
+        message = "Partner vendor created successfully, but credentials were not sent: " + partnerResult.getOnboardingNote();
+    }
+
     return ResponseEntity.status(HttpStatus.CREATED)
             .body(new ApiResponse<>(
                     true,
-                    "Partner vendor created successfully",
-                    partnerTenant
+                    message,
+                    partnerResult.getTenant()
             ));
 }
 
@@ -257,17 +272,26 @@ public ResponseEntity<ApiResponse<Tenant>> createClientTenant(
         throw new RuntimeException("Only vendors can create their clients");
     }
 
-    Tenant partnerTenant = service.createOrGetCorporateTenant(
+    TenantOnboardingResult clientResult = service.createOrGetCorporateTenant(
             body,
             loggedInTenant,
             createdBy
     );
 
+    String message;
+    if (!clientResult.isNewlyCreated()) {
+        message = "Client/Organisation already exists. Linked without sending credentials";
+    } else if (clientResult.isCredentialsEmailSent()) {
+        message = "Client/Organisation created successfully. Login credentials sent to tenant contact email";
+    } else {
+        message = "Client/Organisation created successfully, but credentials were not sent: " + clientResult.getOnboardingNote();
+    }
+
     return ResponseEntity.status(HttpStatus.CREATED)
             .body(new ApiResponse<>(
                     true,
-                    "Client/Organisation is created successfully",
-                    partnerTenant
+                    message,
+                    clientResult.getTenant()
             ));
 }
 
@@ -409,6 +433,52 @@ public ResponseEntity<ApiResponse<?>> getVendorTenants(
   return ResponseEntity.ok(
       new ApiResponse<>(true, "Vendors List fetched successfully", response)
   );
+}
+
+@PostMapping("/forgot-password")
+public ResponseEntity<ApiResponse<?>> forgotPassword(@RequestBody Map<String, Object> body) {
+    if (body.get("email") == null) {
+        throw new RuntimeException("Email is required");
+    }
+
+    String email = body.get("email").toString().trim();
+    if (!email.contains("@")) {
+        throw new RuntimeException("Invalid email format");
+    }
+
+    passwordResetService.sendPasswordResetOTP(email);
+    return ResponseEntity.ok(
+            new ApiResponse<>(true, "OTP sent to your email. Check your inbox for the verification code", null)
+    );
+}
+
+@PostMapping("/verify-otp-and-reset-password")
+public ResponseEntity<ApiResponse<?>> verifyOTPAndResetPassword(@RequestBody Map<String, Object> body) {
+    if (body.get("email") == null) {
+        throw new RuntimeException("Email is required");
+    }
+    if (body.get("otpCode") == null) {
+        throw new RuntimeException("OTP code is required");
+    }
+    if (body.get("newPassword") == null) {
+        throw new RuntimeException("New password is required");
+    }
+
+    String email = body.get("email").toString().trim();
+    String otpCode = body.get("otpCode").toString().trim();
+    String newPassword = body.get("newPassword").toString();
+
+    if (!email.contains("@")) {
+        throw new RuntimeException("Invalid email format");
+    }
+    if (newPassword.length() < 6) {
+        throw new RuntimeException("Password must be at least 6 characters long");
+    }
+
+    passwordResetService.resetPasswordWithOTP(email, otpCode, newPassword);
+    return ResponseEntity.ok(
+            new ApiResponse<>(true, "Password reset successfully. You can now login with your new password", null)
+    );
 }
 
 
