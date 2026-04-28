@@ -3,7 +3,9 @@ package com.example.trip_sheet_backend.services.TripService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,10 +37,12 @@ import com.example.trip_sheet_backend.models.Trip;
 import com.example.trip_sheet_backend.models.TripPassengerCustomFieldValue;
 import com.example.trip_sheet_backend.models.TripStop;
 import com.example.trip_sheet_backend.models.TripSummary;
+import com.example.trip_sheet_backend.models.UserAccount;
 // import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleType;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
+import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
 import com.example.trip_sheet_backend.repositories.DutyTypeRepository;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.repositories.CustomFieldRepository;
@@ -68,6 +72,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final VehicleRepository vehicleRepository;
     private final CustomFieldRepository customFieldRepository;
     private final TripSummaryRepository tripSummaryRepository;
+    private final DriverTenantMappingRepository driverTenantMappingRepository;
 
 
     private final ModelMapper mapper;
@@ -76,7 +81,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     DutyTypeRepository dutyTypeRepository, VehicleTypeRepository vehicleTypeRepository, 
     PeopleTenantRepository peopleTenantRepository, ModelMapper mapper, DriverRepository driverRepository,
       VehicleRepository vehicleRepository, CustomFieldRepository customFieldRepository,
-      TripSummaryRepository tripSummaryRepository) {
+      TripSummaryRepository tripSummaryRepository, DriverTenantMappingRepository driverTenantMappingRepository) {
     super(repository);
     this.repository = repository;
     this.tenantRepository = tenantRepository;
@@ -88,6 +93,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     this.vehicleRepository = vehicleRepository;
     this.customFieldRepository = customFieldRepository;
     this.tripSummaryRepository = tripSummaryRepository;
+    this.driverTenantMappingRepository = driverTenantMappingRepository;
   }
 
 @Override
@@ -141,6 +147,7 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
   trip.setCreatedBy(createdBy.toString());
   trip.setTripStatus(Trip.TripStatus.CREATED);
   trip.setNotes(createTripDto.getNotes());
+  trip.setIsManualTrip(Boolean.TRUE.equals(createTripDto.getIsManualTrip()));
   trip.setPickupTime(createTripDto.getPickupTime());
   trip.setStartDate(createTripDto.getStartDate());
   trip.setEndDate(createTripDto.getEndDate());
@@ -300,6 +307,7 @@ public List<Trip> createBulkTrips(List<TripCreateRequestDTO> createTripDtos, Ten
 @Transactional(rollbackFor = Exception.class)
 public Trip updateTrip(UUID tenantId, UUID tripId, TripUpdateRequestDTO updateDto, UUID updatedBy) {
   Trip trip = findTripForTenant(tenantId, tripId);
+  List<Trip> existingSeriesTrips = isParentSeriesTrip(trip) ? getActiveSeriesTrips(tenantId, trip.getId()) : List.of();
 
   if (updateDto.getTripCode() != null) {
     trip.setTripCode(updateDto.getTripCode());
@@ -345,6 +353,9 @@ public Trip updateTrip(UUID tenantId, UUID tripId, TripUpdateRequestDTO updateDt
   if (updateDto.getNotes() != null) {
     trip.setNotes(updateDto.getNotes());
   }
+  if (updateDto.getIsManualTrip() != null) {
+    trip.setIsManualTrip(updateDto.getIsManualTrip());
+  }
   if (updateDto.getPickupTime() != null) {
     trip.setPickupTime(updateDto.getPickupTime());
   }
@@ -374,6 +385,10 @@ public Trip updateTrip(UUID tenantId, UUID tripId, TripUpdateRequestDTO updateDt
 
   if (updateDto.getPassengerCustomFieldValues() != null) {
     replacePassengerCustomFieldValues(trip, effectivePassengers, updateDto.getPassengerCustomFieldValues());
+  }
+
+  if (isParentSeriesTrip(trip)) {
+    return updateParentSeriesTrip(trip, existingSeriesTrips, updateDto, updatedBy);
   }
 
   return repository.save(trip);
@@ -561,6 +576,74 @@ private Trip createRecurringTrips(Trip templateTrip) {
   return firstTrip;
 }
 
+private Trip updateParentSeriesTrip(
+    Trip rootTrip,
+    List<Trip> existingSeriesTrips,
+    TripUpdateRequestDTO updateDto,
+    UUID updatedBy
+) {
+  if (rootTrip.getTripType() != Trip.TripType.MULTI_DAY && rootTrip.getTripType() != Trip.TripType.RECURRING) {
+    return repository.save(rootTrip);
+  }
+
+  long seriesStart = updateDto.getStartDate() != null
+      ? updateDto.getStartDate()
+      : getSeriesBoundary(existingSeriesTrips, true);
+  long seriesEnd = updateDto.getEndDate() != null
+      ? updateDto.getEndDate()
+      : getSeriesBoundary(existingSeriesTrips, false);
+
+  List<Long> desiredOccurrences = buildSeriesOccurrenceEpochs(rootTrip, seriesStart, seriesEnd);
+  if (desiredOccurrences.isEmpty()) {
+    throw new RuntimeException("No trip dates generated for the provided range");
+  }
+
+  Map<LocalDate, Trip> existingByDate = new HashMap<>();
+  for (Trip trip : existingSeriesTrips) {
+    existingByDate.put(extractTripDate(trip), trip);
+  }
+
+  Trip templateSnapshot = cloneTripTemplate(rootTrip);
+  Map<LocalDate, Trip> scheduledTrips = new LinkedHashMap<>();
+
+  for (Long occurrenceEpoch : desiredOccurrences) {
+    LocalDate occurrenceDate = epochToUtcDate(occurrenceEpoch);
+    Trip scheduledTrip = existingByDate.remove(occurrenceDate);
+    boolean isNewTrip = scheduledTrip == null;
+    if (scheduledTrip == null) {
+      scheduledTrip = new Trip();
+    }
+
+    syncTripFromTemplate(scheduledTrip, templateSnapshot, occurrenceEpoch, updatedBy, isNewTrip);
+    scheduledTrips.put(occurrenceDate, scheduledTrip);
+  }
+
+  Trip newRoot = scheduledTrips.values().iterator().next();
+  newRoot.setParentTrip(null);
+  newRoot.setIsDeleted(false);
+  newRoot.setDeletedAt(null);
+  newRoot.setDeletedBy(null);
+  Trip savedRoot = repository.save(newRoot);
+
+  for (Trip scheduledTrip : scheduledTrips.values()) {
+    if (scheduledTrip == savedRoot) {
+      continue;
+    }
+    scheduledTrip.setParentTrip(savedRoot);
+    scheduledTrip.setIsDeleted(false);
+    scheduledTrip.setDeletedAt(null);
+    scheduledTrip.setDeletedBy(null);
+    repository.save(scheduledTrip);
+  }
+
+  for (Trip obsoleteTrip : existingByDate.values()) {
+    softDeleteTrip(obsoleteTrip, updatedBy);
+    repository.save(obsoleteTrip);
+  }
+
+  return savedRoot;
+}
+
 private Tenant resolveTenant(String tenantId, String invalidMessage) {
   return tenantRepository.findById(UUID.fromString(tenantId))
       .orElseThrow(() -> new RuntimeException(invalidMessage));
@@ -730,6 +813,207 @@ private boolean hasText(String value) {
   return value != null && !value.isBlank();
 }
 
+private boolean isParentSeriesTrip(Trip trip) {
+  return trip != null
+      && trip.getParentTrip() == null
+      && (trip.getTripType() == Trip.TripType.MULTI_DAY || trip.getTripType() == Trip.TripType.RECURRING);
+}
+
+private List<Trip> getActiveSeriesTrips(UUID tenantId, UUID rootTripId) {
+  List<Trip> seriesTrips = repository.findAll((root, query, cb) -> {
+    query.distinct(true);
+
+    var rootPredicate = cb.equal(root.get("id"), rootTripId);
+    var childPredicate = cb.equal(root.join("parentTrip", JoinType.LEFT).get("id"), rootTripId);
+    var notDeletedPredicate = cb.equal(root.get("isDeleted"), false);
+
+    if (tenantId == null) {
+      return cb.and(notDeletedPredicate, cb.or(rootPredicate, childPredicate));
+    }
+
+    var tenantPredicate = cb.equal(root.join("tenant").get("id"), tenantId);
+    return cb.and(tenantPredicate, notDeletedPredicate, cb.or(rootPredicate, childPredicate));
+  }, Pageable.unpaged()).getContent();
+
+  seriesTrips.sort(Comparator.comparing(trip -> trip.getPickupTime() != null ? trip.getPickupTime() : Long.MAX_VALUE));
+  return seriesTrips;
+}
+
+private long getSeriesBoundary(List<Trip> seriesTrips, boolean startBoundary) {
+  var stream = seriesTrips.stream()
+      .mapToLong(trip -> trip.getPickupTime() != null ? trip.getPickupTime() : trip.getStartDate());
+
+  return (startBoundary ? stream.min() : stream.max())
+      .orElseThrow(() -> new RuntimeException(startBoundary
+          ? "Unable to determine current trip series start date"
+          : "Unable to determine current trip series end date"));
+}
+
+private List<Long> buildSeriesOccurrenceEpochs(Trip templateTrip, long seriesStart, long seriesEnd) {
+  if (templateTrip.getTripType() == Trip.TripType.MULTI_DAY) {
+    return buildMultiDayOccurrenceEpochs(templateTrip, seriesStart, seriesEnd);
+  }
+
+  if (templateTrip.getTripType() == Trip.TripType.RECURRING) {
+    return buildRecurringOccurrenceEpochs(templateTrip, seriesStart, seriesEnd);
+  }
+
+  return List.of(seriesStart);
+}
+
+private List<Long> buildMultiDayOccurrenceEpochs(Trip templateTrip, long seriesStart, long seriesEnd) {
+  LocalDate start = Instant.ofEpochSecond(seriesStart).atZone(ZoneOffset.UTC).toLocalDate();
+  LocalDate end = Instant.ofEpochSecond(seriesEnd).atZone(ZoneOffset.UTC).toLocalDate();
+
+  if (end.isBefore(start)) {
+    throw new RuntimeException("endDate must be greater than or equal to startDate for MULTI_DAY trip");
+  }
+
+  List<Long> occurrences = new ArrayList<>();
+  LocalDate cursor = start;
+  while (!cursor.isAfter(end)) {
+    occurrences.add(buildTripDateTimeEpoch(cursor, templateTrip.getPickupTime()));
+    cursor = cursor.plusDays(1);
+  }
+  return occurrences;
+}
+
+private List<Long> buildRecurringOccurrenceEpochs(Trip templateTrip, long seriesStart, long seriesEnd) {
+  if (templateTrip.getRecurrenceFrequency() == null) {
+    throw new RuntimeException("recurrenceFrequency is required for RECURRING trip");
+  }
+  if (templateTrip.getRecurrenceInterval() == null || templateTrip.getRecurrenceInterval() < 1) {
+    throw new RuntimeException("recurrenceInterval must be at least 1 for RECURRING trip");
+  }
+
+  LocalDate start = Instant.ofEpochSecond(seriesStart).atZone(ZoneOffset.UTC).toLocalDate();
+  LocalDate end = Instant.ofEpochSecond(seriesEnd).atZone(ZoneOffset.UTC).toLocalDate();
+
+  if (end.isBefore(start)) {
+    throw new RuntimeException("endDate must be greater than or equal to startDate for RECURRING trip");
+  }
+
+  List<Long> occurrences = new ArrayList<>();
+
+  if (templateTrip.getRecurrenceFrequency() == Trip.RecurrenceFrequency.MONTHLY) {
+    LocalDate cursor = start;
+    while (!cursor.isAfter(end)) {
+      occurrences.add(buildTripDateTimeEpoch(cursor, templateTrip.getPickupTime()));
+      cursor = cursor.plusMonths(templateTrip.getRecurrenceInterval());
+    }
+    return occurrences;
+  }
+
+  Set<DayOfWeekValue> allowedDays = parseAllowedDays(templateTrip.getDaysOfWeek(), templateTrip.getRecurrenceFrequency());
+  LocalDate cursor = start;
+  while (!cursor.isAfter(end)) {
+    long weeksFromStart = ChronoUnit.WEEKS.between(start, cursor);
+    boolean matchesInterval = weeksFromStart % templateTrip.getRecurrenceInterval() == 0;
+
+    if (matchesInterval && allowedDays.contains(DayOfWeekValue.from(cursor.getDayOfWeek()))) {
+      occurrences.add(buildTripDateTimeEpoch(cursor, templateTrip.getPickupTime()));
+    }
+
+    cursor = cursor.plusDays(1);
+  }
+
+  return occurrences;
+}
+
+private void syncTripFromTemplate(Trip target, Trip template, long occurrenceEpoch, UUID updatedBy, boolean isNewTrip) {
+  target.setTripCode(template.getTripCode());
+  target.setTripType(template.getTripType());
+  target.setRecurrenceInterval(template.getRecurrenceInterval());
+  target.setDaysOfWeek(template.getDaysOfWeek());
+  target.setRecurrenceFrequency(template.getRecurrenceFrequency());
+  target.setOrganisation(template.getOrganisation());
+  target.setTenant(template.getTenant());
+  target.setVendor(template.getVendor());
+  target.setAssignedByVendor(template.getAssignedByVendor());
+  target.setPreviousVendor(template.getPreviousVendor());
+  target.setNotes(template.getNotes());
+  target.setDriver(template.getDriver());
+  target.setVehicle(template.getVehicle());
+  target.setDutyType(template.getDutyType());
+  target.setVehicleType(template.getVehicleType());
+  target.setBooker(template.getBooker());
+  target.setPassengers(template.getPassengers() == null ? new ArrayList<>() : new ArrayList<>(template.getPassengers()));
+  target.setPickupTime(occurrenceEpoch);
+  target.setStartDate(occurrenceEpoch);
+  target.setEndDate(occurrenceEpoch);
+  target.setUpdatedBy(updatedBy != null ? updatedBy.toString() : template.getUpdatedBy());
+
+  if (isNewTrip) {
+    target.setCreatedBy(updatedBy != null ? updatedBy.toString() : template.getCreatedBy());
+    target.setTripStatus(Trip.TripStatus.CREATED);
+    target.setStartOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
+    target.setEndOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
+  }
+
+  copyStopsFromTemplate(target, template);
+  copyPassengerCustomFieldValuesFromTemplate(target, template);
+}
+
+private void copyStopsFromTemplate(Trip target, Trip template) {
+  target.getStops().clear();
+
+  if (template.getStops() == null || template.getStops().isEmpty()) {
+    return;
+  }
+
+  for (TripStop stop : template.getStops()) {
+    TripStop copiedStop = new TripStop();
+    copiedStop.setSequenceNumber(stop.getSequenceNumber());
+    copiedStop.setStopType(stop.getStopType());
+    copiedStop.setAddressText(stop.getAddressText());
+    copiedStop.setFormattedAddress(stop.getFormattedAddress());
+    copiedStop.setLatitude(stop.getLatitude());
+    copiedStop.setLongitude(stop.getLongitude());
+    copiedStop.setAccurate(stop.getAccurate());
+    copiedStop.setTrip(target);
+    target.getStops().add(copiedStop);
+  }
+}
+
+private void copyPassengerCustomFieldValuesFromTemplate(Trip target, Trip template) {
+  target.getPassengerCustomFieldValues().clear();
+
+  if (template.getPassengerCustomFieldValues() == null || template.getPassengerCustomFieldValues().isEmpty()) {
+    return;
+  }
+
+  for (TripPassengerCustomFieldValue sourceValue : template.getPassengerCustomFieldValues()) {
+    TripPassengerCustomFieldValue copiedValue = new TripPassengerCustomFieldValue();
+    copiedValue.setTrip(target);
+    copiedValue.setPassenger(sourceValue.getPassenger());
+    copiedValue.setCustomField(sourceValue.getCustomField());
+    copiedValue.setValue(sourceValue.getValue());
+    copiedValue.setCreatedBy(sourceValue.getCreatedBy());
+    copiedValue.setUpdatedBy(target.getUpdatedBy());
+    target.getPassengerCustomFieldValues().add(copiedValue);
+  }
+}
+
+private void softDeleteTrip(Trip trip, UUID deletedBy) {
+  trip.setIsDeleted(true);
+  trip.setDeletedAt(Instant.now().toEpochMilli());
+  trip.setDeletedBy(deletedBy != null ? deletedBy.toString() : trip.getUpdatedBy());
+}
+
+private LocalDate extractTripDate(Trip trip) {
+  Long epoch = trip.getPickupTime() != null ? trip.getPickupTime() : trip.getStartDate();
+  if (epoch == null) {
+    throw new RuntimeException("Trip date is missing for trip: " + trip.getId());
+  }
+  return epochToUtcDate(epoch);
+}
+
+private LocalDate epochToUtcDate(long epochSeconds) {
+  return Instant.ofEpochSecond(epochSeconds)
+      .atZone(ZoneOffset.UTC)
+      .toLocalDate();
+}
+
 private Trip cloneTripTemplate(Trip source) {
   Trip clone = new Trip();
   clone.setTripCode(source.getTripCode());
@@ -764,6 +1048,7 @@ private Trip cloneTripTemplate(Trip source) {
   clone.setPickupTime(source.getPickupTime());
   clone.setStartDate(source.getStartDate());
   clone.setEndDate(source.getEndDate());
+  clone.setIsManualTrip(source.getIsManualTrip());
   clone.setCreatedBy(source.getCreatedBy());
   clone.setTripStatus(Trip.TripStatus.CREATED);
 
@@ -841,8 +1126,9 @@ private enum DayOfWeekValue {
 
 @Override
 @Transactional(rollbackFor = Exception.class)
-public Trip dispatchTrip(UUID tokenTenantId, UUID tripID, TripDispatchRequestDTO dispatchData) {
+public Trip dispatchTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripDispatchRequestDTO dispatchData) {
   Trip trip = findTripForTenant(tokenTenantId, tripID);
+  authorizeTripLifecycleAction(trip, tokenTenantId, tokenTenant, user, false);
   ensureTripStatus(trip, Trip.TripStatus.CREATED, Trip.TripStatus.CONFIRMED);
 
   TripSummary summary = getOrCreateTripSummary(trip);
@@ -856,8 +1142,9 @@ public Trip dispatchTrip(UUID tokenTenantId, UUID tripID, TripDispatchRequestDTO
 
 @Override
 @Transactional(rollbackFor = Exception.class)
-public Trip arrivedTrip(UUID tokenTenantId, UUID tripID, TripArrivedRequestDTO arrivedData) {
+public Trip arrivedTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripArrivedRequestDTO arrivedData) {
   Trip trip = findTripForTenant(tokenTenantId, tripID);
+  authorizeTripLifecycleAction(trip, tokenTenantId, tokenTenant, user, false);
   ensureTripStatus(trip, Trip.TripStatus.DISPATCHED, Trip.TripStatus.STARTED);
 
   TripSummary summary = getOrCreateTripSummary(trip);
@@ -871,8 +1158,9 @@ public Trip arrivedTrip(UUID tokenTenantId, UUID tripID, TripArrivedRequestDTO a
 
 @Override
 @Transactional(rollbackFor = Exception.class)
-public Trip startTrip(UUID tokenTenantId, UUID tripID, TripStartRequestDTO startData) {
+public Trip startTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripStartRequestDTO startData) {
   Trip trip = findTripForTenant(tokenTenantId, tripID);
+  authorizeTripLifecycleAction(trip, tokenTenantId, tokenTenant, user, false);
   ensureTripStatus(trip, Trip.TripStatus.ARRIVED, Trip.TripStatus.DISPATCHED);
 
   if (trip.getStartOtp() == null || !trip.getStartOtp().equals(startData.getStartOtp())) {
@@ -892,8 +1180,9 @@ public Trip startTrip(UUID tokenTenantId, UUID tripID, TripStartRequestDTO start
 
 @Override
 @Transactional(rollbackFor = Exception.class)
-public Trip dropTrip(UUID tokenTenantId, UUID tripID, TripDropRequestDTO dropData) {
+public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripDropRequestDTO dropData) {
   Trip trip = findTripForTenant(tokenTenantId, tripID);
+  authorizeTripLifecycleAction(trip, tokenTenantId, tokenTenant, user, true);
   ensureTripStatus(trip, Trip.TripStatus.STARTED, Trip.TripStatus.ARRIVED);
 
   if (trip.getEndOtp() == null || !trip.getEndOtp().equals(dropData.getEndOtp())) {
@@ -919,7 +1208,7 @@ public Trip dispatchTrip(UUID tokenTenantId, UUID tripID, Map<String, Object> di
   TripDispatchRequestDTO dto = new TripDispatchRequestDTO();
   dto.setDispatchLat(toDouble(dispatchData.get("dispatchLat")));
   dto.setDispatchLng(toDouble(dispatchData.get("dispatchLng")));
-  return dispatchTrip(tokenTenantId, tripID, dto);
+  return dispatchTrip(tokenTenantId, null, null, tripID, dto);
 }
 
 private Trip findTripForTenant(UUID tenantId, UUID tripId) {
@@ -946,6 +1235,57 @@ private void ensureTripStatus(Trip trip, Trip.TripStatus... allowedStatuses) {
   }
 
   throw new RuntimeException("Trip cannot transition from status " + trip.getTripStatus());
+}
+
+private void authorizeTripLifecycleAction(
+    Trip trip,
+    UUID tenantId,
+    Tenant tokenTenant,
+    UserAccount user,
+    boolean closingManualTrip
+) {
+  if (trip == null) {
+    throw new RuntimeException("Trip not found");
+  }
+  if (user == null) {
+    throw new RuntimeException("Authenticated user not found");
+  }
+
+  if (Boolean.TRUE.equals(trip.getIsManualTrip())) {
+    if (tokenTenant == null || tokenTenant.getTenantType() != Tenant.TenantType.VENDOR) {
+      throw new RuntimeException("Only vendor users can update manual trips");
+    }
+
+    if (closingManualTrip && isDriverUser(user)) {
+      throw new RuntimeException("Driver cannot close manual trip");
+    }
+    return;
+  }
+
+  if (tenantId == null) {
+    throw new RuntimeException("Tenant not found in token");
+  }
+  if (trip.getDriver() == null) {
+    throw new RuntimeException("Driver is not assigned to this trip");
+  }
+
+  Driver actorDriver = driverRepository.findByAccount_Id(user.getId())
+      .orElseThrow(() -> new RuntimeException("Only driver can update non-manual trip"));
+
+  if (!actorDriver.getId().equals(trip.getDriver().getId())) {
+    throw new RuntimeException("Only assigned driver can update this trip");
+  }
+
+  driverTenantMappingRepository.findByDriver_IdAndTenant_Id(actorDriver.getId(), tenantId)
+      .filter(mapping -> Boolean.TRUE.equals(mapping.getActive()))
+      .orElseThrow(() -> new RuntimeException("Driver does not belong to this tenant"));
+}
+
+private boolean isDriverUser(UserAccount user) {
+  if (user == null || user.getId() == null) {
+    return false;
+  }
+  return driverRepository.findByAccount_Id(user.getId()).isPresent();
 }
 
 private TripSummary getOrCreateTripSummary(Trip trip) {

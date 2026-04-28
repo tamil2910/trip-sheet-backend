@@ -67,6 +67,7 @@ public final class TripResponseMapper {
         dto.setEndDate(trip.getEndDate());
         dto.setStartOtp(trip.getStartOtp());
         dto.setEndOtp(trip.getEndOtp());
+        dto.setIsManualTrip(trip.getIsManualTrip());
 
         dto.setStops(toStopDTOs(trip.getStops()));
 

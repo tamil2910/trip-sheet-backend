@@ -15,6 +15,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
+import com.example.trip_sheet_backend.models.UserAccount;
 
 public interface TripService extends BaseService<Trip, UUID> {
   Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID createdBy);
@@ -25,13 +26,13 @@ public interface TripService extends BaseService<Trip, UUID> {
 
   Trip splitChildTrip(UUID tenantId, UUID tripId);
 
-  Trip dispatchTrip(UUID tokenTenantId, UUID tripID, TripDispatchRequestDTO dispatchData);
+  Trip dispatchTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripDispatchRequestDTO dispatchData);
 
-  Trip arrivedTrip(UUID tokenTenantId, UUID tripID, TripArrivedRequestDTO arrivedData);
+  Trip arrivedTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripArrivedRequestDTO arrivedData);
 
-  Trip startTrip(UUID tokenTenantId, UUID tripID, TripStartRequestDTO startData);
+  Trip startTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripStartRequestDTO startData);
 
-  Trip dropTrip(UUID tokenTenantId, UUID tripID, TripDropRequestDTO dropData);
+  Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripDropRequestDTO dropData);
   
   Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable);
 }

@@ -7,6 +7,8 @@ import com.example.trip_sheet_backend.common.models.BaseModel;
 // import com.fasterxml.jackson.annotation.JsonBackReference;
 // import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import org.hibernate.annotations.BatchSize;
+
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -36,6 +38,8 @@ import jakarta.persistence.Index;
   indexes = {
     @Index(name = "idx_trip_code", columnList = "trip_code"),
     @Index(name = "idx_trip_status", columnList = "trip_status"),
+    @Index(name = "idx_trip_tenant_deleted_pickup", columnList = "tenant_id, is_deleted, pickup_time"),
+    @Index(name = "idx_trip_tenant_deleted_start_end", columnList = "tenant_id, is_deleted, start_date, end_date"),
     @Index(name = "idx_vendor_id", columnList = "vendor_id"),
     @Index(name = "idx_organisation_id", columnList = "organisation_id"),
     @Index(name = "idx_driver_id", columnList = "driver_id"),
@@ -44,6 +48,7 @@ import jakarta.persistence.Index;
     @Index(name = "idx_vehicle_type_id", columnList = "vehicle_type_id")
   }
 )
+@BatchSize(size = 50)
 public class Trip extends BaseModel implements TenantScoped {
 
   @Column(name = "trip_code")
@@ -103,6 +108,7 @@ public class Trip extends BaseModel implements TenantScoped {
   private VehicleType vehicleType;
 
   @OneToMany(mappedBy = "trip", cascade = CascadeType.ALL, orphanRemoval = true)
+  @BatchSize(size = 50)
   private List<TripStop> stops = new ArrayList<>();
 
   @ManyToMany(fetch = FetchType.LAZY)
@@ -111,9 +117,11 @@ public class Trip extends BaseModel implements TenantScoped {
     joinColumns = @JoinColumn(name = "trip_id"),
     inverseJoinColumns = @JoinColumn(name = "people_tenant_id")
   )
+  @BatchSize(size = 50)
   private List<PeopleTenant> passengers = new ArrayList<>();
 
   @OneToMany(mappedBy = "trip", cascade = CascadeType.ALL, orphanRemoval = true)
+  @BatchSize(size = 50)
   private List<TripPassengerCustomFieldValue> passengerCustomFieldValues = new ArrayList<>();
 
   @ManyToOne(fetch = FetchType.LAZY)
@@ -156,6 +164,8 @@ public class Trip extends BaseModel implements TenantScoped {
   private Long startOtp;
   @Column(columnDefinition = "BIGINT")
   private Long endOtp;
+
+  private Boolean isManualTrip = false;
 
   @Override
   public Tenant getTenant() {

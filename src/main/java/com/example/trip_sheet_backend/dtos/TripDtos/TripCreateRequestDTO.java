@@ -47,5 +47,7 @@ public class TripCreateRequestDTO {
 
     private String notes;
 
+    private Boolean isManualTrip;
+
     private List<TripStopRequestDTO> stops;
 }

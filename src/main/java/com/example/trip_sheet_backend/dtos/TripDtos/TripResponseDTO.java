@@ -40,6 +40,7 @@ public class TripResponseDTO {
     private Long endDate;
     private Long startOtp;
     private Long endOtp;
+    private Boolean isManualTrip;
 
     private List<TripStopResponseDTO> stops;
 }

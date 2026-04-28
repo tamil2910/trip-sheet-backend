@@ -408,15 +408,6 @@ public Page<T> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object
                 Join<Object, Object> vehicleTypeJoin = root.join("vehicleType", JoinType.LEFT);
                 searchPredicates.add(cb.like(cb.lower(vehicleTypeJoin.get("defaultName").as(String.class)), searchLower));
             } catch (Exception ignored) {}
-            try {
-                Join<Object, Object> passengerCustomValuesJoin = root.join("passengerCustomFieldValues", JoinType.LEFT);
-                searchPredicates.add(cb.like(cb.lower(passengerCustomValuesJoin.get("value").as(String.class)), searchLower));
-            } catch (Exception ignored) {}
-            try {
-                Join<Object, Object> passengerCustomValuesJoin = root.join("passengerCustomFieldValues", JoinType.LEFT);
-                Join<Object, Object> customFieldJoin = passengerCustomValuesJoin.join("customField", JoinType.LEFT);
-                searchPredicates.add(cb.like(cb.lower(customFieldJoin.get("name").as(String.class)), searchLower));
-            } catch (Exception ignored) {}
             if (!searchPredicates.isEmpty()) {
                 predicates.add(cb.or(searchPredicates.toArray(new Predicate[0])));
             }

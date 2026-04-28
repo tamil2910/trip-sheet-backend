@@ -31,6 +31,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
 import com.example.trip_sheet_backend.mappers.TripResponseMapper;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
+import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.TripService.TripServiceImp;
 
@@ -271,7 +272,7 @@ public class TripController {
     }
   }
 
-  @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
+  // @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
   @PutMapping("/dispatch/{id}")
   public ResponseEntity<ApiResponse<?>> dispatchTrip(
       @PathVariable @NotNull UUID id,
@@ -279,9 +280,11 @@ public class TripController {
       @Valid @RequestBody TripDispatchRequestDTO dispatchData
   ) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UserAccount user = (UserAccount) request.getAttribute("user");
 
     try {
-      Trip dispatchedTrip = tripServiceImp.dispatchTrip(tenantId, id, dispatchData);
+      Trip dispatchedTrip = tripServiceImp.dispatchTrip(tenantId, tokenTenant, user, id, dispatchData);
       TripResponseDTO response = TripResponseMapper.toDTO(dispatchedTrip);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip dispatched successfully!", response));
     } catch (RuntimeException ex) {
@@ -289,7 +292,7 @@ public class TripController {
     }
   }
 
-  @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
+  // @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
   @PutMapping("/arrived/{id}")
   public ResponseEntity<ApiResponse<?>> arrivedTrip(
       @PathVariable @NotNull UUID id,
@@ -297,9 +300,11 @@ public class TripController {
       @Valid @RequestBody TripArrivedRequestDTO arrivedData
   ) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UserAccount user = (UserAccount) request.getAttribute("user");
 
     try {
-      Trip arrivedTrip = tripServiceImp.arrivedTrip(tenantId, id, arrivedData);
+      Trip arrivedTrip = tripServiceImp.arrivedTrip(tenantId, tokenTenant, user, id, arrivedData);
       TripResponseDTO response = TripResponseMapper.toDTO(arrivedTrip);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip marked as arrived successfully!", response));
     } catch (RuntimeException ex) {
@@ -307,7 +312,7 @@ public class TripController {
     }
   }
 
-  @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
+  // @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
   @PutMapping("/start/{id}")
   public ResponseEntity<ApiResponse<?>> startTrip(
       @PathVariable @NotNull UUID id,
@@ -315,9 +320,11 @@ public class TripController {
       @Valid @RequestBody TripStartRequestDTO startData
   ) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UserAccount user = (UserAccount) request.getAttribute("user");
 
     try {
-      Trip startedTrip = tripServiceImp.startTrip(tenantId, id, startData);
+      Trip startedTrip = tripServiceImp.startTrip(tenantId, tokenTenant, user, id, startData);
       TripResponseDTO response = TripResponseMapper.toDTO(startedTrip);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip started successfully!", response));
     } catch (RuntimeException ex) {
@@ -325,7 +332,7 @@ public class TripController {
     }
   }
 
-  @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
+  // @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
   @PutMapping("/drop/{id}")
   public ResponseEntity<ApiResponse<?>> dropTrip(
       @PathVariable @NotNull UUID id,
@@ -333,9 +340,11 @@ public class TripController {
       @Valid @RequestBody TripDropRequestDTO dropData
   ) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UserAccount user = (UserAccount) request.getAttribute("user");
 
     try {
-      Trip droppedTrip = tripServiceImp.dropTrip(tenantId, id, dropData);
+      Trip droppedTrip = tripServiceImp.dropTrip(tenantId, tokenTenant, user, id, dropData);
       TripResponseDTO response = TripResponseMapper.toDTO(droppedTrip);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip completed successfully!", response));
     } catch (RuntimeException ex) {
