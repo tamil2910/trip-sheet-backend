@@ -8,7 +8,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 import com.example.trip_sheet_backend.common.services.BaseService;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
 
@@ -20,6 +24,14 @@ public interface TripService extends BaseService<Trip, UUID> {
   List<Trip> getParentAndChildTrips(UUID tenantId, UUID tripId);
 
   Trip splitChildTrip(UUID tenantId, UUID tripId);
+
+  Trip dispatchTrip(UUID tokenTenantId, UUID tripID, TripDispatchRequestDTO dispatchData);
+
+  Trip arrivedTrip(UUID tokenTenantId, UUID tripID, TripArrivedRequestDTO arrivedData);
+
+  Trip startTrip(UUID tokenTenantId, UUID tripID, TripStartRequestDTO startData);
+
+  Trip dropTrip(UUID tokenTenantId, UUID tripID, TripDropRequestDTO dropData);
   
   Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable);
 }

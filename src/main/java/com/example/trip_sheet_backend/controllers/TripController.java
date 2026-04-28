@@ -21,13 +21,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.example.trip_sheet_backend.common.controllers.BaseController;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
 import com.example.trip_sheet_backend.mappers.TripResponseMapper;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
-import com.example.trip_sheet_backend.models.TripStop;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.TripService.TripServiceImp;
 
@@ -37,12 +40,11 @@ import jakarta.validation.constraints.NotNull;
 
 @RestController
 @RequestMapping("/trips")
-public class TripController extends BaseController<Trip, UUID> {
+public class TripController {
 
   private final TripServiceImp tripServiceImp;
 
   public TripController(TripServiceImp tripServiceImp) {
-    super(tripServiceImp);
     this.tripServiceImp = tripServiceImp;
   }
 
@@ -69,6 +71,7 @@ public class TripController extends BaseController<Trip, UUID> {
 
   @PreAuthorize("hasAuthority('CAN_CREATE_TRIP')")
   @PostMapping("/bulk-create")
+  @org.springframework.transaction.annotation.Transactional
   public ResponseEntity<ApiResponse<List<TripResponseDTO>>> createBulkTrips(
       HttpServletRequest request,
       @Valid @RequestBody List<TripCreateRequestDTO> createTripDtos
@@ -88,9 +91,9 @@ public class TripController extends BaseController<Trip, UUID> {
     );
   }
 
-  @Override
   @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
   @GetMapping("/{id}")
+  @org.springframework.transaction.annotation.Transactional(readOnly = true)
   @SuppressWarnings({ "rawtypes", "unchecked" })
   public ApiResponse<Trip> getById(
       @PathVariable @NotNull UUID id,
@@ -107,9 +110,9 @@ public class TripController extends BaseController<Trip, UUID> {
     return (ApiResponse<Trip>) (ApiResponse) new ApiResponse<>(true, "Trip fetched successfully!", response);
   }
 
-  @Override
   @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
   @GetMapping
+  @org.springframework.transaction.annotation.Transactional(readOnly = true)
   public ApiResponse<Map<String, Object>> getAll(@RequestParam Map<String, Object> filters,
     Pageable pageable,
     HttpServletRequest request) {
@@ -182,11 +185,15 @@ public class TripController extends BaseController<Trip, UUID> {
     }
   }
 
-  @Override
   @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
   @PutMapping("/{id}")
+  @org.springframework.transaction.annotation.Transactional
   @SuppressWarnings({ "rawtypes", "unchecked" })
-  public ApiResponse<Trip> update(@PathVariable @NotNull UUID id, @Valid @RequestBody Trip payload, HttpServletRequest request) {
+  public ApiResponse<Trip> update(
+      @PathVariable @NotNull UUID id,
+      @Valid @RequestBody TripUpdateRequestDTO payload,
+      HttpServletRequest request
+  ) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
     UUID updatedBy = (UUID) request.getAttribute("createdBy");
 
@@ -195,12 +202,7 @@ public class TripController extends BaseController<Trip, UUID> {
       return new ApiResponse<>(false, "Trip not found", null);
     }
 
-    applyUpdate(existingTrip, payload);
-    if (updatedBy != null) {
-      existingTrip.setUpdatedBy(updatedBy.toString());
-    }
-
-    Trip updatedTrip = tripServiceImp.updateResource(tenantId, id, existingTrip);
+    Trip updatedTrip = tripServiceImp.updateTrip(tenantId, id, payload, updatedBy);
 
     if (updatedTrip == null) {
       return new ApiResponse<>(false, "Trip updation failed", null);
@@ -210,7 +212,6 @@ public class TripController extends BaseController<Trip, UUID> {
     return (ApiResponse<Trip>) (ApiResponse) new ApiResponse<>(true, "Trip updated successfully!", response);
   }
 
-  @Override
   @PreAuthorize("hasAuthority('CAN_DELETE_TRIP')")
   @DeleteMapping("/{id}")
   public ApiResponse<Void> delete(@PathVariable @NotNull UUID id, HttpServletRequest request) {
@@ -230,43 +231,6 @@ public class TripController extends BaseController<Trip, UUID> {
 
     tripServiceImp.updateResource(tenantId, id, trip);
     return new ApiResponse<>(true, "Trip deleted successfully!", null);
-  }
-
-  private void applyUpdate(Trip target, Trip source) {
-    if (source.getTripCode() != null) target.setTripCode(source.getTripCode());
-    if (source.getTripStatus() != null) target.setTripStatus(source.getTripStatus());
-    if (source.getTripType() != null) target.setTripType(source.getTripType());
-    if (source.getRecurrenceInterval() != null) target.setRecurrenceInterval(source.getRecurrenceInterval());
-    if (source.getDaysOfWeek() != null) target.setDaysOfWeek(source.getDaysOfWeek());
-    if (source.getRecurrenceFrequency() != null) target.setRecurrenceFrequency(source.getRecurrenceFrequency());
-    if (source.getParentTrip() != null) target.setParentTrip(source.getParentTrip());
-
-    if (source.getVendor() != null) target.setVendor(source.getVendor());
-    if (source.getAssignedByVendor() != null) target.setAssignedByVendor(source.getAssignedByVendor());
-    if (source.getPreviousVendor() != null) target.setPreviousVendor(source.getPreviousVendor());
-    if (source.getOrganisation() != null) target.setOrganisation(source.getOrganisation());
-
-    if (source.getNotes() != null) target.setNotes(source.getNotes());
-    if (source.getDriver() != null) target.setDriver(source.getDriver());
-    if (source.getVehicle() != null) target.setVehicle(source.getVehicle());
-    if (source.getDutyType() != null) target.setDutyType(source.getDutyType());
-    if (source.getVehicleType() != null) target.setVehicleType(source.getVehicleType());
-
-    if (source.getStops() != null) {
-      target.getStops().clear();
-      for (TripStop stop : source.getStops()) {
-        stop.setTrip(target);
-        target.getStops().add(stop);
-      }
-    }
-    if (source.getPassengers() != null) target.setPassengers(source.getPassengers());
-    if (source.getBooker() != null) target.setBooker(source.getBooker());
-
-    if (source.getPickupTime() != null) target.setPickupTime(source.getPickupTime());
-    if (source.getStartDate() != null) target.setStartDate(source.getStartDate());
-    if (source.getEndDate() != null) target.setEndDate(source.getEndDate());
-    if (source.getStartOtp() != null) target.setStartOtp(source.getStartOtp());
-    if (source.getEndOtp() != null) target.setEndOtp(source.getEndOtp());
   }
 
   @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
@@ -292,8 +256,7 @@ public class TripController extends BaseController<Trip, UUID> {
 
   @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
   @PutMapping("/split/{id}")
-  @SuppressWarnings({ "rawtypes", "unchecked" })
-  public ApiResponse<TripResponseDTO> splitChildTrip(
+  public ResponseEntity<ApiResponse<?>> splitChildTrip(
       @PathVariable @NotNull UUID id,
       HttpServletRequest request
   ) {
@@ -302,14 +265,83 @@ public class TripController extends BaseController<Trip, UUID> {
     try {
       Trip splitTrip = tripServiceImp.splitChildTrip(tenantId, id);
       TripResponseDTO response = TripResponseMapper.toDTO(splitTrip);
-      return (ApiResponse<TripResponseDTO>) (ApiResponse) new ApiResponse<>(
-          true,
-          "Trip split from parent successfully!",
-          response
-      );
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip split from parent successfully!", response));
     } catch (RuntimeException ex) {
-      return (ApiResponse<TripResponseDTO>) (ApiResponse) new ApiResponse<>(false, ex.getMessage(), null);
+      return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
     }
   }
+
+  @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
+  @PutMapping("/dispatch/{id}")
+  public ResponseEntity<ApiResponse<?>> dispatchTrip(
+      @PathVariable @NotNull UUID id,
+      HttpServletRequest request,
+      @Valid @RequestBody TripDispatchRequestDTO dispatchData
+  ) {
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+
+    try {
+      Trip dispatchedTrip = tripServiceImp.dispatchTrip(tenantId, id, dispatchData);
+      TripResponseDTO response = TripResponseMapper.toDTO(dispatchedTrip);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip dispatched successfully!", response));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
+  @PutMapping("/arrived/{id}")
+  public ResponseEntity<ApiResponse<?>> arrivedTrip(
+      @PathVariable @NotNull UUID id,
+      HttpServletRequest request,
+      @Valid @RequestBody TripArrivedRequestDTO arrivedData
+  ) {
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+
+    try {
+      Trip arrivedTrip = tripServiceImp.arrivedTrip(tenantId, id, arrivedData);
+      TripResponseDTO response = TripResponseMapper.toDTO(arrivedTrip);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip marked as arrived successfully!", response));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
+  @PutMapping("/start/{id}")
+  public ResponseEntity<ApiResponse<?>> startTrip(
+      @PathVariable @NotNull UUID id,
+      HttpServletRequest request,
+      @Valid @RequestBody TripStartRequestDTO startData
+  ) {
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+
+    try {
+      Trip startedTrip = tripServiceImp.startTrip(tenantId, id, startData);
+      TripResponseDTO response = TripResponseMapper.toDTO(startedTrip);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip started successfully!", response));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
+  @PutMapping("/drop/{id}")
+  public ResponseEntity<ApiResponse<?>> dropTrip(
+      @PathVariable @NotNull UUID id,
+      HttpServletRequest request,
+      @Valid @RequestBody TripDropRequestDTO dropData
+  ) {
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+
+    try {
+      Trip droppedTrip = tripServiceImp.dropTrip(tenantId, id, dropData);
+      TripResponseDTO response = TripResponseMapper.toDTO(droppedTrip);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip completed successfully!", response));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+  
 
 }

@@ -52,6 +52,26 @@ public class TripSummary extends BaseModel implements TenantScoped {
   private Long tripGPSDuration;
   private Long tripGPSDistance;
 
+  // Dispatch coordinates
+  private Double dispatchLat;
+  private Double dispatchLng;
+
+  // Arrival coordinates
+  private Double arrivedLat;
+  private Double arrivedLng;
+
+  // Trip start coordinates
+  private Double tripStartLat;
+  private Double tripStartLng;
+
+  // Trip end coordinates
+  private Double tripEndLat;
+  private Double tripEndLng;
+
+  // Garage end coordinates
+  private Double garageEndLat;
+  private Double garageEndLng;
+
   @Valid
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "tenant_id")
