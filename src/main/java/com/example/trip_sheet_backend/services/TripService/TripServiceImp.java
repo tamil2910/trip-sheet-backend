@@ -18,6 +18,11 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.jpa.domain.Specification;
+
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
@@ -450,6 +455,32 @@ public Trip splitChildTrip(UUID tenantId, UUID tripId) {
 @Override
 public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable) {
   return super.searchResourcesWithGlobalSearch(tenantId, filters, globalSearch, pageable);
+}
+
+@Override
+public Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Pageable pageable) {
+  Specification<Trip> spec = (root, query, cb) -> {
+    query.distinct(true);
+    List<Predicate> preds = new ArrayList<>();
+    if (tenantId != null) {
+      try {
+        preds.add(cb.equal(root.join("tenant").get("id"), tenantId));
+      } catch (Exception ignored) {}
+    }
+
+    try {
+      Join<Object,Object> driverJoin = root.join("driver", JoinType.LEFT);
+      Predicate byDriver = cb.equal(driverJoin.get("id"), driverId);
+      Predicate byCreator = cb.equal(root.get("createdBy"), driverId.toString());
+      preds.add(cb.or(byDriver, byCreator));
+    } catch (Exception ignored) {
+      preds.add(cb.equal(root.get("createdBy"), driverId.toString()));
+    }
+
+    preds.add(cb.equal(root.get("isDeleted"), false));
+    return cb.and(preds.toArray(new Predicate[0]));
+  };
+  return repository.findAll(spec, pageable);
 }
 
 private Trip createMultiDayTrips(Trip templateTrip) {

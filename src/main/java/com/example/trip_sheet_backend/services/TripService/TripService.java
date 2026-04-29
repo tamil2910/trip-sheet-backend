@@ -35,4 +35,5 @@ public interface TripService extends BaseService<Trip, UUID> {
   Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripDropRequestDTO dropData);
   
   Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable);
+  Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Pageable pageable);
 }
