@@ -44,6 +44,7 @@ import jakarta.persistence.Index;
     @Index(name = "idx_organisation_id", columnList = "organisation_id"),
     @Index(name = "idx_driver_id", columnList = "driver_id"),
     @Index(name = "idx_vehicle_id", columnList = "vehicle_id"),
+    @Index(name = "idx_dispatch_center_id", columnList = "dispatch_center_id"),
     @Index(name = "idx_duty_type_id", columnList = "duty_type_id"),
     @Index(name = "idx_vehicle_type_id", columnList = "vehicle_type_id")
   }
@@ -96,6 +97,10 @@ public class Trip extends BaseModel implements TenantScoped {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "vehicle_id")
   private Vehicle vehicle;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "dispatch_center_id")
+  private DispatchCenter dispatchCenter;
 
   // @NotNull
   @ManyToOne(fetch = FetchType.LAZY)

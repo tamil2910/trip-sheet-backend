@@ -23,8 +23,11 @@ import org.springframework.data.jpa.domain.Specification;
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPassengerCustomFieldValueRequestDTO;
@@ -34,6 +37,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStopRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
 import com.example.trip_sheet_backend.models.CustomField;
+import com.example.trip_sheet_backend.models.DispatchCenter;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.PeopleTenant;
@@ -51,6 +55,7 @@ import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository
 import com.example.trip_sheet_backend.repositories.DutyTypeRepository;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.repositories.CustomFieldRepository;
+import com.example.trip_sheet_backend.repositories.DispatchCenterRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
 import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
@@ -63,7 +68,6 @@ import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
-import jakarta.persistence.criteria.JoinType;
 
 @Service
 public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripService {
@@ -76,9 +80,9 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final DriverRepository driverRepository;
     private final VehicleRepository vehicleRepository;
     private final CustomFieldRepository customFieldRepository;
+    private final DispatchCenterRepository dispatchCenterRepo;
     private final TripSummaryRepository tripSummaryRepository;
     private final DriverTenantMappingRepository driverTenantMappingRepository;
-
 
     private final ModelMapper mapper;
 
@@ -86,7 +90,8 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     DutyTypeRepository dutyTypeRepository, VehicleTypeRepository vehicleTypeRepository, 
     PeopleTenantRepository peopleTenantRepository, ModelMapper mapper, DriverRepository driverRepository,
       VehicleRepository vehicleRepository, CustomFieldRepository customFieldRepository,
-      TripSummaryRepository tripSummaryRepository, DriverTenantMappingRepository driverTenantMappingRepository) {
+      DispatchCenterRepository dispatchCenterRepository, TripSummaryRepository tripSummaryRepository,
+      DriverTenantMappingRepository driverTenantMappingRepository) {
     super(repository);
     this.repository = repository;
     this.tenantRepository = tenantRepository;
@@ -97,6 +102,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     this.driverRepository = driverRepository;
     this.vehicleRepository = vehicleRepository;
     this.customFieldRepository = customFieldRepository;
+    this.dispatchCenterRepo = dispatchCenterRepository;
     this.tripSummaryRepository = tripSummaryRepository;
     this.driverTenantMappingRepository = driverTenantMappingRepository;
   }
@@ -965,6 +971,7 @@ private void syncTripFromTemplate(Trip target, Trip template, long occurrenceEpo
   target.setNotes(template.getNotes());
   target.setDriver(template.getDriver());
   target.setVehicle(template.getVehicle());
+  target.setDispatchCenter(template.getDispatchCenter());
   target.setDutyType(template.getDutyType());
   target.setVehicleType(template.getVehicleType());
   target.setBooker(template.getBooker());
@@ -1060,6 +1067,7 @@ private Trip cloneTripTemplate(Trip source) {
   clone.setNotes(source.getNotes());
   clone.setDriver(source.getDriver());
   clone.setVehicle(source.getVehicle());
+  clone.setDispatchCenter(source.getDispatchCenter());
   clone.setDutyType(source.getDutyType());
   clone.setVehicleType(source.getVehicleType());
   clone.setPassengers(source.getPassengers() == null ? null : new ArrayList<>(source.getPassengers()));
@@ -1347,6 +1355,32 @@ private Double toDouble(Object value) {
   } catch (Exception ex) {
     throw new RuntimeException("Invalid coordinate value: " + value);
   }
+}
+
+public Trip allotDriverVehicle(Tenant tokenTenant, UUID tokenTenantId, UserAccount user, UUID tripID,
+    TripAllotRequestDTO allotData) {
+    Trip trip = findTripForTenant(tokenTenantId, tripID);
+    authorizeTripLifecycleAction(trip, tokenTenantId, tokenTenant, user, false);
+    ensureTripStatus(trip, Trip.TripStatus.CREATED, Trip.TripStatus.CONFIRMED);
+  
+    Driver driver = resolveOptionalDriver(allotData.getDriverId());
+    Vehicle vehicle = resolveOptionalVehicle(allotData.getVehicleId());
+    DispatchCenter dispatchCenter = resolveOptionalDispatchCenter(allotData.getDispatchCenterId());
+
+     trip.setDriver(driver);
+     trip.setVehicle(vehicle);
+     trip.setDispatchCenter(dispatchCenter);
+     trip.setTripStatus(Trip.TripStatus.ALLOTTED);
+     return repository.save(trip);
+
+}
+
+private DispatchCenter resolveOptionalDispatchCenter(String dispatchCenterId) {
+  if (!hasText(dispatchCenterId)) {
+    return null;
+  }
+  return dispatchCenterRepo.findById(UUID.fromString(dispatchCenterId))
+      .orElseThrow(() -> new RuntimeException("Invalid dispatch center"));  
 }
 
 

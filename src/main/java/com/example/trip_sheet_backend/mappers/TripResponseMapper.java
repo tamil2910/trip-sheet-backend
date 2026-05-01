@@ -8,6 +8,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripPassengerCustomFieldValu
 import com.example.trip_sheet_backend.dtos.TripDtos.TripRelationResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStopResponseDTO;
+import com.example.trip_sheet_backend.models.DispatchCenter;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.PeopleTenant;
@@ -47,6 +48,7 @@ public final class TripResponseMapper {
 
         dto.setDriver(toDriverRelation(trip.getDriver()));
         dto.setVehicle(toVehicleRelation(trip.getVehicle()));
+        dto.setDispatchCenter(toDispatchCenterRelation(trip.getDispatchCenter()));
         dto.setVehicleType(toVehicleTypeRelation(trip.getVehicleType()));
         dto.setDutyType(toDutyTypeRelation(trip.getDutyType()));
         dto.setBooker(toPeopleRelation(trip.getBooker()));
@@ -168,6 +170,19 @@ public final class TripResponseMapper {
             ref.setId(vehicle.getId().toString());
         }
         ref.setName(vehicle.getVehicleNumber());
+        return ref;
+    }
+
+    private static TripBasicRelationResponseDTO toDispatchCenterRelation(DispatchCenter dispatchCenter) {
+        if (dispatchCenter == null) {
+            return null;
+        }
+
+        TripBasicRelationResponseDTO ref = new TripBasicRelationResponseDTO();
+        if (dispatchCenter.getId() != null) {
+            ref.setId(dispatchCenter.getId().toString());
+        }
+        ref.setName(dispatchCenter.getName());
         return ref;
     }
 

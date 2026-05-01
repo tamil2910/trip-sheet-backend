@@ -27,6 +27,7 @@ public class TripResponseDTO {
 
     private TripRelationResponseDTO driver;
     private TripBasicRelationResponseDTO vehicle;
+    private TripBasicRelationResponseDTO dispatchCenter;
     private TripBasicRelationResponseDTO vehicleType;
     private TripBasicRelationResponseDTO dutyType;
     private TripRelationResponseDTO booker;

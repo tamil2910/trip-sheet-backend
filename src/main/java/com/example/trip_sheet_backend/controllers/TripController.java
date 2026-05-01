@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.trip_sheet_backend.dtos.TripDtos.TripAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
@@ -347,6 +348,25 @@ public class TripController {
       Trip droppedTrip = tripServiceImp.dropTrip(tenantId, tokenTenant, user, id, dropData);
       TripResponseDTO response = TripResponseMapper.toDTO(droppedTrip);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip completed successfully!", response));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PutMapping("/allot/{tripId}")
+  public ResponseEntity<ApiResponse<?>> reassignTrip(
+      @PathVariable @NotNull UUID tripId,
+      HttpServletRequest request,
+      @Valid @RequestBody TripAllotRequestDTO allotData
+  ) {
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+    UUID tokenTenantId = (UUID) request.getAttribute("tenantId");
+    UserAccount user = (UserAccount) request.getAttribute("user");
+    try {
+      Trip reassignedTrip = tripServiceImp.allotDriverVehicle(tokenTenant, tokenTenantId, user, tripId, allotData);
+      TripResponseDTO response = TripResponseMapper.toDTO(reassignedTrip);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip reassigned successfully!", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
     }
