@@ -460,7 +460,9 @@ public Trip splitChildTrip(UUID tenantId, UUID tripId) {
 
 @Override
 public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable) {
-  return super.searchResourcesWithGlobalSearch(tenantId, filters, globalSearch, pageable);
+  Page<Trip> trips = super.searchResourcesWithGlobalSearch(tenantId, filters, globalSearch, pageable);
+  initializePassengerCustomFieldValues(trips.getContent());
+  return trips;
 }
 
 @Override
@@ -486,7 +488,30 @@ public Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Pageable
     preds.add(cb.equal(root.get("isDeleted"), false));
     return cb.and(preds.toArray(new Predicate[0]));
   };
-  return repository.findAll(spec, pageable);
+  Page<Trip> trips = repository.findAll(spec, pageable);
+  initializePassengerCustomFieldValues(trips.getContent());
+  return trips;
+}
+
+private void initializePassengerCustomFieldValues(List<Trip> trips) {
+  if (trips == null) {
+    return;
+  }
+
+  for (Trip trip : trips) {
+    if (trip == null || trip.getPassengerCustomFieldValues() == null) {
+      continue;
+    }
+
+    trip.getPassengerCustomFieldValues().size();
+    for (TripPassengerCustomFieldValue value : trip.getPassengerCustomFieldValues()) {
+      if (value == null) {
+        continue;
+      }
+      value.getPassenger();
+      value.getCustomField();
+    }
+  }
 }
 
 private Trip createMultiDayTrips(Trip templateTrip) {
