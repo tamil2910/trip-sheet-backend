@@ -152,6 +152,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
   }
 
   @PatchMapping("/{id}/inactive")
+  @PreAuthorize("hasAuthority('CAN_UPDATE_DRIVER')")
   public ResponseEntity<ApiResponse<DriverTenantResponseDto>> makeDriverInactiveForTenant(
       @PathVariable UUID id,
       HttpServletRequest request
@@ -162,6 +163,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     return ResponseEntity.ok(new ApiResponse<>(true, "Driver marked inactive for current tenant", driver));
   }
 
+  @PreAuthorize("hasAuthority('CAN_UPDATE_DRIVER')")
   @PatchMapping("/{id}/active")
   public ResponseEntity<ApiResponse<DriverTenantResponseDto>> makeDriverActiveForTenant(
       @PathVariable UUID id,
