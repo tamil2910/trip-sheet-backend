@@ -12,6 +12,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
@@ -33,6 +34,14 @@ public interface TripService extends BaseService<Trip, UUID> {
   Trip startTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripStartRequestDTO startData);
 
   Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripDropRequestDTO dropData);
+
+  Trip assignTripToPartnerVendor(
+      Tenant tokenTenant,
+      UUID tokenTenantId,
+      UUID tripId,
+      TripPartnerVendorAssignRequestDTO payload,
+      UUID updatedBy
+  );
   
   Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable);
   Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Pageable pageable);

@@ -89,6 +89,7 @@ public class DriverTripController {
   public ApiResponse<Trip> updateTrip(@PathVariable UUID id, @Valid @RequestBody TripUpdateRequestDTO payload,
       HttpServletRequest request) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     UUID driverId = (UUID) request.getAttribute("userId");
     UUID updatedBy = (UUID) request.getAttribute("createdBy");
 
@@ -100,7 +101,7 @@ public class DriverTripController {
       return new ApiResponse<>(false, "Driver can update only their own trips", null);
     }
 
-    Trip updated = tripServiceImp.updateTrip(tenantId, id, payload, updatedBy);
+    Trip updated = tripServiceImp.updateTrip(tenantId, tokenTenant, id, payload, updatedBy);
     return new ApiResponse<>(true, "Trip updated successfully", updated);
   }
 

@@ -33,6 +33,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPassengerCustomFieldValueRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStopRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
@@ -47,6 +48,7 @@ import com.example.trip_sheet_backend.models.TripPassengerCustomFieldValue;
 import com.example.trip_sheet_backend.models.TripStop;
 import com.example.trip_sheet_backend.models.TripSummary;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.models.VendorDelegationHistory;
 // import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleType;
@@ -59,11 +61,13 @@ import com.example.trip_sheet_backend.repositories.DispatchCenterRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
 import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
+import com.example.trip_sheet_backend.repositories.VendorDelegationHistoryRepository;
 import com.example.trip_sheet_backend.repositories.VehicleRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeRepository;
 
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
@@ -83,6 +87,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final DispatchCenterRepository dispatchCenterRepo;
     private final TripSummaryRepository tripSummaryRepository;
     private final DriverTenantMappingRepository driverTenantMappingRepository;
+    private final VendorDelegationHistoryRepository vendorDelegationHistoryRepository;
 
     private final ModelMapper mapper;
 
@@ -91,7 +96,8 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     PeopleTenantRepository peopleTenantRepository, ModelMapper mapper, DriverRepository driverRepository,
       VehicleRepository vehicleRepository, CustomFieldRepository customFieldRepository,
       DispatchCenterRepository dispatchCenterRepository, TripSummaryRepository tripSummaryRepository,
-      DriverTenantMappingRepository driverTenantMappingRepository) {
+      DriverTenantMappingRepository driverTenantMappingRepository,
+      VendorDelegationHistoryRepository vendorDelegationHistoryRepository) {
     super(repository);
     this.repository = repository;
     this.tenantRepository = tenantRepository;
@@ -105,6 +111,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     this.dispatchCenterRepo = dispatchCenterRepository;
     this.tripSummaryRepository = tripSummaryRepository;
     this.driverTenantMappingRepository = driverTenantMappingRepository;
+    this.vendorDelegationHistoryRepository = vendorDelegationHistoryRepository;
   }
 
 @Override
@@ -316,33 +323,34 @@ public List<Trip> createBulkTrips(List<TripCreateRequestDTO> createTripDtos, Ten
 }
 
 @Transactional(rollbackFor = Exception.class)
-public Trip updateTrip(UUID tenantId, UUID tripId, TripUpdateRequestDTO updateDto, UUID updatedBy) {
+public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdateRequestDTO updateDto, UUID updatedBy) {
   Trip trip = findTripForTenant(tenantId, tripId);
   List<Trip> existingSeriesTrips = isParentSeriesTrip(trip) ? getActiveSeriesTrips(tenantId, trip.getId()) : List.of();
+  boolean partnerVendorRestrictedUpdate = isPartnerVendorRestrictedUpdate(tokenTenant, trip);
 
-  if (updateDto.getTripCode() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getTripCode() != null) {
     trip.setTripCode(updateDto.getTripCode());
   }
-  if (updateDto.getTripType() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getTripType() != null) {
     trip.setTripType(updateDto.getTripType());
   }
-  if (updateDto.getRecurrenceInterval() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getRecurrenceInterval() != null) {
     trip.setRecurrenceInterval(updateDto.getRecurrenceInterval());
   }
-  if (updateDto.getDaysOfWeek() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getDaysOfWeek() != null) {
     trip.setDaysOfWeek(updateDto.getDaysOfWeek());
   }
-  if (updateDto.getRecurrenceFrequency() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getRecurrenceFrequency() != null) {
     trip.setRecurrenceFrequency(updateDto.getRecurrenceFrequency());
   }
 
-  if (updateDto.getParentTripId() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getParentTripId() != null) {
     trip.setParentTrip(resolveParentTrip(updateDto.getParentTripId(), tripId));
   }
-  if (updateDto.getOrganisationId() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getOrganisationId() != null) {
     trip.setOrganisation(resolveTenant(updateDto.getOrganisationId(), "Invalid organisation"));
   }
-  if (updateDto.getVendorId() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getVendorId() != null) {
     trip.setVendor(resolveOptionalTenant(updateDto.getVendorId(), "Invalid vendor"));
   }
   if (updateDto.getDriverId() != null) {
@@ -357,23 +365,23 @@ public Trip updateTrip(UUID tenantId, UUID tripId, TripUpdateRequestDTO updateDt
   if (updateDto.getVehicleTypeId() != null) {
     trip.setVehicleType(resolveVehicleType(updateDto.getVehicleTypeId()));
   }
-  if (updateDto.getBookerId() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getBookerId() != null) {
     trip.setBooker(resolveOptionalPeople(updateDto.getBookerId(), "Invalid booker"));
   }
 
-  if (updateDto.getNotes() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getNotes() != null) {
     trip.setNotes(updateDto.getNotes());
   }
-  if (updateDto.getIsManualTrip() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getIsManualTrip() != null) {
     trip.setIsManualTrip(updateDto.getIsManualTrip());
   }
-  if (updateDto.getPickupTime() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getPickupTime() != null) {
     trip.setPickupTime(updateDto.getPickupTime());
   }
-  if (updateDto.getStartDate() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getStartDate() != null) {
     trip.setStartDate(updateDto.getStartDate());
   }
-  if (updateDto.getEndDate() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getEndDate() != null) {
     trip.setEndDate(updateDto.getEndDate());
   }
 
@@ -381,7 +389,7 @@ public Trip updateTrip(UUID tenantId, UUID tripId, TripUpdateRequestDTO updateDt
     trip.setUpdatedBy(updatedBy.toString());
   }
 
-  if (updateDto.getStops() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getStops() != null) {
     replaceStops(trip, updateDto.getStops());
   }
 
@@ -389,12 +397,12 @@ public Trip updateTrip(UUID tenantId, UUID tripId, TripUpdateRequestDTO updateDt
       ? new ArrayList<>()
       : new ArrayList<>(trip.getPassengers());
 
-  if (updateDto.getPassengerIds() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getPassengerIds() != null) {
     effectivePassengers = resolvePassengers(updateDto.getPassengerIds());
     trip.setPassengers(effectivePassengers);
   }
 
-  if (updateDto.getPassengerCustomFieldValues() != null) {
+  if (!partnerVendorRestrictedUpdate && updateDto.getPassengerCustomFieldValues() != null) {
     replacePassengerCustomFieldValues(trip, effectivePassengers, updateDto.getPassengerCustomFieldValues());
   }
 
@@ -403,6 +411,61 @@ public Trip updateTrip(UUID tenantId, UUID tripId, TripUpdateRequestDTO updateDt
   }
 
   return repository.save(trip);
+}
+
+@Override
+@Transactional(rollbackFor = Exception.class)
+public Trip assignTripToPartnerVendor(
+    Tenant tokenTenant,
+    UUID tokenTenantId,
+    UUID tripId,
+    TripPartnerVendorAssignRequestDTO payload,
+    UUID updatedBy
+) {
+  if (tokenTenant == null || tokenTenantId == null) {
+    throw new RuntimeException("Tenant not found in token");
+  }
+  if (tokenTenant.getTenantType() != Tenant.TenantType.VENDOR) {
+    throw new RuntimeException("Only vendor can assign trip to partner vendor");
+  }
+
+  Trip trip = findTripForTenant(tokenTenantId, tripId);
+
+  if (trip.getVendor() == null || !tokenTenantId.equals(trip.getVendor().getId())) {
+    throw new RuntimeException("Only current vendor can delegate this trip");
+  }
+
+  Tenant partnerVendor = resolveTenant(payload.getPartnerVendorId(), "Invalid partner vendor");
+  if (partnerVendor.getTenantType() != Tenant.TenantType.VENDOR) {
+    throw new RuntimeException("Partner vendor must be a vendor tenant");
+  }
+  if (partnerVendor.getId().equals(tokenTenantId)) {
+    throw new RuntimeException("Partner vendor must be different from current vendor");
+  }
+
+  Tenant currentVendor = trip.getVendor();
+  trip.setPreviousVendor(currentVendor);
+  trip.setAssignedByVendor(currentVendor);
+  trip.setVendor(partnerVendor);
+  trip.setTripStatus(Trip.TripStatus.REQUESTING);
+  if (updatedBy != null) {
+    trip.setUpdatedBy(updatedBy.toString());
+  }
+
+  Trip savedTrip = repository.save(trip);
+
+  VendorDelegationHistory history = new VendorDelegationHistory();
+  history.setTrip(savedTrip);
+  history.setFromVendor(currentVendor);
+  history.setToVendor(partnerVendor);
+  history.setDelegatedAt(LocalDateTime.now());
+  if (updatedBy != null) {
+    history.setCreatedBy(updatedBy.toString());
+    history.setUpdatedBy(updatedBy.toString());
+  }
+  vendorDelegationHistoryRepository.save(history);
+
+  return savedTrip;
 }
 
 @Override
@@ -460,7 +523,130 @@ public Trip splitChildTrip(UUID tenantId, UUID tripId) {
 
 @Override
 public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable) {
-  Page<Trip> trips = super.searchResourcesWithGlobalSearch(tenantId, filters, globalSearch, pageable);
+  Specification<Trip> spec = (root, query, cb) -> {
+    query.distinct(true);
+    List<Predicate> predicates = new ArrayList<>();
+
+    if (tenantId != null) {
+      List<Predicate> tenantVisibilityPredicates = new ArrayList<>();
+      try {
+        tenantVisibilityPredicates.add(cb.equal(root.join("tenant", JoinType.LEFT).get("id"), tenantId));
+      } catch (Exception ignored) {}
+      try {
+        tenantVisibilityPredicates.add(cb.equal(root.join("vendor", JoinType.LEFT).get("id"), tenantId));
+      } catch (Exception ignored) {}
+      try {
+        tenantVisibilityPredicates.add(cb.equal(root.join("assignedByVendor", JoinType.LEFT).get("id"), tenantId));
+      } catch (Exception ignored) {}
+      try {
+        tenantVisibilityPredicates.add(cb.equal(root.join("previousVendor", JoinType.LEFT).get("id"), tenantId));
+      } catch (Exception ignored) {}
+
+      if (!tenantVisibilityPredicates.isEmpty()) {
+        predicates.add(cb.or(tenantVisibilityPredicates.toArray(new Predicate[0])));
+      }
+    }
+
+    if (globalSearch != null && !globalSearch.isBlank()) {
+      String searchLower = "%" + globalSearch.toLowerCase() + "%";
+      List<Predicate> searchPredicates = new ArrayList<>();
+      String[] searchFields = {"tripCode", "notes"};
+      for (String field : searchFields) {
+        try {
+          searchPredicates.add(cb.like(cb.lower(root.get(field).as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+      }
+      try {
+        Join<Object, Object> driverJoin = root.join("driver", JoinType.LEFT);
+        searchPredicates.add(cb.like(cb.lower(driverJoin.get("fullName").as(String.class)), searchLower));
+      } catch (Exception ignored) {}
+      try {
+        Join<Object, Object> vehicleJoin = root.join("vehicle", JoinType.LEFT);
+        searchPredicates.add(cb.like(cb.lower(vehicleJoin.get("vehicleNumber").as(String.class)), searchLower));
+      } catch (Exception ignored) {}
+      try {
+        Join<Object, Object> bookerJoin = root.join("booker", JoinType.LEFT);
+        searchPredicates.add(cb.like(cb.lower(bookerJoin.get("name").as(String.class)), searchLower));
+      } catch (Exception ignored) {}
+      try {
+        Join<Object, Object> passengersJoin = root.join("passengers", JoinType.LEFT);
+        searchPredicates.add(cb.like(cb.lower(passengersJoin.get("name").as(String.class)), searchLower));
+      } catch (Exception ignored) {}
+      try {
+        Join<Object, Object> orgJoin = root.join("organisation", JoinType.LEFT);
+        searchPredicates.add(cb.like(cb.lower(orgJoin.get("tenantName").as(String.class)), searchLower));
+      } catch (Exception ignored) {}
+      try {
+        Join<Object, Object> vendorJoin = root.join("vendor", JoinType.LEFT);
+        searchPredicates.add(cb.like(cb.lower(vendorJoin.get("tenantName").as(String.class)), searchLower));
+      } catch (Exception ignored) {}
+      try {
+        Join<Object, Object> assignedByVendorJoin = root.join("assignedByVendor", JoinType.LEFT);
+        searchPredicates.add(cb.like(cb.lower(assignedByVendorJoin.get("tenantName").as(String.class)), searchLower));
+      } catch (Exception ignored) {}
+      try {
+        Join<Object, Object> previousVendorJoin = root.join("previousVendor", JoinType.LEFT);
+        searchPredicates.add(cb.like(cb.lower(previousVendorJoin.get("tenantName").as(String.class)), searchLower));
+      } catch (Exception ignored) {}
+      try {
+        Join<Object, Object> dutyTypeJoin = root.join("dutyType", JoinType.LEFT);
+        searchPredicates.add(cb.like(cb.lower(dutyTypeJoin.get("name").as(String.class)), searchLower));
+      } catch (Exception ignored) {}
+      try {
+        Join<Object, Object> vehicleTypeJoin = root.join("vehicleType", JoinType.LEFT);
+        searchPredicates.add(cb.like(cb.lower(vehicleTypeJoin.get("defaultName").as(String.class)), searchLower));
+      } catch (Exception ignored) {}
+
+      if (!searchPredicates.isEmpty()) {
+        predicates.add(cb.or(searchPredicates.toArray(new Predicate[0])));
+      }
+    }
+
+    if (filters != null) {
+      try {
+        Long startDateFilter = parseLongValue(filters.get("startDate"));
+        if (startDateFilter != null) {
+          predicates.add(cb.greaterThanOrEqualTo(root.get("startDate"), startDateFilter));
+        }
+      } catch (Exception ignored) {}
+      try {
+        Long endDateFilter = parseLongValue(filters.get("endDate"));
+        if (endDateFilter != null) {
+          predicates.add(cb.lessThanOrEqualTo(root.get("endDate"), endDateFilter));
+        }
+      } catch (Exception ignored) {}
+      try {
+        Object customFieldIdFilter = filters.get("customFieldId");
+        if (customFieldIdFilter != null && !customFieldIdFilter.toString().isBlank()) {
+          Join<Object, Object> passengerCustomValuesJoin = root.join("passengerCustomFieldValues", JoinType.LEFT);
+          Join<Object, Object> customFieldJoin = passengerCustomValuesJoin.join("customField", JoinType.LEFT);
+          predicates.add(cb.equal(customFieldJoin.get("id"), UUID.fromString(customFieldIdFilter.toString())));
+        }
+      } catch (Exception ignored) {}
+      try {
+        Object customFieldValueFilter = filters.get("customFieldValue");
+        if (customFieldValueFilter != null && !customFieldValueFilter.toString().isBlank()) {
+          Join<Object, Object> passengerCustomValuesJoin = root.join("passengerCustomFieldValues", JoinType.LEFT);
+          predicates.add(cb.like(
+              cb.lower(passengerCustomValuesJoin.get("value").as(String.class)),
+              "%" + customFieldValueFilter.toString().toLowerCase() + "%"));
+        }
+      } catch (Exception ignored) {}
+      try {
+        Object customFieldPassengerIdFilter = filters.get("customFieldPassengerId");
+        if (customFieldPassengerIdFilter != null && !customFieldPassengerIdFilter.toString().isBlank()) {
+          Join<Object, Object> passengerCustomValuesJoin = root.join("passengerCustomFieldValues", JoinType.LEFT);
+          Join<Object, Object> passengerJoin = passengerCustomValuesJoin.join("passenger", JoinType.LEFT);
+          predicates.add(cb.equal(passengerJoin.get("id"), UUID.fromString(customFieldPassengerIdFilter.toString())));
+        }
+      } catch (Exception ignored) {}
+    }
+
+    predicates.add(cb.equal(root.get("isDeleted"), false));
+    return cb.and(predicates.toArray(new Predicate[0]));
+  };
+
+  Page<Trip> trips = repository.findAll(spec, pageable);
   initializePassengerCustomFieldValues(trips.getContent());
   return trips;
 }
@@ -875,6 +1061,20 @@ private boolean hasText(String value) {
   return value != null && !value.isBlank();
 }
 
+private Long parseLongValue(Object value) {
+  if (value == null) {
+    return null;
+  }
+  if (value instanceof Long longValue) {
+    return longValue;
+  }
+  try {
+    return Long.parseLong(value.toString());
+  } catch (Exception ex) {
+    return null;
+  }
+}
+
 private boolean isParentSeriesTrip(Trip trip) {
   return trip != null
       && trip.getParentTrip() == null
@@ -1276,11 +1476,46 @@ public Trip dispatchTrip(UUID tokenTenantId, UUID tripID, Map<String, Object> di
 }
 
 private Trip findTripForTenant(UUID tenantId, UUID tripId) {
-  Trip trip = findByIdResource(tenantId, tripId);
+  Trip trip = repository.findById(tripId).orElse(null);
   if (trip == null || Boolean.TRUE.equals(trip.getIsDeleted())) {
     throw new RuntimeException("Trip not found");
   }
+  if (!isTripVisibleToTenant(trip, tenantId)) {
+    throw new RuntimeException("ACCESS DENIED: Trip is not accessible for this tenant");
+  }
   return trip;
+}
+
+private boolean isTripVisibleToTenant(Trip trip, UUID tenantId) {
+  if (trip == null) {
+    return false;
+  }
+  if (tenantId == null) {
+    return true;
+  }
+
+  UUID contextTenantId = trip.getTenant() != null ? trip.getTenant().getId() : null;
+  UUID vendorTenantId = trip.getVendor() != null ? trip.getVendor().getId() : null;
+  UUID assignedByVendorTenantId = trip.getAssignedByVendor() != null ? trip.getAssignedByVendor().getId() : null;
+  UUID previousVendorTenantId = trip.getPreviousVendor() != null ? trip.getPreviousVendor().getId() : null;
+
+  return tenantId.equals(contextTenantId)
+      || tenantId.equals(vendorTenantId)
+      || tenantId.equals(assignedByVendorTenantId)
+      || tenantId.equals(previousVendorTenantId);
+}
+
+private boolean isPartnerVendorRestrictedUpdate(Tenant tokenTenant, Trip trip) {
+  if (tokenTenant == null || tokenTenant.getId() == null || trip == null) {
+    return false;
+  }
+  if (tokenTenant.getTenantType() != Tenant.TenantType.VENDOR) {
+    return false;
+  }
+  if (trip.getVendor() == null || trip.getVendor().getId() == null) {
+    return false;
+  }
+  return tokenTenant.getId().equals(trip.getVendor().getId()) && trip.getAssignedByVendor() != null;
 }
 
 private void ensureTripStatus(Trip trip, Trip.TripStatus... allowedStatuses) {

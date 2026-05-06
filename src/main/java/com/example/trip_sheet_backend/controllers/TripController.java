@@ -26,6 +26,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
@@ -197,6 +198,7 @@ public class TripController {
       HttpServletRequest request
   ) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     UUID updatedBy = (UUID) request.getAttribute("createdBy");
 
     Trip existingTrip = tripServiceImp.findByIdResource(tenantId, id);
@@ -204,7 +206,7 @@ public class TripController {
       return new ApiResponse<>(false, "Trip not found", null);
     }
 
-    Trip updatedTrip = tripServiceImp.updateTrip(tenantId, id, payload, updatedBy);
+    Trip updatedTrip = tripServiceImp.updateTrip(tenantId, tokenTenant, id, payload, updatedBy);
 
     if (updatedTrip == null) {
       return new ApiResponse<>(false, "Trip updation failed", null);
@@ -367,6 +369,26 @@ public class TripController {
       Trip reassignedTrip = tripServiceImp.allotDriverVehicle(tokenTenant, tokenTenantId, user, tripId, allotData);
       TripResponseDTO response = TripResponseMapper.toDTO(reassignedTrip);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip reassigned successfully!", response));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
+  @PutMapping("/assign-partner/{tripId}")
+  public ResponseEntity<ApiResponse<?>> assignTripToPartnerVendor(
+      @PathVariable @NotNull UUID tripId,
+      @Valid @RequestBody TripPartnerVendorAssignRequestDTO payload,
+      HttpServletRequest request
+  ) {
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UUID tokenTenantId = (UUID) request.getAttribute("tenantId");
+    UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+
+    try {
+      Trip trip = tripServiceImp.assignTripToPartnerVendor(tokenTenant, tokenTenantId, tripId, payload, updatedBy);
+      TripResponseDTO response = TripResponseMapper.toDTO(trip);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip assigned to partner vendor successfully", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
     }
