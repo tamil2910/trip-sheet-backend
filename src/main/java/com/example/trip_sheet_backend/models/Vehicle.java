@@ -63,7 +63,7 @@
     @Nullable
     private String vehProfileUrl;
 
-    @NotBlank(message = "Description is required")
+    // @NotBlank(message = "Description is required")
     private String description;
 
     @Nullable

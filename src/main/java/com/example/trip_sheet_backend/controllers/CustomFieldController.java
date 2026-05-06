@@ -46,12 +46,9 @@ public class CustomFieldController {
       throw new RuntimeException("Tenant not found in token");
     }
 
-    if (tenant.getTenantType() != Tenant.TenantType.ORGANISATION) {
-      throw new RuntimeException("Only organisation tenant can create custom fields");
-    }
-
-    CustomField created = customFieldService.createForOrganisation(
+    CustomField created = customFieldService.createCustomField(
         body.getName(),
+      body.getOrganisationId(),
         tenant,
         createdBy);
 

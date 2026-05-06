@@ -8,7 +8,7 @@ import com.example.trip_sheet_backend.models.Tenant;
 
 public interface CustomFieldService {
 
-  CustomField createForOrganisation(String name, Tenant organisationTenant, UUID createdBy);
+  CustomField createCustomField(String name, UUID organisationId, Tenant loggedInTenant, UUID createdBy);
 
   List<CustomField> getByOrganisationForVendor(Tenant vendorTenant, UUID organisationTenantId);
 
