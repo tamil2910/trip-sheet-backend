@@ -34,6 +34,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripPassengerCustomFieldValu
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStopRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
@@ -466,6 +467,41 @@ public Trip assignTripToPartnerVendor(
   vendorDelegationHistoryRepository.save(history);
 
   return savedTrip;
+}
+
+@Override
+@Transactional(rollbackFor = Exception.class)
+public Trip assignVendorToTrip(
+    Tenant tokenTenant,
+    UUID tokenTenantId,
+    UUID tripId,
+    TripOrganisationVendorAssignRequestDTO payload,
+    UUID updatedBy
+) {
+  if (tokenTenant == null || tokenTenantId == null) {
+    throw new RuntimeException("Tenant not found in token");
+  }
+  if (tokenTenant.getTenantType() != Tenant.TenantType.ORGANISATION) {
+    throw new RuntimeException("Only organisation tenant can assign vendor to trip");
+  }
+
+  Trip trip = findTripForTenant(tokenTenantId, tripId);
+
+  if (trip.getOrganisation() == null || !tokenTenantId.equals(trip.getOrganisation().getId())) {
+    throw new RuntimeException("Only organisation that created this trip can assign vendor");
+  }
+
+  Tenant selectedVendor = resolveTenant(payload.getVendorId(), "Invalid vendor");
+  if (selectedVendor.getTenantType() != Tenant.TenantType.VENDOR) {
+    throw new RuntimeException("Selected tenant must be a vendor tenant");
+  }
+
+  trip.setVendor(selectedVendor);
+  if (updatedBy != null) {
+    trip.setUpdatedBy(updatedBy.toString());
+  }
+
+  return repository.save(trip);
 }
 
 @Override
@@ -1515,7 +1551,8 @@ private boolean isPartnerVendorRestrictedUpdate(Tenant tokenTenant, Trip trip) {
   if (trip.getVendor() == null || trip.getVendor().getId() == null) {
     return false;
   }
-  return tokenTenant.getId().equals(trip.getVendor().getId()) && trip.getAssignedByVendor() != null;
+  // Vendor is restricted if they are the current vendor and the trip belongs to an organisation
+  return tokenTenant.getId().equals(trip.getVendor().getId()) && trip.getOrganisation() != null;
 }
 
 private void ensureTripStatus(Trip trip, Trip.TripStatus... allowedStatuses) {

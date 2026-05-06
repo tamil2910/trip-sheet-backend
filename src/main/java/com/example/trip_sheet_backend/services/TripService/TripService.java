@@ -13,6 +13,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
@@ -40,6 +41,14 @@ public interface TripService extends BaseService<Trip, UUID> {
       UUID tokenTenantId,
       UUID tripId,
       TripPartnerVendorAssignRequestDTO payload,
+      UUID updatedBy
+  );
+
+  Trip assignVendorToTrip(
+      Tenant tokenTenant,
+      UUID tokenTenantId,
+      UUID tripId,
+      TripOrganisationVendorAssignRequestDTO payload,
       UUID updatedBy
   );
   
