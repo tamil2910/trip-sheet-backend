@@ -202,6 +202,18 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
 
   @Transactional(rollbackFor = Exception.class)
   @Override
+  public DriverTenantResponseDto linkDriverToCurrentTenant(Tenant tokenTenant, UUID driverId, UUID createdBy) {
+    validateTenant(tokenTenant);
+
+    Driver driver = repository.findById(driverId)
+        .orElseThrow(() -> new RuntimeException("Driver not found"));
+
+    DriverTenantMapping mapping = createMappingIfRequired(driver, tokenTenant, createdBy);
+    return DriverTenantResponseDto.fromEntity(mapping);
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  @Override
   public DriverTenantResponseDto updateDriverByTenant(
       Tenant tokenTenant,
       UUID driverId,
@@ -393,6 +405,12 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
       repository.findByAccount_Id(existingAccount.getId()).ifPresent(driver -> {
         throw new RuntimeException("Driver already exists with the given email or phone");
       });
+
+      if (!isDriverRole(existingAccount)) {
+        throw new RuntimeException(
+            "User already exists with role " + getAccountRoleName(existingAccount) + ". Please use a different email/phone"
+        );
+      }
 
       validatePasswordRequired(body.getPassword());
       existingAccount.setPassword(passwordEncoder.encode(body.getPassword()));
@@ -605,6 +623,18 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     if (normalize(password) == null) {
       throw new RuntimeException("Password is required to create a driver login account");
     }
+  }
+
+  private boolean isDriverRole(UserAccount account) {
+    String roleName = account != null && account.getRole() != null ? account.getRole().getName() : null;
+    return roleName != null && "DRIVER".equalsIgnoreCase(roleName.trim());
+  }
+
+  private String getAccountRoleName(UserAccount account) {
+    if (account == null || account.getRole() == null || normalize(account.getRole().getName()) == null) {
+      return "UNKNOWN";
+    }
+    return account.getRole().getName().trim();
   }
 
   private String requirePassword(String password) {
