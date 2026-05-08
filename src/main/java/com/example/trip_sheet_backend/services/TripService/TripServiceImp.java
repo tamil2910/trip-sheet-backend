@@ -1657,7 +1657,6 @@ private Double toDouble(Object value) {
 public Trip allotDriverVehicle(Tenant tokenTenant, UUID tokenTenantId, UserAccount user, UUID tripID,
     TripAllotRequestDTO allotData) {
     Trip trip = findTripForTenant(tokenTenantId, tripID);
-    authorizeTripLifecycleAction(trip, tokenTenantId, tokenTenant, user, false);
     ensureTripStatus(trip, Trip.TripStatus.CREATED, Trip.TripStatus.CONFIRMED);
   
     Driver driver = resolveOptionalDriver(allotData.getDriverId());
