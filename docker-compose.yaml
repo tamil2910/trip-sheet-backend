@@ -32,9 +32,9 @@ services:
       - .env
     ports:
       - "${APP_PORT}:8080"
-    depends_on:
-      mysql:  
-        condition: service_healthy
+    # depends_on:
+    #   mysql:  
+    #     condition: service_healthy
     networks:
       - trip-sheet-network
     logging:

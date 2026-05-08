@@ -25,6 +25,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
@@ -36,6 +37,7 @@ import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
+import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.TripService.TripServiceImp;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -47,9 +49,11 @@ import jakarta.validation.constraints.NotNull;
 public class TripController {
 
   private final TripServiceImp tripServiceImp;
+  private final JwtTokenUtil jwtTokenUtil;
 
-  public TripController(TripServiceImp tripServiceImp) {
+  public TripController(TripServiceImp tripServiceImp, JwtTokenUtil jwtTokenUtil) {
     this.tripServiceImp = tripServiceImp;
+    this.jwtTokenUtil = jwtTokenUtil;
   }
 
   @PreAuthorize("hasAuthority('CAN_CREATE_TRIP')")
@@ -289,8 +293,18 @@ public class TripController {
 
     try {
       Trip dispatchedTrip = tripServiceImp.dispatchTrip(tenantId, tokenTenant, user, id, dispatchData);
+      if (dispatchedTrip.getDriver() == null || dispatchedTrip.getDriver().getId() == null) {
+        return ResponseEntity.status(400).body(new ApiResponse<>(false, "Driver must be assigned before dispatching the trip", null));
+      }
+
       TripResponseDTO response = TripResponseMapper.toDTO(dispatchedTrip);
-      return ResponseEntity.ok(new ApiResponse<>(true, "Trip dispatched successfully!", response));
+      String trackingToken = jwtTokenUtil.generateTripTrackingToken(dispatchedTrip.getId(), dispatchedTrip.getDriver().getId());
+
+      TripDispatchResponseDTO dispatchResponse = new TripDispatchResponseDTO();
+      dispatchResponse.setTrip(response);
+      dispatchResponse.setTrackingToken(trackingToken);
+
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip dispatched successfully!", dispatchResponse));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
     }

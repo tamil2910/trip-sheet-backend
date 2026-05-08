@@ -110,6 +110,22 @@ public class JwtTokenUtil {
                 .compact();
     }
 
+    public String generateTripTrackingToken(UUID tripId, UUID driverId) {
+        if (tripId == null || driverId == null) {
+            throw new IllegalArgumentException("tripId and driverId are required to generate tracking token");
+        }
+
+        return Jwts.builder()
+                .setSubject(tripId.toString())
+                .claim("type", "trip_tracking")
+                .claim("trip_id", tripId.toString())
+                .claim("driver_id", driverId.toString())
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
 
     // ✅ Validate token
     public Boolean validateToken(String token) {
