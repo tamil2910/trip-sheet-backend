@@ -34,10 +34,6 @@ public class DriverCreateOrLinkRequestDto {
   private String phone;
 
   @Nullable
-  // @Pattern(
-  //     regexp = "^(?=.*[A-Za-z])(?=.*\\d).{8,}$",
-  //     message = "Password must be at least 8 characters and include letters and numbers"
-  // )
   private String password;
 
   @Nullable

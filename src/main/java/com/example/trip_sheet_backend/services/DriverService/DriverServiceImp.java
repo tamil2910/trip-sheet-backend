@@ -17,6 +17,7 @@ import com.example.trip_sheet_backend.common.services.UniqueCodeGeneratorService
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverCodeLookupResponseDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverCreateOrLinkRequestDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverCreateOrLinkResponseDto;
+import com.example.trip_sheet_backend.dtos.DriverDtos.DriverSetPasswordRequestDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverTenantResponseDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverUpdateRequestDto;
 import com.example.trip_sheet_backend.models.Driver;
@@ -28,6 +29,7 @@ import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
+import com.example.trip_sheet_backend.services.EmailService;
 
 @Service
 public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> implements DriverService {
@@ -40,6 +42,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
   private final DriverTenantMappingRepository driverTenantMappingRepository;
   private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
   private final PasswordEncoder passwordEncoder;
+  private final EmailService emailService;
 
   public DriverServiceImp(
       DriverRepository repository,
@@ -47,7 +50,8 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
       UserAccountRepository userAccountRepository,
       DriverTenantMappingRepository driverTenantMappingRepository,
       UniqueCodeGeneratorService uniqueCodeGeneratorService,
-      PasswordEncoder passwordEncoder
+        PasswordEncoder passwordEncoder,
+        EmailService emailService
   ) {
     super(repository);
     this.repository = repository;
@@ -56,6 +60,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     this.driverTenantMappingRepository = driverTenantMappingRepository;
     this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
     this.passwordEncoder = passwordEncoder;
+    this.emailService = emailService;
   }
 
   @Transactional(rollbackFor = Exception.class)
@@ -412,8 +417,6 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
         );
       }
 
-      validatePasswordRequired(body.getPassword());
-      existingAccount.setPassword(passwordEncoder.encode(body.getPassword()));
       existingAccount.setLoginType(resolveLoginType(normalizedEmail, normalizedPhone, body.getUsername()));
       existingAccount.setUpdatedBy(createdBy.toString());
       return userAccountRepository.save(existingAccount);
@@ -426,7 +429,6 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     account.setUsername(generateUniqueUsername(body.getUsername(), body.getFullName(), normalizedEmail, normalizedPhone));
     account.setEmail(normalizedEmail);
     account.setPhone(normalizedPhone);
-    account.setPassword(passwordEncoder.encode(requirePassword(body.getPassword())));
     account.setLoginType(resolveLoginType(normalizedEmail, normalizedPhone, body.getUsername()));
     account.setRole(driverRole);
     account.setTenant(null);
@@ -492,7 +494,6 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
       account.setCreatedBy(createdBy.toString());
     }
 
-    account.setPassword(passwordEncoder.encode(requirePassword(body.getPassword())));
     account.setLoginType(resolveLoginType(emailToUse, phoneToUse, body.getUsername()));
     account.setUpdatedBy(createdBy.toString());
 
@@ -500,6 +501,41 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     driver.setAccount(savedAccount);
     driver.setUpdatedBy(createdBy.toString());
     repository.save(driver);
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  @Override
+  public void setDriverPasswordForTenant(
+      Tenant tokenTenant,
+      UUID driverId,
+      DriverSetPasswordRequestDto body,
+      UUID updatedBy
+  ) {
+    DriverTenantMapping mapping = getTenantDriverMapping(tokenTenant, driverId);
+    Driver driver = mapping.getDriver();
+    UserAccount account = driver.getAccount();
+
+    if (account == null) {
+      throw new RuntimeException("This driver has no login account yet");
+    }
+
+    validatePasswordRequired(body.getPassword());
+
+    String rawPassword = body.getPassword().trim();
+    account.setPassword(passwordEncoder.encode(rawPassword));
+    account.setUpdatedBy(updatedBy.toString());
+    UserAccount savedAccount = userAccountRepository.save(account);
+
+    driver.setAccount(savedAccount);
+    driver.setUpdatedBy(updatedBy.toString());
+    repository.save(driver);
+
+    emailService.sendDriverPasswordEmail(
+        savedAccount.getEmail(),
+        driver.getFullName(),
+        savedAccount.getUsername(),
+        rawPassword
+    );
   }
 
   private DriverTenantMapping createMappingIfRequired(Driver driver, Tenant tenant, UUID createdBy) {

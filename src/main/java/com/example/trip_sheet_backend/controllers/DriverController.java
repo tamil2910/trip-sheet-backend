@@ -24,6 +24,7 @@ import com.example.trip_sheet_backend.dtos.DriverDtos.DriverCodeLookupResponseDt
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverCreateOrLinkRequestDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverCreateOrLinkResponseDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverTenantLinkRequestDto;
+import com.example.trip_sheet_backend.dtos.DriverDtos.DriverSetPasswordRequestDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverTenantResponseDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverUpdateRequestDto;
 import com.example.trip_sheet_backend.models.Driver;
@@ -173,5 +174,18 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     UUID updatedBy = (UUID) request.getAttribute("updatedBy");
     DriverTenantResponseDto driver = driverService.setDriverActiveForTenant(tokenTenant, id, true, updatedBy);
     return ResponseEntity.ok(new ApiResponse<>(true, "Driver marked active for current tenant", driver));
+  }
+
+  @PreAuthorize("hasAuthority('CAN_UPDATE_DRIVER')")
+  @PostMapping("/{id}/password")
+  public ResponseEntity<ApiResponse<Void>> setDriverPasswordForTenant(
+      @PathVariable UUID id,
+      @Valid @RequestBody DriverSetPasswordRequestDto body,
+      HttpServletRequest request
+  ) {
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+    driverService.setDriverPasswordForTenant(tokenTenant, id, body, updatedBy);
+    return ResponseEntity.ok(new ApiResponse<>(true, "Driver password set successfully and sent by email", null));
   }
 }

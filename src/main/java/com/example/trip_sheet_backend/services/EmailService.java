@@ -108,6 +108,85 @@ public class EmailService {
         return body.toString();
     }
 
+    public void sendDriverPasswordEmail(String toEmail, String driverName, String username, String rawPassword) {
+        if (toEmail == null || toEmail.isBlank()) {
+            throw new RuntimeException("Recipient email is required");
+        }
+
+        if (fromEmail == null || fromEmail.isBlank()) {
+            throw new RuntimeException("SendGrid sender email is not configured. Set SENDGRID_FROM_EMAIL or sendgrid.from.email");
+        }
+
+        if (sendGridApiKey == null || sendGridApiKey.isBlank()) {
+            throw new RuntimeException("SendGrid API key is not configured. Set SENDGRID_API_KEY or email_config_key");
+        }
+
+        try {
+            Map<String, Object> emailPayload = buildDriverPasswordPayload(toEmail, driverName, username, rawPassword);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + sendGridApiKey);
+
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(emailPayload, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(SENDGRID_API_URL, request, String.class);
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException(
+                        "SendGrid rejected the message. Status=" + response.getStatusCodeValue()
+                                + ", Body=" + response.getBody()
+                );
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error sending driver password email: " + e.getMessage(), e);
+        }
+    }
+
+    private Map<String, Object> buildDriverPasswordPayload(String toEmail, String driverName, String username, String rawPassword) {
+        Map<String, Object> payload = new HashMap<>();
+
+        Map<String, String> from = new HashMap<>();
+        from.put("email", fromEmail);
+        payload.put("from", from);
+
+        List<Map<String, Object>> personalizations = new ArrayList<>();
+        Map<String, Object> personalization = new HashMap<>();
+
+        List<Map<String, String>> to = new ArrayList<>();
+        Map<String, String> recipient = new HashMap<>();
+        recipient.put("email", toEmail);
+        to.add(recipient);
+        personalization.put("to", to);
+        personalizations.add(personalization);
+
+        payload.put("personalizations", personalizations);
+        payload.put("subject", "Your Trip Sheet driver password");
+
+        List<Map<String, String>> content = new ArrayList<>();
+        Map<String, String> textContent = new HashMap<>();
+        textContent.put("type", "text/plain");
+        textContent.put("value", buildDriverPasswordBody(driverName, username, rawPassword));
+        content.add(textContent);
+
+        payload.put("content", content);
+
+        return payload;
+    }
+
+    private String buildDriverPasswordBody(String driverName, String username, String rawPassword) {
+        StringBuilder body = new StringBuilder();
+        body.append("Hello ").append(driverName == null ? "Driver" : driverName).append(",\n\n");
+        body.append("Your Trip Sheet password has been set successfully.\n");
+        body.append("Use the credentials below to login:\n\n");
+        body.append("Username: ").append(username).append("\n");
+        body.append("Password: ").append(rawPassword).append("\n\n");
+        body.append("Login URL: http://localhost:4200/login\n\n");
+        body.append("Please change your password after login if needed.\n\n");
+        body.append("Thanks,\nTrip Sheet Team");
+        return body.toString();
+    }
+
     public void sendPasswordResetOTP(String toEmail, String otpCode) {
         if (toEmail == null || toEmail.isBlank()) {
             throw new RuntimeException("Recipient email is required");
