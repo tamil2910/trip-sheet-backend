@@ -53,6 +53,7 @@ import com.example.trip_sheet_backend.models.VendorDelegationHistory;
 // import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleType;
+import com.example.trip_sheet_backend.services.TripFeedbackService;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
 import com.example.trip_sheet_backend.repositories.DutyTypeRepository;
@@ -89,6 +90,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final TripSummaryRepository tripSummaryRepository;
     private final DriverTenantMappingRepository driverTenantMappingRepository;
     private final VendorDelegationHistoryRepository vendorDelegationHistoryRepository;
+    private final TripFeedbackService tripFeedbackService;
 
     private final ModelMapper mapper;
 
@@ -98,7 +100,8 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
       VehicleRepository vehicleRepository, CustomFieldRepository customFieldRepository,
       DispatchCenterRepository dispatchCenterRepository, TripSummaryRepository tripSummaryRepository,
       DriverTenantMappingRepository driverTenantMappingRepository,
-      VendorDelegationHistoryRepository vendorDelegationHistoryRepository) {
+      VendorDelegationHistoryRepository vendorDelegationHistoryRepository,
+      TripFeedbackService tripFeedbackService) {
     super(repository);
     this.repository = repository;
     this.tenantRepository = tenantRepository;
@@ -113,6 +116,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     this.tripSummaryRepository = tripSummaryRepository;
     this.driverTenantMappingRepository = driverTenantMappingRepository;
     this.vendorDelegationHistoryRepository = vendorDelegationHistoryRepository;
+    this.tripFeedbackService = tripFeedbackService;
   }
 
 @Override
@@ -1500,7 +1504,9 @@ public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, U
   tripSummaryRepository.save(summary);
 
   trip.setTripStatus(Trip.TripStatus.COMPLETED);
-  return repository.save(trip);
+  Trip completedTrip = repository.save(trip);
+  tripFeedbackService.sendFeedbackRequestsForTrip(completedTrip);
+  return completedTrip;
 }
 
 @Transactional(rollbackFor = Exception.class)

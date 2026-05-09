@@ -126,6 +126,30 @@ public class JwtTokenUtil {
                 .compact();
     }
 
+    public String generateTripFeedbackToken(
+            UUID tripId,
+            UUID passengerId,
+            UUID executedVendorId,
+            UUID originVendorId,
+            UUID organisationId) {
+        if (tripId == null || passengerId == null || executedVendorId == null || originVendorId == null || organisationId == null) {
+            throw new IllegalArgumentException("tripId, passengerId, executedVendorId, originVendorId, and organisationId are required to generate feedback token");
+        }
+
+        return Jwts.builder()
+                .setSubject(tripId.toString())
+                .claim("type", "trip_feedback")
+                .claim("trip_id", tripId.toString())
+                .claim("passenger_id", passengerId.toString())
+                .claim("executed_vendor_id", executedVendorId.toString())
+                .claim("origin_vendor_id", originVendorId.toString())
+                .claim("organisation_id", organisationId.toString())
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
 
     // ✅ Validate token
     public Boolean validateToken(String token) {
@@ -189,6 +213,26 @@ public class JwtTokenUtil {
 
     public String getTenantIdFromToken(String token) {
         return getAllClaimsFromToken(token).get("tenant_id", String.class);
+    }
+
+    public String getTripIdFromToken(String token) {
+        return getAllClaimsFromToken(token).get("trip_id", String.class);
+    }
+
+    public String getPassengerIdFromToken(String token) {
+        return getAllClaimsFromToken(token).get("passenger_id", String.class);
+    }
+
+    public String getExecutedVendorIdFromToken(String token) {
+        return getAllClaimsFromToken(token).get("executed_vendor_id", String.class);
+    }
+
+    public String getOriginVendorIdFromToken(String token) {
+        return getAllClaimsFromToken(token).get("origin_vendor_id", String.class);
+    }
+
+    public String getOrganisationIdFromToken(String token) {
+        return getAllClaimsFromToken(token).get("organisation_id", String.class);
     }
 
 

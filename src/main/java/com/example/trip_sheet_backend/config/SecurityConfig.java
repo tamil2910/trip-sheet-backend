@@ -42,7 +42,7 @@ public class SecurityConfig {
       .csrf(csrf -> csrf.disable())
        .cors(cors -> cors.configurationSource(corsConfigurationSource()))
       .authorizeHttpRequests(auth -> auth
-        .requestMatchers("/","/auth/register", "/auth/google-signup", "/auth/login", "/ping", "/api/ping", "/auth/**").permitAll() // "/roles/**", "/accounts",
+        .requestMatchers("/","/auth/register", "/auth/google-signup", "/auth/login", "/ping", "/api/ping", "/auth/**", "/feedback/**").permitAll() // "/roles/**", "/accounts",
         .anyRequest().authenticated()
         )
         .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)

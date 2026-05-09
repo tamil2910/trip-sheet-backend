@@ -143,6 +143,82 @@ public class EmailService {
         }
     }
 
+    public void sendTripFeedbackEmail(String toEmail, String passengerName, String feedbackLink) {
+        if (toEmail == null || toEmail.isBlank()) {
+            throw new RuntimeException("Recipient email is required");
+        }
+
+        if (fromEmail == null || fromEmail.isBlank()) {
+            throw new RuntimeException("SendGrid sender email is not configured. Set SENDGRID_FROM_EMAIL or sendgrid.from.email");
+        }
+
+        if (sendGridApiKey == null || sendGridApiKey.isBlank()) {
+            throw new RuntimeException("SendGrid API key is not configured. Set SENDGRID_API_KEY or email_config_key");
+        }
+
+        try {
+            Map<String, Object> emailPayload = buildTripFeedbackPayload(toEmail, passengerName, feedbackLink);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + sendGridApiKey);
+
+            HttpEntity<Map<String, Object>> request = new HttpEntity<>(emailPayload, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(SENDGRID_API_URL, request, String.class);
+
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException(
+                        "SendGrid rejected the message. Status=" + response.getStatusCodeValue()
+                                + ", Body=" + response.getBody()
+                );
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error sending trip feedback email: " + e.getMessage(), e);
+        }
+    }
+
+    private Map<String, Object> buildTripFeedbackPayload(String toEmail, String passengerName, String feedbackLink) {
+        Map<String, Object> payload = new HashMap<>();
+
+        Map<String, String> from = new HashMap<>();
+        from.put("email", fromEmail);
+        payload.put("from", from);
+
+        List<Map<String, Object>> personalizations = new ArrayList<>();
+        Map<String, Object> personalization = new HashMap<>();
+
+        List<Map<String, String>> to = new ArrayList<>();
+        Map<String, String> recipient = new HashMap<>();
+        recipient.put("email", toEmail);
+        to.add(recipient);
+        personalization.put("to", to);
+        personalizations.add(personalization);
+
+        payload.put("personalizations", personalizations);
+        payload.put("subject", "We would like your trip feedback");
+
+        List<Map<String, String>> content = new ArrayList<>();
+        Map<String, String> textContent = new HashMap<>();
+        textContent.put("type", "text/plain");
+        textContent.put("value", buildTripFeedbackBody(passengerName, feedbackLink));
+        content.add(textContent);
+
+        payload.put("content", content);
+
+        return payload;
+    }
+
+    private String buildTripFeedbackBody(String passengerName, String feedbackLink) {
+        StringBuilder body = new StringBuilder();
+        body.append("Hello ").append(passengerName == null ? "Guest" : passengerName).append(",\n\n");
+        body.append("Your trip has been completed and we would like your feedback.\n");
+        body.append("Please use the secure link below to rate your experience:\n\n");
+        body.append(feedbackLink).append("\n\n");
+        body.append("Thanks,\nTrip Sheet Team");
+        return body.toString();
+    }
+
     private Map<String, Object> buildDriverPasswordPayload(String toEmail, String driverName, String username, String rawPassword) {
         Map<String, Object> payload = new HashMap<>();
 
