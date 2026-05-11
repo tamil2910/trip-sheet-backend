@@ -57,13 +57,15 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
     this.permissionRepository = permissionRepository;
   }
 
-  @PreAuthorize("hasAuthority('CAN_CREATE_ROLEGROUP')")
+  @PreAuthorize("hasAuthority('CAN_CREATE_ROLEGROUP') or hasRole('SUPER_ADMIN')")
   @PostMapping("/create")
   public ResponseEntity<ApiResponse<RoleGroupDTO>> createRoleGroup(HttpServletRequest request,
      @Valid @RequestBody RoleGroupCreateDTO body) {
       
-    if (body.getPermissionIds() == null || body.getPermissionIds().isEmpty()) {
-      throw new RuntimeException("Permission IDs must not be empty or null");
+    // Validate that at least one permission format is provided
+    if ((body.getPermissionIds() == null || body.getPermissionIds().isEmpty()) &&
+        (body.getPermissions() == null || body.getPermissions().isEmpty())) {
+      throw new RuntimeException("Either permissionIds or permissions must be provided and not empty");
     }
     
     UserAccount currentUser = (UserAccount) request.getAttribute("user");
@@ -111,10 +113,40 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
         roleGroup.setTenant(tenant);
     }
     
-    // Fetch permissions
-    Set<Permission> perms =
-    permissionRepository.findAllById(body.getPermissionIds())
-    .stream().collect(Collectors.toSet());
+    // Fetch permissions based on format provided
+    Set<Permission> perms;
+    
+    if (body.getPermissions() != null && !body.getPermissions().isEmpty()) {
+      // Format 2: Using permission names (strings)
+      // Convert all names to uppercase
+      Set<String> permissionNames = body.getPermissions().stream()
+          .map(String::toUpperCase)
+          .collect(Collectors.toSet());
+      
+      // Fetch permissions by names
+      perms = permissionRepository.findAllByNameIn(permissionNames).stream()
+          .collect(Collectors.toSet());
+      
+      // Validate that all requested permissions exist
+      if (perms.size() != permissionNames.size()) {
+        Set<String> foundNames = perms.stream()
+            .map(Permission::getName)
+            .collect(Collectors.toSet());
+        Set<String> missingNames = permissionNames.stream()
+            .filter(name -> !foundNames.contains(name))
+            .collect(Collectors.toSet());
+        throw new RuntimeException("The following permissions do not exist: " + missingNames);
+      }
+    } else {
+      // Format 1: Using permission IDs (UUIDs)
+      perms = permissionRepository.findAllById(body.getPermissionIds())
+          .stream().collect(Collectors.toSet());
+      
+      // Validate that all requested permissions exist
+      if (perms.size() != body.getPermissionIds().size()) {
+        throw new RuntimeException("One or more permission IDs do not exist");
+      }
+    }
     
     roleGroup.setPermissions(perms);
     

@@ -23,6 +23,9 @@ public class RoleGroupCreateDTO {
     // @NotNull
     private UUID tenantId;  // instead of Tenant entity
 
-    // Permission ids assigned to this role group
+    // Format 1: Permission ids assigned to this role group (UUIDs)
     private Set<UUID> permissionIds;
+    
+    // Format 2: Permission names assigned to this role group (strings)
+    private Set<String> permissions;
 }

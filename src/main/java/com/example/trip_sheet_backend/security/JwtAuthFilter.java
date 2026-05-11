@@ -44,10 +44,12 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
                     List<GrantedAuthority> authorities = new ArrayList<>();
 
-                    // Permissions as authorities
+                    // Permissions as authorities (normalize to UPPERCASE)
                     if (permissions != null) {
                         for (String p : permissions) {
-                            authorities.add(new SimpleGrantedAuthority(p));
+                            if (p != null) {
+                                authorities.add(new SimpleGrantedAuthority(p.trim().toUpperCase()));
+                            }
                         }
                     }
 
