@@ -366,6 +366,10 @@ public class AuthController {
                 effectivePermissions = Set.of();
             }
 
+            Set<String> roleGroups = user.getRoleGroups() != null
+                    ? user.getRoleGroups().stream().map(RoleGroup::getName).collect(Collectors.toSet())
+                    : Set.of();
+
             // 5️⃣ GENERATE TOKEN
             String token = jwtTokenUtil.generateToken(
                     user,
@@ -374,10 +378,28 @@ public class AuthController {
                     user.getEmail()
             );
 
+            LoginUserResponseDTO dto = new LoginUserResponseDTO();
+            dto.setId(user.getId());
+            dto.setRole(user.getRole() != null ? user.getRole().getName() : null);
+            dto.setRoleGroups(roleGroups);
+            dto.setUsername(user.getUsername());
+            dto.setPermissions(effectivePermissions);
+
+            List<Permission> permissionObjects = permissionRepository.findAllByNameIn(effectivePermissions);
+            Map<String, Set<String>> grouped = new HashMap<>();
+            for (Permission p : permissionObjects) {
+                String module = p.getModuleName();
+                grouped.putIfAbsent(module, new HashSet<>());
+                grouped.get(module).add(p.getName());
+            }
+            dto.setModulePermissions(grouped);
+
             Map<String, Object> response = new HashMap<>();
             response.put("token", token);
-            response.put("user", user);
+            response.put("user", dto);
             response.put("newUser", newUser);
+            response.put("roleGroups", roleGroups);
+            response.put("permissions", effectivePermissions);
 
             return new ApiResponse<>(true, "Google login/signup successful", response);
 
