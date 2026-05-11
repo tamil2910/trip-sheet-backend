@@ -19,12 +19,14 @@ import com.example.trip_sheet_backend.dtos.AuthDtos.LoginRequestDto;
 import com.example.trip_sheet_backend.dtos.AuthDtos.LoginUserResponseDTO;
 import com.example.trip_sheet_backend.dtos.UserAccountDtos.UserAccountByFormDto;
 import com.example.trip_sheet_backend.models.Admin;
+import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.AdminRepository;
+import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.PermissionRepository;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
@@ -60,14 +62,15 @@ public class AuthController {
   private final GoogleAuthService googleAuthService;
   private final AdminRepository adminRepository;
     private final TenantRepository tenantRepository;
-  private final PermissionRepository permissionRepository;
+    private final PermissionRepository permissionRepository;
+    private final DriverRepository driverRepository;
   private final ModelMapper mapper;
 
   @Value("${GOOGLE_AUTH_CLIENT_ID}")
   private String googleClientId; // 👈 inject env variable here
   
   public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, GoogleAuthService googleAuthService,
-        PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository) {
+      PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository, DriverRepository driverRepository) {
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
     this.roleGroupRepository = roleGroupRepository;
@@ -78,6 +81,7 @@ public class AuthController {
     this.mapper = mapper;
     this.permissionRepository = permissionRepository;
     this.roleRepository = roleRepository;
+        this.driverRepository = driverRepository;
   }
 
   @PreAuthorize("permitAll()")
@@ -117,6 +121,9 @@ public class AuthController {
 
 
     UserAccount result = userAccountRepository.save(payload);
+    if ("DRIVER".equalsIgnoreCase(body.getRole().getName())) {
+        attachDriverResources(result, body.getFullName());
+    }
 
     if ("ADMIN".equals(body.getRole().getName())) {
 
@@ -247,6 +254,7 @@ public class AuthController {
     public ApiResponse<Map<String, Object>> googleSignup(@RequestBody Map<String, Object> payload) {
 
         try {
+            Boolean newUser = false;
             String idToken = (String) payload.get("idToken");
 
             // 1️⃣ Verify Google token
@@ -308,6 +316,7 @@ public class AuthController {
                 user.setTenant(null); // IMPORTANT
 
                 userAccountRepository.saveAndFlush(user);
+                newUser = true;
 
                 // ---------- 🔐 ADMIN PRE-TENANT ROLE GROUP ----------
                 if ("ADMIN".equals(resolvedRole.getName())) {
@@ -319,6 +328,10 @@ public class AuthController {
 
                     user.getRoleGroups().add(preTenantGroup);
                     userAccountRepository.save(user);
+                }
+
+                if ("DRIVER".equalsIgnoreCase(resolvedRole.getName())) {
+                    attachDriverResources(user, name);
                 }
 
             } 
@@ -353,6 +366,7 @@ public class AuthController {
             Map<String, Object> response = new HashMap<>();
             response.put("token", token);
             response.put("user", user);
+            response.put("newUser", newUser);
 
             return new ApiResponse<>(true, "Google login/signup successful", response);
 
@@ -370,6 +384,62 @@ public class AuthController {
     }
     return sanitized;
   }
+
+    private void attachDriverResources(UserAccount userAccount, String preferredFullName) {
+        if (userAccount == null) {
+            throw new RuntimeException("User account is required to create driver resources");
+        }
+
+        if (driverRepository.findByAccount_Id(userAccount.getId()).isPresent()) {
+            ensureDriverRoleGroup(userAccount);
+            return;
+        }
+
+        String resolvedFullName = normalizeDriverFullName(preferredFullName, userAccount);
+
+        Driver driver = new Driver();
+        driver.setFullName(resolvedFullName);
+        driver.setProfilePicture(userAccount.getProfilePicture());
+        driver.setActive(Boolean.TRUE.equals(userAccount.getIsActive()));
+        driver.setAvailable(true);
+        driver.setAccount(userAccount);
+        driver.setCreatedBy(userAccount.getId().toString());
+        driver.setUpdatedBy(userAccount.getId().toString());
+        driverRepository.save(driver);
+
+        ensureDriverRoleGroup(userAccount);
+    }
+
+    private void ensureDriverRoleGroup(UserAccount userAccount) {
+        RoleGroup driverGroup = roleGroupRepository.findByNameAndTenantIsNull("DRIVER_GLOBAL_PERMISSIONS")
+                .orElseThrow(() -> new RuntimeException("DRIVER_GLOBAL_PERMISSIONS role group not found"));
+
+        if (userAccount.getRoleGroups() == null) {
+            userAccount.setRoleGroups(new HashSet<>());
+        }
+        userAccount.getRoleGroups().add(driverGroup);
+        userAccountRepository.save(userAccount);
+    }
+
+    private String normalizeDriverFullName(String preferredFullName, UserAccount userAccount) {
+        if (preferredFullName != null && !preferredFullName.trim().isEmpty()) {
+            return preferredFullName.trim();
+        }
+
+        if (userAccount.getUsername() != null && !userAccount.getUsername().trim().isEmpty()) {
+            return userAccount.getUsername().trim();
+        }
+
+        if (userAccount.getEmail() != null && !userAccount.getEmail().trim().isEmpty()) {
+            return userAccount.getEmail().trim().split("@")[0];
+        }
+
+        if (userAccount.getPhone() != null && !userAccount.getPhone().trim().isEmpty()) {
+            return userAccount.getPhone().trim();
+        }
+
+        return "Driver";
+    }
 
 
 

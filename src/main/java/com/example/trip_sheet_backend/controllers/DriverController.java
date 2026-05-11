@@ -29,6 +29,7 @@ import com.example.trip_sheet_backend.dtos.DriverDtos.DriverTenantResponseDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverUpdateRequestDto;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.DriverService.DriverServiceImp;
 
@@ -80,6 +81,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     return ResponseEntity.ok(new ApiResponse<>(true, "Driver linked with current tenant successfully", response));
   }
 
+  @PreAuthorize("hasAuthority('CAN_READ_DRIVER')")
   @GetMapping
   public ResponseEntity<ApiResponse<List<DriverTenantResponseDto>>> getDrivers(HttpServletRequest request) {
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
@@ -87,6 +89,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     return ResponseEntity.ok(new ApiResponse<>(true, "Drivers fetched successfully", drivers));
   }
 
+  @PreAuthorize("hasAuthority('CAN_READ_DRIVER')")
   @GetMapping("/search")
   public ResponseEntity<ApiResponse<Map<String, Object>>> searchDrivers(
       @RequestParam(required = false) String fullName,
@@ -130,6 +133,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     return ResponseEntity.ok(new ApiResponse<>(true, "Driver fetched successfully", driver));
   }
 
+  @PreAuthorize("hasAuthority('CAN_READ_DRIVER')")
   @GetMapping("/{id}")
   public ResponseEntity<ApiResponse<DriverTenantResponseDto>> getDriver(
       @PathVariable UUID id,
@@ -140,6 +144,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     return ResponseEntity.ok(new ApiResponse<>(true, "Driver fetched successfully", driver));
   }
 
+  @PreAuthorize("hasAuthority('CAN_UPDATE_DRIVER')")
   @PutMapping("/{id}")
   public ResponseEntity<ApiResponse<DriverTenantResponseDto>> updateDriver(
       @PathVariable UUID id,
@@ -150,6 +155,21 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     UUID updatedBy = (UUID) request.getAttribute("updatedBy");
     DriverTenantResponseDto driver = driverService.updateDriverByTenant(tokenTenant, id, body, updatedBy);
     return ResponseEntity.ok(new ApiResponse<>(true, "Driver updated successfully", driver));
+  }
+
+  @PreAuthorize("hasRole('DRIVER') or hasRole('SUPER_ADMIN')")
+  @PatchMapping("/me")
+  public ResponseEntity<ApiResponse<DriverTenantResponseDto>> updateMyDriverProfile(
+      @Valid @RequestBody DriverUpdateRequestDto body,
+      HttpServletRequest request
+  ) {
+    UserAccount currentUser = (UserAccount) request.getAttribute("user");
+    if (currentUser == null) {
+      throw new RuntimeException("User not found in token");
+    }
+
+    DriverTenantResponseDto driver = driverService.updateMyDriverProfile(currentUser, body);
+    return ResponseEntity.ok(new ApiResponse<>(true, "Driver profile updated successfully", driver));
   }
 
   @PatchMapping("/{id}/inactive")
@@ -188,4 +208,6 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     driverService.setDriverPasswordForTenant(tokenTenant, id, body, updatedBy);
     return ResponseEntity.ok(new ApiResponse<>(true, "Driver password set successfully and sent by email", null));
   }
+
+
 }

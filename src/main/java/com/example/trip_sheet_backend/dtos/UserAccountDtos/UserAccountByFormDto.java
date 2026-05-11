@@ -21,6 +21,8 @@ public class UserAccountByFormDto {
 
     private String username;
 
+    private String fullName;
+
     @Email
     private String email;
     

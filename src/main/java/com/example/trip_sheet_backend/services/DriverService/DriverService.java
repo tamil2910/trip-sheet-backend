@@ -15,6 +15,7 @@ import com.example.trip_sheet_backend.dtos.DriverDtos.DriverTenantResponseDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverUpdateRequestDto;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.UserAccount;
 
 public interface DriverService extends GlobalBaseService<Driver, UUID> {
 
@@ -50,6 +51,11 @@ public interface DriverService extends GlobalBaseService<Driver, UUID> {
       DriverUpdateRequestDto body,
       UUID updatedBy
   );
+
+    DriverTenantResponseDto updateMyDriverProfile(
+      UserAccount currentUser,
+      DriverUpdateRequestDto body
+    );
 
   DriverTenantResponseDto setDriverActiveForTenant(
       Tenant tokenTenant,

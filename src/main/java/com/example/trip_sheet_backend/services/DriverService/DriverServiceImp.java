@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.services.DriverService;
 
 import java.time.Instant;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -23,11 +24,13 @@ import com.example.trip_sheet_backend.dtos.DriverDtos.DriverUpdateRequestDto;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.DriverTenantMapping;
 import com.example.trip_sheet_backend.models.Role;
+import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
+import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.services.EmailService;
 
@@ -40,6 +43,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
   private final RoleRepository roleRepository;
   private final UserAccountRepository userAccountRepository;
   private final DriverTenantMappingRepository driverTenantMappingRepository;
+  private final RoleGroupRepository roleGroupRepository;
   private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
   private final PasswordEncoder passwordEncoder;
   private final EmailService emailService;
@@ -49,6 +53,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
       RoleRepository roleRepository,
       UserAccountRepository userAccountRepository,
       DriverTenantMappingRepository driverTenantMappingRepository,
+      RoleGroupRepository roleGroupRepository,
       UniqueCodeGeneratorService uniqueCodeGeneratorService,
         PasswordEncoder passwordEncoder,
         EmailService emailService
@@ -58,6 +63,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     this.roleRepository = roleRepository;
     this.userAccountRepository = userAccountRepository;
     this.driverTenantMappingRepository = driverTenantMappingRepository;
+    this.roleGroupRepository = roleGroupRepository;
     this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
     this.passwordEncoder = passwordEncoder;
     this.emailService = emailService;
@@ -89,6 +95,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     Driver existingDriver = findExistingDriver(normalizedEmail, normalizedPhone);
     if (existingDriver != null) {
       ensureDriverHasAccount(existingDriver, body, normalizedEmail, normalizedPhone, createdBy);
+      ensureDriverRoleGroup(existingDriver.getAccount());
 
       boolean alreadyLinked = driverTenantMappingRepository.existsByDriver_IdAndTenant_Id(
           existingDriver.getId(),
@@ -131,6 +138,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     driver.setUpdatedBy(createdBy.toString());
 
     Driver savedDriver = repository.save(driver);
+    ensureDriverRoleGroup(driverAccount);
     DriverTenantMapping mapping = createMappingIfRequired(savedDriver, tokenTenant, createdBy);
 
     return new DriverCreateOrLinkResponseDto(
@@ -228,75 +236,26 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     DriverTenantMapping mapping = getTenantDriverMapping(tokenTenant, driverId);
     Driver driver = mapping.getDriver();
 
-    String normalizedEmail = normalizeEmail(body.getEmail());
-    String normalizedPhone = normalize(body.getPhone());
-    String normalizedUsername = normalize(body.getUsername());
+    Driver savedDriver = applyDriverProfileUpdates(driver, body, updatedBy);
 
-    UserAccount account = driver.getAccount();
-    if (account == null && (normalizedEmail != null || normalizedPhone != null || normalizedUsername != null)) {
-      throw new RuntimeException(
-          "This driver has no login account. Use the driver create/link API with password to create the account first"
-      );
-    }
-
-    if (normalize(body.getFullName()) != null) {
-      driver.setFullName(body.getFullName().trim());
-    }
-    if (body.getProfilePicture() != null) {
-      driver.setProfilePicture(body.getProfilePicture());
-    }
-    if (normalize(body.getLicenseNumber()) != null) {
-      driver.setLicenseNumber(body.getLicenseNumber().trim());
-    }
-    if (body.getLicenseExpiry() != null) {
-      driver.setLicenseExpiry(body.getLicenseExpiry());
-    }
-    if (body.getInsuranceNumber() != null) {
-      driver.setInsuranceNumber(normalize(body.getInsuranceNumber()));
-    }
-    if (body.getInsuranceExpiry() != null) {
-      driver.setInsuranceExpiry(body.getInsuranceExpiry());
-    }
-    if (body.getPoliceVerificationId() != null) {
-      driver.setPoliceVerificationId(normalize(body.getPoliceVerificationId()));
-    }
-    if (body.getBloodGroup() != null) {
-      driver.setBloodGroup(normalize(body.getBloodGroup()));
-    }
-    if (body.getDriverType() != null) {
-      driver.setDriverType(body.getDriverType());
-    }
-    if (body.getRating() != null) {
-      driver.setRating(body.getRating());
-    }
-    if (body.getAvailable() != null) {
-      driver.setAvailable(body.getAvailable());
-    }
-    driver.setUpdatedBy(updatedBy.toString());
-
-    if (account != null) {
-      if (normalizedUsername != null) {
-        validateUsernameAvailable(normalizedUsername, account.getId());
-        account.setUsername(normalizedUsername);
-      }
-      if (normalizedEmail != null) {
-        validateEmailAvailable(normalizedEmail, account.getId());
-        account.setEmail(normalizedEmail);
-      }
-      if (normalizedPhone != null) {
-        validatePhoneAvailable(normalizedPhone, account.getId());
-        account.setPhone(normalizedPhone);
-      }
-      account.setLoginType(resolveLoginType(account.getEmail(), account.getPhone(), account.getUsername()));
-      account.setUpdatedBy(updatedBy.toString());
-      userAccountRepository.save(account);
-    }
-
-    Driver savedDriver = repository.save(driver);
     mapping.setDriver(savedDriver);
     mapping.setUpdatedBy(updatedBy.toString());
     DriverTenantMapping savedMapping = driverTenantMappingRepository.save(mapping);
     return DriverTenantResponseDto.fromEntity(savedMapping);
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  @Override
+  public DriverTenantResponseDto updateMyDriverProfile(UserAccount currentUser, DriverUpdateRequestDto body) {
+    if (currentUser == null) {
+      throw new RuntimeException("User not found in token");
+    }
+
+    Driver driver = repository.findByAccount_Id(currentUser.getId())
+        .orElseThrow(() -> new RuntimeException("Driver profile not found for current user"));
+
+    Driver savedDriver = applyDriverProfileUpdates(driver, body, currentUser.getId());
+    return DriverTenantResponseDto.fromDriver(savedDriver);
   }
 
   @Transactional(rollbackFor = Exception.class)
@@ -503,6 +462,21 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     repository.save(driver);
   }
 
+  private void ensureDriverRoleGroup(UserAccount userAccount) {
+    if (userAccount == null) {
+      throw new RuntimeException("User account is required to assign driver permissions");
+    }
+
+    RoleGroup driverGroup = roleGroupRepository.findByNameAndTenantIsNull("DRIVER_GLOBAL_PERMISSIONS")
+        .orElseThrow(() -> new RuntimeException("DRIVER_GLOBAL_PERMISSIONS role group not found"));
+
+    if (userAccount.getRoleGroups() == null) {
+      userAccount.setRoleGroups(new HashSet<>());
+    }
+    userAccount.getRoleGroups().add(driverGroup);
+    userAccountRepository.save(userAccount);
+  }
+
   @Transactional(rollbackFor = Exception.class)
   @Override
   public void setDriverPasswordForTenant(
@@ -556,6 +530,74 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     validateTenant(tokenTenant);
     return driverTenantMappingRepository.findByTenant_IdAndDriver_Id(tokenTenant.getId(), driverId)
         .orElseThrow(() -> new RuntimeException("Driver not found for this tenant"));
+  }
+
+  private Driver applyDriverProfileUpdates(Driver driver, DriverUpdateRequestDto body, UUID updatedBy) {
+    String normalizedEmail = normalizeEmail(body.getEmail());
+    String normalizedPhone = normalize(body.getPhone());
+    String normalizedUsername = normalize(body.getUsername());
+
+    UserAccount account = driver.getAccount();
+    if (account == null && (normalizedEmail != null || normalizedPhone != null || normalizedUsername != null)) {
+      throw new RuntimeException(
+          "This driver has no login account. Use the driver create/link API with password to create the account first"
+      );
+    }
+
+    if (normalize(body.getFullName()) != null) {
+      driver.setFullName(body.getFullName().trim());
+    }
+    if (body.getProfilePicture() != null) {
+      driver.setProfilePicture(body.getProfilePicture());
+    }
+    if (normalize(body.getLicenseNumber()) != null) {
+      driver.setLicenseNumber(body.getLicenseNumber().trim());
+    }
+    if (body.getLicenseExpiry() != null) {
+      driver.setLicenseExpiry(body.getLicenseExpiry());
+    }
+    if (body.getInsuranceNumber() != null) {
+      driver.setInsuranceNumber(normalize(body.getInsuranceNumber()));
+    }
+    if (body.getInsuranceExpiry() != null) {
+      driver.setInsuranceExpiry(body.getInsuranceExpiry());
+    }
+    if (body.getPoliceVerificationId() != null) {
+      driver.setPoliceVerificationId(normalize(body.getPoliceVerificationId()));
+    }
+    if (body.getBloodGroup() != null) {
+      driver.setBloodGroup(normalize(body.getBloodGroup()));
+    }
+    if (body.getDriverType() != null) {
+      driver.setDriverType(body.getDriverType());
+    }
+    if (body.getRating() != null) {
+      driver.setRating(body.getRating());
+    }
+    if (body.getAvailable() != null) {
+      driver.setAvailable(body.getAvailable());
+    }
+    driver.setUpdatedBy(updatedBy.toString());
+
+    if (account != null) {
+      if (normalizedUsername != null) {
+        validateUsernameAvailable(normalizedUsername, account.getId());
+        account.setUsername(normalizedUsername);
+      }
+      if (normalizedEmail != null) {
+        validateEmailAvailable(normalizedEmail, account.getId());
+        account.setEmail(normalizedEmail);
+      }
+      if (normalizedPhone != null) {
+        validatePhoneAvailable(normalizedPhone, account.getId());
+        account.setPhone(normalizedPhone);
+      }
+      account.setLoginType(resolveLoginType(account.getEmail(), account.getPhone(), account.getUsername()));
+      account.setUpdatedBy(updatedBy.toString());
+      userAccountRepository.save(account);
+    }
+
+    return repository.save(driver);
   }
 
   private void validateTenant(Tenant tokenTenant) {

@@ -56,6 +56,39 @@ public class DriverTenantResponseDto {
     );
   }
 
+  public static DriverTenantResponseDto fromDriver(Driver driverEntity) {
+    UserAccount account = driverEntity != null ? driverEntity.getAccount() : null;
+
+    DriverSummary driver = new DriverSummary(
+        driverEntity != null ? driverEntity.getId() : null,
+        driverEntity != null ? driverEntity.getDriverCode() : null,
+        driverEntity != null ? driverEntity.getFullName() : null,
+        driverEntity != null ? driverEntity.getProfilePicture() : null,
+        driverEntity != null ? driverEntity.getLicenseNumber() : null,
+        driverEntity != null ? driverEntity.getLicenseExpiry() : null,
+        driverEntity != null ? driverEntity.getInsuranceNumber() : null,
+        driverEntity != null ? driverEntity.getInsuranceExpiry() : null,
+        driverEntity != null ? driverEntity.getPoliceVerificationId() : null,
+        driverEntity != null ? driverEntity.getBloodGroup() : null,
+        driverEntity != null ? driverEntity.getRating() : null,
+        driverEntity != null ? driverEntity.getActive() : null,
+        driverEntity != null ? driverEntity.getAvailable() : null,
+        driverEntity != null ? driverEntity.getDriverType() : null,
+        account != null ? account.getId() : null,
+        account != null ? account.getUsername() : null,
+        account != null ? account.getEmail() : null,
+        account != null ? account.getPhone() : null
+    );
+
+    return new DriverTenantResponseDto(
+        null,
+        null,
+        driverEntity != null ? driverEntity.getActive() : null,
+        null,
+        driver
+    );
+  }
+
   @Getter
   @Setter
   @NoArgsConstructor

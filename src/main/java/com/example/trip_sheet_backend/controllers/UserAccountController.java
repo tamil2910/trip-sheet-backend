@@ -1,6 +1,8 @@
 package com.example.trip_sheet_backend.controllers;
 
 import java.util.UUID;
+import java.util.HashMap;
+import java.util.Map;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,9 +24,11 @@ import com.example.trip_sheet_backend.dtos.UserAccountDtos.UserAccountByFormDto;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
+import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.UserAccountService.UserAccountServiceImp;
@@ -40,6 +44,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final ModelMapper mapper;
   private final RoleGroupRepository roleGroupRepository;
   private final RoleRepository roleRepository;
+  private final DriverRepository driverRepository;
 
   @Autowired
   private PasswordEncoder passwordEncoder;
@@ -47,7 +52,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final JwtTokenUtil jwtTokenUtil;
   
   public UserAccountController(UserAccountServiceImp service, UserAccountRepository userAccountRepository, 
-    ModelMapper mapper, JwtTokenUtil jwtTokenUtil, RoleGroupRepository roleGroupRepository, RoleRepository roleRepository) {
+    ModelMapper mapper, JwtTokenUtil jwtTokenUtil, RoleGroupRepository roleGroupRepository, RoleRepository roleRepository, DriverRepository driverRepository) {
     super(service);
     this.service = service;
     this.mapper =  mapper;
@@ -55,6 +60,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     this.jwtTokenUtil = jwtTokenUtil;
     this.roleGroupRepository = roleGroupRepository;
     this.roleRepository = roleRepository;
+    this.driverRepository = driverRepository;
   }
   
 
@@ -172,11 +178,18 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     );
   }
 
-  @PreAuthorize("hasAuthority('CAN_READ_TENANT')")
+  @PreAuthorize("hasAuthority('CAN_READ_TENANT') or hasAuthority('CAN_READ_USERACCOUNT') or hasRole('SUPER_ADMIN')")
   @GetMapping("/my-profile")
-  public ResponseEntity<ApiResponse<UserAccount>> getMyProfileData(HttpServletRequest request) {
+  public ResponseEntity<ApiResponse<Map<String,Object>>> getMyProfileData(HttpServletRequest request) {
     UserAccount user = request.getAttribute("user") == null ? null : (UserAccount) request.getAttribute("user");
-    return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", user));
+    Map<String,Object> data = new HashMap<>();
+    data.put("user", user);
+
+    if (user != null) {
+      driverRepository.findByAccount_Id(user.getId()).ifPresent(driver -> data.put("driver", driver));
+    }
+
+    return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", data));
   }
   
 }
