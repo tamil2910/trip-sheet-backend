@@ -267,6 +267,14 @@ public class AuthController {
             String name = (String) googlePayload.get("name");
             String picture = (String) googlePayload.get("picture");
             String googleId = googlePayload.getSubject();
+            String requestedUsername = normalizeString(payload.get("username"));
+            if (requestedUsername == null) {
+                requestedUsername = normalizeString(payload.get("userName"));
+            }
+            String requestedFullName = normalizeString(payload.get("fullName"));
+            if (requestedFullName == null) {
+                requestedFullName = name;
+            }
 
             Optional<UserAccount> existingUserOpt = userAccountRepository.findByEmail(email);
             UserAccount user;
@@ -305,7 +313,10 @@ public class AuthController {
 
                 // ---------- CREATE USER ----------
                 user = new UserAccount();
-                String baseName = (name != null) ? name : email.split("@")[0];
+                String baseName = (requestedUsername != null) ? requestedUsername : requestedFullName;
+                if (baseName == null || baseName.trim().isEmpty()) {
+                    baseName = email.split("@")[0];
+                }
 
                 user.setUsername(generateUniqueUsername(baseName));
                 user.setEmail(email);
@@ -331,7 +342,7 @@ public class AuthController {
                 }
 
                 if ("DRIVER".equalsIgnoreCase(resolvedRole.getName())) {
-                    attachDriverResources(user, name);
+                    attachDriverResources(user, requestedFullName);
                 }
 
             } 
@@ -439,6 +450,14 @@ public class AuthController {
         }
 
         return "Driver";
+    }
+
+    private String normalizeString(Object value) {
+        if (!(value instanceof String text)) {
+            return null;
+        }
+        String normalized = text.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
 
