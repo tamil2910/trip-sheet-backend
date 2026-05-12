@@ -33,6 +33,7 @@ import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
+import com.example.trip_sheet_backend.common.services.UniqueCodeGeneratorService;
 import com.example.trip_sheet_backend.security.GoogleAuthService;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 
@@ -64,13 +65,14 @@ public class AuthController {
     private final TenantRepository tenantRepository;
     private final PermissionRepository permissionRepository;
     private final DriverRepository driverRepository;
+    private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
   private final ModelMapper mapper;
 
   @Value("${GOOGLE_AUTH_CLIENT_ID}")
   private String googleClientId; // 👈 inject env variable here
   
   public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, GoogleAuthService googleAuthService,
-      PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository, DriverRepository driverRepository) {
+      PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository, DriverRepository driverRepository, UniqueCodeGeneratorService uniqueCodeGeneratorService) {
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
     this.roleGroupRepository = roleGroupRepository;
@@ -82,6 +84,7 @@ public class AuthController {
     this.permissionRepository = permissionRepository;
     this.roleRepository = roleRepository;
         this.driverRepository = driverRepository;
+        this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
   }
 
   @PreAuthorize("permitAll()")
@@ -424,6 +427,11 @@ public class AuthController {
         }
 
         if (driverRepository.findByAccount_Id(userAccount.getId()).isPresent()) {
+            Driver existingDriver = driverRepository.findByAccount_Id(userAccount.getId()).get();
+            if (existingDriver.getDriverCode() == null || existingDriver.getDriverCode().trim().isEmpty()) {
+                existingDriver.setDriverCode(generateUniqueDriverCode());
+                driverRepository.save(existingDriver);
+            }
             ensureDriverRoleGroup(userAccount);
             return;
         }
@@ -431,6 +439,7 @@ public class AuthController {
         String resolvedFullName = normalizeDriverFullName(preferredFullName, userAccount);
 
         Driver driver = new Driver();
+        driver.setDriverCode(generateUniqueDriverCode());
         driver.setFullName(resolvedFullName);
         driver.setProfilePicture(userAccount.getProfilePicture());
         driver.setActive(Boolean.TRUE.equals(userAccount.getIsActive()));
@@ -441,6 +450,10 @@ public class AuthController {
         driverRepository.save(driver);
 
         ensureDriverRoleGroup(userAccount);
+    }
+
+    private String generateUniqueDriverCode() {
+        return uniqueCodeGeneratorService.generateUniqueCode("DRV", driverRepository::existsByDriverCode);
     }
 
     private void ensureDriverRoleGroup(UserAccount userAccount) {
