@@ -197,17 +197,36 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
   }
 
   @PutMapping("/update/{id}")
-  public ResponseEntity<ApiResponse<RoleGroup>> updateRoleGroup(@PathVariable @NotNull UUID id, @Valid @RequestBody RoleGroupUpdateDto dto, HttpServletRequest request) {
+  public ResponseEntity<ApiResponse<RoleGroupResponseDto>> updateRoleGroup(@PathVariable @NotNull UUID id, @Valid @RequestBody RoleGroupUpdateDto dto, HttpServletRequest request) {
 
-    UUID tenantId = (UUID) request.getAttribute("tenantId");
-    // System.out.println(tenantId + " Tenant id is here!");
+    UserAccount currentUser = (UserAccount) request.getAttribute("user");
+    UUID tenantId = null;
+    if (currentUser == null) {
+      throw new RuntimeException("Authenticated user context missing");
+    }
+
+    if (!"SUPER_ADMIN".equals(currentUser.getRole().getName())) {
+      tenantId = (UUID) request.getAttribute("tenantId");
+      if (tenantId == null) {
+        throw new RuntimeException("Tenant context missing!");
+      }
+    }
+
+    boolean hasName = dto.getName() != null && !dto.getName().trim().isEmpty();
+    boolean hasPermissionIds = dto.getPermissionIds() != null && !dto.getPermissionIds().isEmpty();
+    boolean hasPermissionNames = dto.getPermissions() != null && !dto.getPermissions().isEmpty();
+
+    if (!hasName && !hasPermissionIds && !hasPermissionNames) {
+      throw new RuntimeException("At least one field must be provided to update role group");
+    }
 
     UUID userId = (UUID) request.getAttribute("userId");
     dto.setUpdatedBy(userId.toString());
 
     RoleGroup result = this.service.updateRoleGroup(tenantId, id, dto, userId);
+    RoleGroupResponseDto responseDto = this.service.convertToResponseDto(result);
 
-    return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", result));
+    return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", responseDto));
   }
 
   @DeleteMapping("/delete/{id}")

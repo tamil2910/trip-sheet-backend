@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.services.PermissionService;
 
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -20,6 +21,10 @@ public class PermissionServiceImp extends GlobalBaseServiceImp<Permission, UUID>
 
   public List<Permission> findAllById(Iterable<UUID> ids) {
     return repository.findAllById(ids);
+  }
+
+  public List<Permission> findAllByNameIn(Set<String> names) {
+    return repository.findAllByNameIn(names);
   }
   
 
