@@ -19,11 +19,16 @@ public class GoogleAuthService {
 
     public GoogleIdToken.Payload verifyToken(String idTokenString) {
         try {
+            String normalizedClientId = clientId == null ? null : clientId.trim();
+            if (normalizedClientId == null || normalizedClientId.isEmpty()) {
+                throw new RuntimeException("GOOGLE_AUTH_CLIENT_ID is not configured");
+            }
+
             GoogleIdTokenVerifier verifier = new GoogleIdTokenVerifier.Builder(
                     new NetHttpTransport(),
                     JacksonFactory.getDefaultInstance()
             )
-            .setAudience(Collections.singletonList(clientId))
+            .setAudience(Collections.singletonList(normalizedClientId))
             .build();
 
             GoogleIdToken idToken = verifier.verify(idTokenString);
@@ -39,7 +44,7 @@ public class GoogleAuthService {
 
         } catch (Exception e) {
           System.out.println("❌ Raw token: " + idTokenString);
-          System.out.println("❌ ClientId in backend: " + clientId);
+          System.out.println("❌ ClientId in backend: [" + clientId + "]");
           try {
               GoogleIdToken parsed = GoogleIdToken.parse(JacksonFactory.getDefaultInstance(), idTokenString);
               System.out.println("Parsed Audience: " + parsed.getPayload().getAudience());
