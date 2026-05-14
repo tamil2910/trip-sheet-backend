@@ -213,6 +213,19 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     return DriverTenantResponseDto.fromEntity(mapping);
   }
 
+  @Transactional(readOnly = true)
+  @Override
+  public DriverTenantResponseDto getMyDriverProfile(UserAccount currentUser) {
+    if (currentUser == null) {
+      throw new RuntimeException("User not found in token");
+    }
+
+    Driver driver = repository.findByAccount_Id(currentUser.getId())
+        .orElseThrow(() -> new RuntimeException("Driver profile not found for current user"));
+
+    return DriverTenantResponseDto.fromDriver(driver);
+  }
+
   @Transactional(rollbackFor = Exception.class)
   @Override
   public DriverTenantResponseDto linkDriverToCurrentTenant(Tenant tokenTenant, UUID driverId, UUID createdBy) {

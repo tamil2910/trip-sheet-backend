@@ -39,6 +39,8 @@ public interface DriverService extends GlobalBaseService<Driver, UUID> {
 
   DriverTenantResponseDto getDriverByTenant(Tenant tokenTenant, UUID driverId);
 
+  DriverTenantResponseDto getMyDriverProfile(UserAccount currentUser);
+
     DriverTenantResponseDto linkDriverToCurrentTenant(
       Tenant tokenTenant,
       UUID driverId,
