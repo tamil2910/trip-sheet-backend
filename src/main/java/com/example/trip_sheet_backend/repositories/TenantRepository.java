@@ -14,4 +14,6 @@ public interface TenantRepository extends BaseRepository<Tenant, UUID> {
   Optional<Tenant> findByGstNumber(String gstNumber);
   Optional<Tenant> findByContactEmail(String contactEmail);
   Optional<Tenant> findByAdmin_UserAccount_Id(UUID userAccountId);
+  Optional<Tenant> findByTenantUniqueCodeIgnoreCase(String tenantUniqueCode);
+  boolean existsByTenantUniqueCode(String tenantUniqueCode);
 }

@@ -22,6 +22,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.dtos.AuthDtos.LoginUserResponseDTO;
 import com.example.trip_sheet_backend.dtos.TenantDtos.MyClientSummaryDTO;
+import com.example.trip_sheet_backend.dtos.TenantDtos.TenantCodeRequestDto;
+import com.example.trip_sheet_backend.dtos.TenantDtos.TenantLinkResponseDto;
 import com.example.trip_sheet_backend.dtos.TenantDtos.VendorOrganisationSummaryDTO;
 import com.example.trip_sheet_backend.dtos.TenantDtos.VendorPartnerSummaryDTO;
 import com.example.trip_sheet_backend.models.Admin;
@@ -46,6 +48,7 @@ import com.example.trip_sheet_backend.services.TenantService.TenantServiceImp;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 
 
@@ -293,6 +296,40 @@ public ResponseEntity<ApiResponse<Tenant>> createClientTenant(
                     message,
                     clientResult.getTenant()
             ));
+}
+
+@PreAuthorize("hasAuthority('CAN_READ_TENANT')")
+@GetMapping("/by-code/{tenantUniqueCode}")
+public ResponseEntity<ApiResponse<Tenant>> getTenantByUniqueCode(@PathVariable String tenantUniqueCode) {
+    Tenant tenant = service.findByUniqueCode(tenantUniqueCode);
+
+    return ResponseEntity.ok(
+            new ApiResponse<>(true, "Tenant fetched successfully", tenant)
+    );
+}
+
+@PreAuthorize("hasAuthority('CAN_CREATE_TENANT')")
+@PostMapping("/add-by-code")
+public ResponseEntity<ApiResponse<TenantLinkResponseDto>> addTenantByUniqueCode(
+        HttpServletRequest request,
+        @Valid @RequestBody TenantCodeRequestDto body
+) {
+
+    UUID createdBy = (UUID) request.getAttribute("createdBy");
+    Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+
+    TenantLinkResponseDto result = service.linkExistingTenantByUniqueCode(
+            loggedInTenant,
+            body.getTenantUniqueCode(),
+            createdBy
+    );
+
+    String message = result.isAlreadyLinked()
+            ? "Tenant already linked successfully"
+            : "Tenant linked successfully";
+
+    return ResponseEntity.status(HttpStatus.CREATED)
+            .body(new ApiResponse<>(true, message, result));
 }
 
 

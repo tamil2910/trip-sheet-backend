@@ -30,6 +30,9 @@ public class Tenant extends BaseModel {
     @Column(unique = true, nullable = false)
     private String contactEmail;
 
+    @Column(unique = true)
+    private String tenantUniqueCode;
+
     @JsonIgnore
     // @Valid
     @ManyToOne(fetch = FetchType.LAZY)

@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.repositories;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -16,6 +17,8 @@ public interface VendorPartnerRepository extends BaseRepository<VendorPartner, U
           Tenant primaryVendor,
           Tenant partnerVendor
   );
+
+  Optional<VendorPartner> findByPrimaryVendorAndPartnerVendor(Tenant primaryVendor, Tenant partnerVendor);
 
   List<VendorPartner> findByPrimaryVendor(Tenant primaryVendor);
 

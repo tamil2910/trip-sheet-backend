@@ -9,7 +9,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.trip_sheet_backend.common.services.UniqueCodeGeneratorService;
 import com.example.trip_sheet_backend.common.services.GlobalBaseServiceImp;
+import com.example.trip_sheet_backend.dtos.TenantDtos.TenantLinkResponseDto;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.Tenant;
@@ -34,6 +36,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
         private final RoleGroupRepository roleGroupRepository;
         private final PasswordEncoder passwordEncoder;
         private final EmailService emailService;
+        private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
         private static final SecureRandom SECURE_RANDOM = new SecureRandom();
         private static final String LOWER = "abcdefghijklmnopqrstuvwxyz";
         private static final String UPPER = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -48,7 +51,8 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
                 RoleRepository roleRepository,
                 RoleGroupRepository roleGroupRepository,
                 PasswordEncoder passwordEncoder,
-                EmailService emailService) {
+                EmailService emailService,
+                UniqueCodeGeneratorService uniqueCodeGeneratorService) {
     super(repository);
     this.tenantRepository = repository;
     this.vendorPartnerRepository = vendorPartnerRepository;
@@ -58,11 +62,74 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
                 this.roleGroupRepository = roleGroupRepository;
                 this.passwordEncoder = passwordEncoder;
                 this.emailService = emailService;
+                this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
   }
 
     // GLOBAL READ ONLY FOR USERACCOUNT
   public Tenant findByIdResource(UUID id) {
       return repository.findById(id).orElse(null);
+  }
+
+  @Override
+  public Tenant findByUniqueCode(String tenantUniqueCode) {
+      String normalizedCode = normalizeTenantUniqueCode(tenantUniqueCode);
+      return tenantRepository.findByTenantUniqueCodeIgnoreCase(normalizedCode)
+              .orElseThrow(() -> new RuntimeException("Tenant not found for unique code: " + normalizedCode));
+  }
+
+  @Override
+  public Tenant create(Tenant payload) {
+      assignTenantUniqueCodeIfMissing(payload);
+      return super.create(payload);
+  }
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode, UUID createdBy) {
+          validateVendorTenant(loggedInTenant);
+
+          Tenant targetTenant = findByUniqueCode(tenantUniqueCode);
+
+          if (targetTenant.getId().equals(loggedInTenant.getId())) {
+                  throw new RuntimeException("Vendor cannot add itself");
+          }
+
+          if (targetTenant.getTenantType() == Tenant.TenantType.VENDOR) {
+                  Optional<VendorPartner> existingPartner = vendorPartnerRepository
+                          .findByPrimaryVendorAndPartnerVendor(loggedInTenant, targetTenant);
+
+                  if (existingPartner.isPresent()) {
+                          return new TenantLinkResponseDto("VENDOR_PARTNER", existingPartner.get().getId(), targetTenant, true);
+                  }
+
+                  VendorPartner partner = new VendorPartner();
+                  partner.setPrimaryVendor(loggedInTenant);
+                  partner.setPartnerVendor(targetTenant);
+                  partner.setContractStatus(null);
+                  partner.setOnboardedAt(Instant.now().getEpochSecond());
+                  partner.setCreatedBy(createdBy != null ? createdBy.toString() : null);
+
+                  VendorPartner savedPartner = vendorPartnerRepository.save(partner);
+                  return new TenantLinkResponseDto("VENDOR_PARTNER", savedPartner.getId(), targetTenant, false);
+          }
+
+          Optional<VendorOrganisation> existingOrganisation = vendorOrganisationRepository
+                  .findByVendorAndOrganisation_Id(loggedInTenant, targetTenant.getId());
+
+          if (existingOrganisation.isPresent()) {
+                  return new TenantLinkResponseDto("VENDOR_ORGANISATION", existingOrganisation.get().getId(), targetTenant, true);
+          }
+
+          VendorOrganisation organisation = new VendorOrganisation();
+          organisation.setVendor(loggedInTenant);
+          organisation.setOrganisation(targetTenant);
+          organisation.setContractStatus(null);
+          organisation.setActive(true);
+          organisation.setOnboardedAt(Instant.now().getEpochSecond());
+          organisation.setCreatedBy(createdBy != null ? createdBy.toString() : null);
+
+          VendorOrganisation savedOrganisation = vendorOrganisationRepository.save(organisation);
+          return new TenantLinkResponseDto("VENDOR_ORGANISATION", savedOrganisation.getId(), targetTenant, false);
   }
 
 
@@ -131,6 +198,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
       requestTenant.setTenantType(Tenant.TenantType.VENDOR);
       requestTenant.setIsActive(true);
       requestTenant.setCreatedBy(createdBy.toString());
+      assignTenantUniqueCodeIfMissing(requestTenant);
 
       return tenantRepository.save(requestTenant);
   }
@@ -201,8 +269,50 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
       requestTenant.setTenantType(Tenant.TenantType.ORGANISATION);
       requestTenant.setIsActive(true);
       requestTenant.setCreatedBy(createdBy.toString());
+      assignTenantUniqueCodeIfMissing(requestTenant);
 
       return tenantRepository.save(requestTenant);
+  }
+
+  private void assignTenantUniqueCodeIfMissing(Tenant tenant) {
+          if (tenant == null) {
+                  throw new RuntimeException("Tenant payload is required");
+          }
+
+          if (tenant.getTenantUniqueCode() != null && !tenant.getTenantUniqueCode().trim().isEmpty()) {
+                  return;
+          }
+
+          if (tenant.getTenantType() == null) {
+                  throw new RuntimeException("Tenant type is required to generate tenant code");
+          }
+
+          String prefix = switch (tenant.getTenantType()) {
+                  case VENDOR -> "VEN";
+                  case ORGANISATION -> "ORG";
+          };
+
+          tenant.setTenantUniqueCode(
+                  uniqueCodeGeneratorService.generateUniqueCode(prefix, tenantRepository::existsByTenantUniqueCode)
+          );
+  }
+
+  private void validateVendorTenant(Tenant loggedInTenant) {
+          if (loggedInTenant == null) {
+                  throw new RuntimeException("Tenant not found in token");
+          }
+
+          if (loggedInTenant.getTenantType() != Tenant.TenantType.VENDOR) {
+                  throw new RuntimeException("Only vendors can add tenants by unique code");
+          }
+  }
+
+  private String normalizeTenantUniqueCode(String tenantUniqueCode) {
+          if (tenantUniqueCode == null || tenantUniqueCode.trim().isEmpty()) {
+                  throw new RuntimeException("Tenant unique code is required");
+          }
+
+          return tenantUniqueCode.trim().toUpperCase();
   }
 
   private Optional<Tenant> findExistingTenant(Tenant requestTenant) {
