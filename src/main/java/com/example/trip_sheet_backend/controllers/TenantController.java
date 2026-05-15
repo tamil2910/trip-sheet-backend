@@ -324,7 +324,8 @@ public ResponseEntity<ApiResponse<TenantLinkResponseDto>> addTenantByUniqueCode(
     TenantLinkResponseDto result = service.linkExistingTenantByUniqueCode(
             loggedInTenant,
             body.getTenantUniqueCode(),
-            createdBy
+            createdBy,
+            body.getTaxIds()
     );
 
     String message = result.isAlreadyLinked()

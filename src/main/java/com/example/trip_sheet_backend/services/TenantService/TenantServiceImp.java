@@ -102,7 +102,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
 
   @Override
   @Transactional(rollbackFor = Exception.class)
-  public TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode, UUID createdBy) {
+  public TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode, UUID createdBy, List<UUID> taxIds) {
           validateVendorTenant(loggedInTenant);
 
           Tenant targetTenant = findByUniqueCode(tenantUniqueCode);
@@ -116,6 +116,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
                           .findByPrimaryVendorAndPartnerVendor(loggedInTenant, targetTenant);
 
                   if (existingPartner.isPresent()) {
+                          attachTaxesToVendorPartner(loggedInTenant, existingPartner.get(), taxIds, createdBy);
                           return new TenantLinkResponseDto("VENDOR_PARTNER", existingPartner.get().getId(), targetTenant, true);
                   }
 
@@ -127,6 +128,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
                   partner.setCreatedBy(createdBy != null ? createdBy.toString() : null);
 
                   VendorPartner savedPartner = vendorPartnerRepository.save(partner);
+                  attachTaxesToVendorPartner(loggedInTenant, savedPartner, taxIds, createdBy);
                   return new TenantLinkResponseDto("VENDOR_PARTNER", savedPartner.getId(), targetTenant, false);
           }
 
@@ -134,6 +136,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
                   .findByVendorAndOrganisation_Id(loggedInTenant, targetTenant.getId());
 
           if (existingOrganisation.isPresent()) {
+                  attachTaxesToVendorOrganisation(loggedInTenant, existingOrganisation.get(), taxIds, createdBy);
                   return new TenantLinkResponseDto("VENDOR_ORGANISATION", existingOrganisation.get().getId(), targetTenant, true);
           }
 
@@ -146,6 +149,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
           organisation.setCreatedBy(createdBy != null ? createdBy.toString() : null);
 
           VendorOrganisation savedOrganisation = vendorOrganisationRepository.save(organisation);
+          attachTaxesToVendorOrganisation(loggedInTenant, savedOrganisation, taxIds, createdBy);
           return new TenantLinkResponseDto("VENDOR_ORGANISATION", savedOrganisation.getId(), targetTenant, false);
   }
 
