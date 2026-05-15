@@ -12,5 +12,7 @@ public interface TaxRepository extends BaseRepository<Tax, UUID> {
 
   Optional<Tax> findByIdAndTenant_Id(UUID id, UUID tenantId);
 
+  List<Tax> findByIdInAndTenant_Id(List<UUID> ids, UUID tenantId);
+
   List<Tax> findByTenant_IdOrderByTaxPercentageAscTaxTypeAsc(UUID tenantId);
 }

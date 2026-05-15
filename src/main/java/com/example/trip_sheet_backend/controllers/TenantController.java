@@ -23,6 +23,7 @@ import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.dtos.AuthDtos.LoginUserResponseDTO;
 import com.example.trip_sheet_backend.dtos.TenantDtos.MyClientSummaryDTO;
 import com.example.trip_sheet_backend.dtos.TenantDtos.TenantCodeRequestDto;
+import com.example.trip_sheet_backend.dtos.TenantDtos.TenantCreateWithTaxIdsRequestDto;
 import com.example.trip_sheet_backend.dtos.TenantDtos.TenantLinkResponseDto;
 import com.example.trip_sheet_backend.dtos.TenantDtos.VendorOrganisationSummaryDTO;
 import com.example.trip_sheet_backend.dtos.TenantDtos.VendorPartnerSummaryDTO;
@@ -220,7 +221,7 @@ public ResponseEntity<ApiResponse<?>> registerTenant(
 @PostMapping("/create_partner_tenant")
 public ResponseEntity<ApiResponse<Tenant>> createPartnerTenant(
         HttpServletRequest request,
-        @Valid @RequestBody Tenant body
+        @Valid @RequestBody TenantCreateWithTaxIdsRequestDto body
 ) {
 
     UUID createdBy = (UUID) request.getAttribute("createdBy");
@@ -235,9 +236,10 @@ public ResponseEntity<ApiResponse<Tenant>> createPartnerTenant(
     }
 
     TenantOnboardingResult partnerResult = service.createOrGetPartnerVendor(
-            body,
+            mapTenantRequest(body),
             loggedInTenant,
-            createdBy
+            createdBy,
+            body.getTaxIds()
     );
 
     String message;
@@ -261,7 +263,7 @@ public ResponseEntity<ApiResponse<Tenant>> createPartnerTenant(
 @PostMapping("/create_client_tenant")
 public ResponseEntity<ApiResponse<Tenant>> createClientTenant(
         HttpServletRequest request,
-        @Valid @RequestBody Tenant body
+        @Valid @RequestBody TenantCreateWithTaxIdsRequestDto body
 ) {
 
     UUID createdBy = (UUID) request.getAttribute("createdBy");
@@ -276,9 +278,10 @@ public ResponseEntity<ApiResponse<Tenant>> createClientTenant(
     }
 
     TenantOnboardingResult clientResult = service.createOrGetCorporateTenant(
-            body,
+            mapTenantRequest(body),
             loggedInTenant,
-            createdBy
+            createdBy,
+            body.getTaxIds()
     );
 
     String message;
@@ -516,6 +519,15 @@ public ResponseEntity<ApiResponse<?>> verifyOTPAndResetPassword(@RequestBody Map
     return ResponseEntity.ok(
             new ApiResponse<>(true, "Password reset successfully. You can now login with your new password", null)
     );
+}
+
+private Tenant mapTenantRequest(TenantCreateWithTaxIdsRequestDto body) {
+    Tenant tenant = new Tenant();
+    tenant.setTenantName(body.getTenantName());
+    tenant.setContactEmail(body.getContactEmail());
+    tenant.setGstNumber(body.getGstNumber());
+    tenant.setAddress(body.getAddress());
+    return tenant;
 }
 
 

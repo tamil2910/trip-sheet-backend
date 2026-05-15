@@ -1,5 +1,6 @@
 package com.example.trip_sheet_backend.dtos.TenantDtos;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.example.trip_sheet_backend.models.Tenant;
@@ -20,8 +21,13 @@ public class TenantDTO {
   private String address;
   private boolean isActive;
   private boolean isVerfiedGst;
+  private List<UUID> taxIds;
 
   public TenantDTO(Tenant tenant) {
+    this(tenant, List.of());
+  }
+
+  public TenantDTO(Tenant tenant, List<UUID> taxIds) {
     this.id = tenant.getId();
     this.tenantName = tenant.getTenantName();
     this.contactEmail = tenant.getContactEmail();
@@ -33,5 +39,6 @@ public class TenantDTO {
     this.address = tenant.getAddress();
     this.isActive = tenant.getIsActive();
     this.isVerfiedGst = tenant.getVerifiedGst();
+    this.taxIds = taxIds == null ? List.of() : taxIds;
   }
 }

@@ -2,6 +2,8 @@ package com.example.trip_sheet_backend.services.TenantService;
 
 import java.time.Instant;
 import java.security.SecureRandom;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -17,13 +19,19 @@ import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
+import com.example.trip_sheet_backend.models.VendorOrganisationTax;
 import com.example.trip_sheet_backend.models.VendorPartner;
+import com.example.trip_sheet_backend.models.VendorPartnerTax;
+import com.example.trip_sheet_backend.models.Tax;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
+import com.example.trip_sheet_backend.repositories.TaxRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
+import com.example.trip_sheet_backend.repositories.VendorOrganisationTaxRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
+import com.example.trip_sheet_backend.repositories.VendorPartnerTaxRepository;
 import com.example.trip_sheet_backend.services.EmailService;
 
 @Service
@@ -31,6 +39,9 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
   private final TenantRepository tenantRepository;
   private final VendorPartnerRepository vendorPartnerRepository;
   private final VendorOrganisationRepository vendorOrganisationRepository;
+        private final VendorPartnerTaxRepository vendorPartnerTaxRepository;
+        private final VendorOrganisationTaxRepository vendorOrganisationTaxRepository;
+        private final TaxRepository taxRepository;
         private final UserAccountRepository userAccountRepository;
         private final RoleRepository roleRepository;
         private final RoleGroupRepository roleGroupRepository;
@@ -47,6 +58,9 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
 
   public TenantServiceImp(TenantRepository repository, VendorPartnerRepository vendorPartnerRepository, 
                 VendorOrganisationRepository vendorOrganisationRepository,
+                VendorPartnerTaxRepository vendorPartnerTaxRepository,
+                VendorOrganisationTaxRepository vendorOrganisationTaxRepository,
+                TaxRepository taxRepository,
                 UserAccountRepository userAccountRepository,
                 RoleRepository roleRepository,
                 RoleGroupRepository roleGroupRepository,
@@ -57,6 +71,9 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
     this.tenantRepository = repository;
     this.vendorPartnerRepository = vendorPartnerRepository;
     this.vendorOrganisationRepository = vendorOrganisationRepository;
+                this.vendorPartnerTaxRepository = vendorPartnerTaxRepository;
+                this.vendorOrganisationTaxRepository = vendorOrganisationTaxRepository;
+                this.taxRepository = taxRepository;
                 this.userAccountRepository = userAccountRepository;
                 this.roleRepository = roleRepository;
                 this.roleGroupRepository = roleGroupRepository;
@@ -137,7 +154,8 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
   public TenantOnboardingResult createOrGetPartnerVendor(
           Tenant requestTenant,
           Tenant primaryVendor,
-          UUID createdBy
+          UUID createdBy,
+          List<UUID> taxIds
   ) {
 
           boolean newlyCreated = false;
@@ -179,7 +197,13 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
           partner.setOnboardedAt(Instant.now().getEpochSecond());
           partner.setCreatedBy(createdBy.toString());
 
-          vendorPartnerRepository.save(partner);
+          VendorPartner savedPartner = vendorPartnerRepository.save(partner);
+          attachTaxesToVendorPartner(primaryVendor, savedPartner, taxIds, createdBy);
+      } else {
+          VendorPartner existingPartner = vendorPartnerRepository
+                  .findByPrimaryVendorAndPartnerVendor(primaryVendor, partnerTenant)
+                  .orElseThrow(() -> new RuntimeException("Vendor partner relationship not found"));
+          attachTaxesToVendorPartner(primaryVendor, existingPartner, taxIds, createdBy);
       }
 
                   return new TenantOnboardingResult(
@@ -208,7 +232,8 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
   public TenantOnboardingResult createOrGetCorporateTenant(
           Tenant requestTenant,
           Tenant primaryVendor,
-          UUID createdBy
+          UUID createdBy,
+          List<UUID> taxIds
   ) {
 
           boolean newlyCreated = false;
@@ -250,7 +275,13 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
           organisation.setOnboardedAt(Instant.now().getEpochSecond());
           organisation.setCreatedBy(createdBy.toString());
 
-          vendorOrganisationRepository.save(organisation);
+          VendorOrganisation savedOrganisation = vendorOrganisationRepository.save(organisation);
+          attachTaxesToVendorOrganisation(primaryVendor, savedOrganisation, taxIds, createdBy);
+      } else {
+          VendorOrganisation existingOrganisation = vendorOrganisationRepository
+                  .findByVendorAndOrganisation_Id(primaryVendor, organisationTenant.getId())
+                  .orElseThrow(() -> new RuntimeException("Vendor organisation relationship not found"));
+          attachTaxesToVendorOrganisation(primaryVendor, existingOrganisation, taxIds, createdBy);
       }
 
                   return new TenantOnboardingResult(
@@ -328,6 +359,77 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
           }
 
           return Optional.empty();
+  }
+
+  private void attachTaxesToVendorPartner(Tenant ownerTenant, VendorPartner vendorPartner, List<UUID> taxIds, UUID createdBy) {
+          List<Tax> taxes = resolveTaxesForOwner(ownerTenant, taxIds);
+
+          for (Tax tax : taxes) {
+                  boolean exists = vendorPartnerTaxRepository.existsByTenant_IdAndVendorPartner_IdAndTax_Id(
+                          ownerTenant.getId(),
+                          vendorPartner.getId(),
+                          tax.getId()
+                  );
+
+                  if (exists) {
+                          continue;
+                  }
+
+                  VendorPartnerTax mapping = new VendorPartnerTax();
+                  mapping.setTenant(ownerTenant);
+                  mapping.setVendorPartner(vendorPartner);
+                  mapping.setTax(tax);
+                  if (createdBy != null) {
+                          mapping.setCreatedBy(createdBy.toString());
+                          mapping.setUpdatedBy(createdBy.toString());
+                  }
+                  vendorPartnerTaxRepository.save(mapping);
+          }
+  }
+
+  private void attachTaxesToVendorOrganisation(Tenant ownerTenant, VendorOrganisation vendorOrganisation, List<UUID> taxIds, UUID createdBy) {
+          List<Tax> taxes = resolveTaxesForOwner(ownerTenant, taxIds);
+
+          for (Tax tax : taxes) {
+                  boolean exists = vendorOrganisationTaxRepository.existsByTenant_IdAndVendorOrganisation_IdAndTax_Id(
+                          ownerTenant.getId(),
+                          vendorOrganisation.getId(),
+                          tax.getId()
+                  );
+
+                  if (exists) {
+                          continue;
+                  }
+
+                  VendorOrganisationTax mapping = new VendorOrganisationTax();
+                  mapping.setTenant(ownerTenant);
+                  mapping.setVendorOrganisation(vendorOrganisation);
+                  mapping.setTax(tax);
+                  if (createdBy != null) {
+                          mapping.setCreatedBy(createdBy.toString());
+                          mapping.setUpdatedBy(createdBy.toString());
+                  }
+                  vendorOrganisationTaxRepository.save(mapping);
+          }
+  }
+
+  private List<Tax> resolveTaxesForOwner(Tenant ownerTenant, List<UUID> taxIds) {
+          if (taxIds == null || taxIds.isEmpty()) {
+                  return List.of();
+          }
+
+          if (ownerTenant == null || ownerTenant.getId() == null) {
+                  throw new RuntimeException("Tenant not found in token");
+          }
+
+          List<UUID> uniqueTaxIds = new java.util.ArrayList<>(new LinkedHashSet<>(taxIds));
+          List<Tax> taxes = taxRepository.findByIdInAndTenant_Id(uniqueTaxIds, ownerTenant.getId());
+
+          if (taxes.size() != uniqueTaxIds.size()) {
+                  throw new RuntimeException("One or more taxIds are invalid for the current tenant");
+          }
+
+          return taxes;
   }
 
   private OnboardingDispatchResult createOnboardingUserAndSendCredentials(Tenant tenant, UUID createdBy) {
