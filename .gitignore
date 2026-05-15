@@ -33,3 +33,4 @@ build/
 .vscode/
 .env
 docker-compose.override.yaml
+.m2/
