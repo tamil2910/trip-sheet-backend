@@ -14,6 +14,6 @@ import lombok.Setter;
 @AllArgsConstructor
 public class DriverTenantLinkRequestByTenantDto {
 
-  @NotNull(message = "Driver id is required")
+  @NotNull(message = "Tenant id is required")
   private UUID tenantId;
 }
