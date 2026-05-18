@@ -191,18 +191,22 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     Map<String,Object> data = new HashMap<>();
     data.put("user", user);
 
+    // if (user != null) {
+    //   driverRepository.findByAccount_Id(user.getId()).ifPresent(driver -> {
+    //     Map<String, Object> driverData = objectMapper.convertValue(driver, Map.class);
+    //     driverTenantMappingRepository.findByDriver_IdAndActiveTrue(driver.getId())
+    //         .ifPresent(mapping -> {
+    //           Map<String, Object> tenantData = objectMapper.convertValue(mapping.getTenant(), Map.class);
+    //           // Add properties inside tenant object here if needed
+    //           // tenantData.put("key", value);
+    //           driverData.put("tenant", tenantData);
+    //         });
+    //     data.put("driver", driverData);
+    //   });
+    // }
+
     if (user != null) {
-      driverRepository.findByAccount_Id(user.getId()).ifPresent(driver -> {
-        Map<String, Object> driverData = objectMapper.convertValue(driver, Map.class);
-        driverTenantMappingRepository.findByDriver_IdAndActiveTrue(driver.getId())
-            .ifPresent(mapping -> {
-              Map<String, Object> tenantData = objectMapper.convertValue(mapping.getTenant(), Map.class);
-              // Add properties inside tenant object here if needed
-              // tenantData.put("key", value);
-              driverData.put("tenant", tenantData);
-            });
-        data.put("driver", driverData);
-      });
+      driverRepository.findByAccount_Id(user.getId()).ifPresent(driver -> data.put("driver", driver));
     }
 
     return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", data));

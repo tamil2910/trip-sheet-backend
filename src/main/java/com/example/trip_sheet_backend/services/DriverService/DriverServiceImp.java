@@ -235,6 +235,8 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
         .orElseThrow(() -> new RuntimeException("Driver not found"));
 
     deactivateDriverInOtherTenants(driver.getId(), tokenTenant.getId(), createdBy);
+    
+    updateDriverUserAccountWithTenantId(driver.getAccount(), tokenTenant, createdBy);
     DriverTenantMapping mapping = createMappingIfRequired(driver, tokenTenant, createdBy);
     return DriverTenantResponseDto.fromEntity(mapping);
   }
@@ -743,5 +745,14 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
           mapping.setUpdatedBy(updatedBy.toString());
           driverTenantMappingRepository.save(mapping);
         });
+  }
+
+  private void updateDriverUserAccountWithTenantId(UserAccount account, Tenant currentTenant, UUID updatedBy) {
+    if (account == null) {
+      return;
+    }
+    account.setTenant(currentTenant);
+    account.setUpdatedBy(updatedBy.toString());
+    userAccountRepository.save(account);
   }
 }
