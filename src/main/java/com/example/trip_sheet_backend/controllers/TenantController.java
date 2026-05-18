@@ -301,7 +301,7 @@ public ResponseEntity<ApiResponse<Tenant>> createClientTenant(
             ));
 }
 
-@PreAuthorize("hasAuthority('CAN_READ_TENANT')")
+@PreAuthorize("hasAuthority('CAN_READ_TENANT') or hasRole('DRIVER')")
 @GetMapping("/by-code/{tenantUniqueCode}")
 public ResponseEntity<ApiResponse<Tenant>> getTenantByUniqueCode(@PathVariable String tenantUniqueCode) {
     Tenant tenant = service.findByUniqueCode(tenantUniqueCode);

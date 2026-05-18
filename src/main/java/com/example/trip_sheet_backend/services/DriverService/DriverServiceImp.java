@@ -102,6 +102,8 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
           tokenTenant.getId()
       );
 
+      updateDriverUserAccountWithTenantId(existingDriver.getAccount(), tokenTenant, createdBy);
+
       return new DriverCreateOrLinkResponseDto(
           alreadyLinked ? "DRIVER_ALREADY_LINKED" : "DRIVER_EXISTS",
           existingDriver.getDriverCode(),

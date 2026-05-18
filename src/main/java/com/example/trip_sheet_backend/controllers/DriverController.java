@@ -25,13 +25,19 @@ import com.example.trip_sheet_backend.dtos.DriverDtos.DriverCreateOrLinkRequestD
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverCreateOrLinkResponseDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverTenantLinkRequestDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverSetPasswordRequestDto;
+import com.example.trip_sheet_backend.dtos.DriverDtos.DriverTenantLinkRequestByTenantDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverTenantResponseDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverUpdateRequestDto;
+import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleDriverLinkRequestDto;
+import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleDriverMappingResponseDto;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.repositories.DriverRepository;
+import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.DriverService.DriverServiceImp;
+import com.example.trip_sheet_backend.services.VehicleDriverService.VehicleDriverServiceImp;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -40,10 +46,21 @@ import jakarta.validation.Valid;
 @RequestMapping("/drivers")
 public class DriverController extends GlobalBaseController<Driver, UUID> {
   private final DriverServiceImp driverService;
+  private final VehicleDriverServiceImp vehicleDriverService;
+  private final DriverRepository driverRepository;
+  private final TenantRepository tenantRepository;
 
-  public DriverController(DriverServiceImp driverService) {
+  public DriverController(
+      DriverServiceImp driverService,
+      VehicleDriverServiceImp vehicleDriverService,
+      DriverRepository driverRepository,
+      TenantRepository tenantRepository
+  ) {
     super(driverService);
     this.driverService = driverService;
+    this.vehicleDriverService = vehicleDriverService;
+    this.driverRepository = driverRepository;
+    this.tenantRepository = tenantRepository;
   }
 
   @PostMapping("/create")
@@ -207,6 +224,42 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     UUID updatedBy = (UUID) request.getAttribute("updatedBy");
     driverService.setDriverPasswordForTenant(tokenTenant, id, body, updatedBy);
     return ResponseEntity.ok(new ApiResponse<>(true, "Driver password set successfully and sent by email", null));
+  }
+
+  @PreAuthorize("hasAuthority('CAN_UPDATE_VEHICLEDRIVERMAPPING')")
+  @PostMapping("/link-vehicle")
+  public ResponseEntity<ApiResponse<VehicleDriverMappingResponseDto>> createVehicleLink(
+      @Valid @RequestBody VehicleDriverLinkRequestDto body,
+      HttpServletRequest request
+  ) {
+    VehicleDriverMappingResponseDto response = vehicleDriverService.linkDriverAndVehicle(body, request);
+    return ResponseEntity.ok(new ApiResponse<>(true, "Vehicle linked with driver successfully", response));
+  }
+
+  @PreAuthorize("hasRole('DRIVER')")
+  @PostMapping("/link-tenant")
+  public ResponseEntity<ApiResponse<DriverTenantResponseDto>> createTenantLink(
+      @Valid @RequestBody DriverTenantLinkRequestByTenantDto body,
+      HttpServletRequest request
+  ) {
+    UserAccount currentUser = (UserAccount) request.getAttribute("user");
+    if (currentUser == null) {
+      throw new RuntimeException("User not found in token");
+    }
+
+    Driver driver = driverRepository.findByAccount_Id(currentUser.getId())
+        .orElseThrow(() -> new RuntimeException("Driver profile not found for current user"));
+
+    Tenant tenant = tenantRepository.findById(body.getTenantId())
+        .orElseThrow(() -> new RuntimeException("Tenant not found"));
+
+    DriverTenantResponseDto response = driverService.linkDriverToCurrentTenant(
+        tenant,
+        driver.getId(),
+        currentUser.getId()
+    );
+
+    return ResponseEntity.ok(new ApiResponse<>(true, "Tenant linked with driver successfully", response));
   }
 
 
