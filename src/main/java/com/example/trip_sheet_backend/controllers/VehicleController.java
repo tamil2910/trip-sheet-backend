@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -41,6 +42,7 @@ public class VehicleController extends GlobalBaseController<Vehicle, UUID> {
   }
 
   @PostMapping("/create")
+  @PreAuthorize("hasAuthority('CAN_CREATE_VEHICLE')")
   public ResponseEntity<ApiResponse<VehicleCreateOrLinkResponseDto>> createVehicle(
       @Valid @RequestBody VehicleInfoDto body,
       HttpServletRequest request
@@ -58,6 +60,7 @@ public class VehicleController extends GlobalBaseController<Vehicle, UUID> {
     return ResponseEntity.ok(new ApiResponse<>(true, message, response));
   }
 
+  @PreAuthorize("hasAuthority('CAN_READ_VEHICLE')")
   @GetMapping
   public ResponseEntity<ApiResponse<Map<String, Object>>> getVehicles(
       @RequestParam Map<String, Object> filters,
@@ -83,6 +86,7 @@ public class VehicleController extends GlobalBaseController<Vehicle, UUID> {
   }
 
   @GetMapping("/{id}")
+  @PreAuthorize("hasAuthority('CAN_READ_VEHICLE')")
   public ResponseEntity<ApiResponse<VehicleTenantResponseDto>> getVehicle(
       @PathVariable UUID id,
       HttpServletRequest request
@@ -93,6 +97,7 @@ public class VehicleController extends GlobalBaseController<Vehicle, UUID> {
   }
 
   @GetMapping("/by-code/{uniqueCode}")
+  @PreAuthorize("hasAuthority('CAN_READ_VEHICLE')")
   public ResponseEntity<ApiResponse<VehicleCodeLookupResponseDto>> getVehicleByUniqueCode(
       @PathVariable String uniqueCode,
       HttpServletRequest request
@@ -103,6 +108,7 @@ public class VehicleController extends GlobalBaseController<Vehicle, UUID> {
   }
 
   @PutMapping("/{id}")
+  @PreAuthorize("hasAuthority('CAN_UPDATE_VEHICLE')")
   public ResponseEntity<ApiResponse<VehicleTenantResponseDto>> updateVehicle(
       @PathVariable UUID id,
       @Valid @RequestBody VehicleUpdateRequestDto body,

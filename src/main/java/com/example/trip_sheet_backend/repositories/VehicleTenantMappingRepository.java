@@ -23,4 +23,10 @@ public interface VehicleTenantMappingRepository extends BaseRepository<VehicleTe
 
   @EntityGraph(attributePaths = {"vehicle", "vehicle.vehicleType", "tenant"})
   List<VehicleTenantMapping> findByTenant_Id(UUID tenantId);
+
+  @EntityGraph(attributePaths = {"vehicle", "vehicle.vehicleType", "tenant"})
+  Optional<VehicleTenantMapping> findByTenant_IdAndVehicle_VehicleNumber(UUID tenantId, String vehicleNumber);
+
+  @EntityGraph(attributePaths = {"vehicle", "vehicle.vehicleType", "tenant"})
+  Optional<VehicleTenantMapping> findByTenant_IdAndVehicle_ModelNameIgnoreCase(UUID tenantId, String modelName);
 }

@@ -124,18 +124,30 @@ public class VehicleServiceImp extends GlobalBaseServiceImp<Vehicle, UUID> imple
 
     String normalizedVehicleNumber = normalize(body.getVehicleNumber());
     if (normalizedVehicleNumber != null) {
-      Vehicle existingByNumber = repository.findByVehicleNumber(normalizedVehicleNumber);
-      if (existingByNumber != null && !existingByNumber.getId().equals(vehicle.getId())) {
-        throw new RuntimeException("Vehicle number already exists");
+      VehicleTenantMapping existingByNumber = vehicleTenantMappingRepository
+          .findByTenant_IdAndVehicle_VehicleNumber(tokenTenant.getId(), normalizedVehicleNumber)
+          .orElse(null);
+      if (existingByNumber != null && !existingByNumber.getVehicle().getId().equals(vehicle.getId())) {
+        throw new RuntimeException("Vehicle number already exists for this tenant");
       }
       vehicle.setVehicleNumber(normalizedVehicleNumber);
+    }
+
+    String normalizedModelName = normalizeText(body.getModelName());
+    if (normalizedModelName != null) {
+      VehicleTenantMapping existingByModelName = vehicleTenantMappingRepository
+          .findByTenant_IdAndVehicle_ModelNameIgnoreCase(tokenTenant.getId(), normalizedModelName)
+          .orElse(null);
+      if (existingByModelName != null && !existingByModelName.getVehicle().getId().equals(vehicle.getId())) {
+        throw new RuntimeException("Model name already exists for this tenant");
+      }
+      vehicle.setModelName(normalizedModelName);
     }
 
     if (body.getVehicleTypeId() != null) {
       vehicle.setVehicleType(resolveVehicleType(body.getVehicleTypeId(), tokenTenant));
     }
 
-    if (body.getModelName() != null) vehicle.setModelName(body.getModelName());
     if (body.getFuelType() != null) vehicle.setFuelType(body.getFuelType());
     if (body.getColour() != null) vehicle.setColour(body.getColour());
     if (body.getDescription() != null) vehicle.setDescription(body.getDescription());
@@ -198,7 +210,11 @@ public class VehicleServiceImp extends GlobalBaseServiceImp<Vehicle, UUID> imple
       throw new RuntimeException("Vehicle number is required");
     }
 
-    Vehicle existingVehicle = repository.findByVehicleNumber(normalizedVehicleNumber);
+    Vehicle existingVehicle = repository.findByTenant_IdAndVehicleNumber(
+      tokenTenant.getId(),
+      normalizedVehicleNumber
+    ).orElse(null);
+
     if (existingVehicle != null) {
       existingVehicle = ensureVehicleUniqueCode(existingVehicle);
 
@@ -220,7 +236,7 @@ public class VehicleServiceImp extends GlobalBaseServiceImp<Vehicle, UUID> imple
     }
 
     Vehicle vehicle = mapper.map(body, Vehicle.class);
-    vehicle.setTenant(null);
+    vehicle.setTenant(tokenTenant);
     vehicle.setVehicleNumber(normalizedVehicleNumber);
     vehicle.setVehicleType(resolveVehicleType(body.getVehicleTypeId(), tokenTenant));
     vehicle.setCreatedBy(createdBy.toString());
@@ -314,6 +330,14 @@ public class VehicleServiceImp extends GlobalBaseServiceImp<Vehicle, UUID> imple
 
   private String normalizeCode(String value) {
     return normalize(value);
+  }
+
+  private String normalizeText(String value) {
+    if (value == null) {
+      return null;
+    }
+    String trimmed = value.trim();
+    return trimmed.isEmpty() ? null : trimmed;
   }
 
   private Specification<VehicleTenantMapping> buildVehicleTenantSpecification(UUID tenantId, Map<String, Object> filters) {

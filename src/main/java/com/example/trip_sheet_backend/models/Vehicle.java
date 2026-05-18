@@ -10,7 +10,8 @@
   import jakarta.persistence.JoinColumn;
   import jakarta.persistence.ManyToOne;
   import jakarta.persistence.Table;
-  import jakarta.validation.constraints.NotBlank;
+import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.NotBlank;
   import jakarta.validation.constraints.NotNull;
   import jakarta.validation.constraints.Size;
   import lombok.AllArgsConstructor;
@@ -23,7 +24,13 @@
   @NoArgsConstructor
   @AllArgsConstructor
   @Entity
-  @Table(name = "vehicles")
+  @Table(
+    name = "vehicles",
+    uniqueConstraints = {
+        @UniqueConstraint(columnNames = {"tenant_id", "model_name"}),
+        @UniqueConstraint(columnNames = {"tenant_id", "vehicle_number"})
+    }
+  )
   public class Vehicle extends BaseModel {
 
     // @NotNull(message = "Tenant is required to add vehicle") // tenant id is required if vendor/ organisation adding their vehicle
@@ -32,7 +39,7 @@
     @ManyToOne(fetch = FetchType.LAZY, cascade = CascadeType.MERGE)
     private Tenant tenant;
     
-    @Column(unique = true, nullable = false)
+    @Column(name = "model_name", nullable = false)
     @Size(min = 2, max = 20, message = "Model name must be between 2 and 20 characters")
     private String modelName;
     
@@ -64,6 +71,7 @@
     private String vehProfileUrl;
 
     // @NotBlank(message = "Description is required")
+    @Nullable
     private String description;
 
     @Nullable

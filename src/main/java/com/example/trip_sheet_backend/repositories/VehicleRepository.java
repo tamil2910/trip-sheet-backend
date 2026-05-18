@@ -14,4 +14,11 @@ public interface VehicleRepository extends BaseRepository<Vehicle, UUID> {
   Vehicle findByVehicleNumberAndTenant_Id(String vehicleNumber, UUID tenantId);
   Optional<Vehicle> findByVehicleUniqueCode(String vehicleUniqueCode);
   boolean existsByVehicleUniqueCode(String vehicleUniqueCode);
+
+  Optional<Vehicle> findByTenant_IdAndVehicleNumber(UUID tenantId, String vehicleNumber);
+  boolean existsByTenant_IdAndVehicleNumber(UUID tenantId, String vehicleNumber);
+
+  Optional<Vehicle> findByTenant_IdAndModelName(UUID tenantId, String modelName);
+  boolean existsByTenant_IdAndModelName(UUID tenantId, String modelName);
+
 }
