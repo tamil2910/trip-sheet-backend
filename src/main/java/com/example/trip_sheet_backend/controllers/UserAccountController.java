@@ -196,8 +196,10 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
         Map<String, Object> driverData = objectMapper.convertValue(driver, Map.class);
         driverTenantMappingRepository.findByDriver_IdAndActiveTrue(driver.getId())
             .ifPresent(mapping -> {
-              driverData.put("tenant", mapping.getTenant());
-              driverData.put("driverTenantMapping", mapping);
+              Map<String, Object> tenantData = objectMapper.convertValue(mapping.getTenant(), Map.class);
+              // Add properties inside tenant object here if needed
+              // tenantData.put("key", value);
+              driverData.put("tenant", tenantData);
             });
         data.put("driver", driverData);
       });
