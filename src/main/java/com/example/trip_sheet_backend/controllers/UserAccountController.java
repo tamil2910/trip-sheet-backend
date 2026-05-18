@@ -29,6 +29,7 @@ import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
+import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.UserAccountService.UserAccountServiceImp;
@@ -45,6 +46,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final RoleGroupRepository roleGroupRepository;
   private final RoleRepository roleRepository;
   private final DriverRepository driverRepository;
+  private final DriverTenantMappingRepository driverTenantMappingRepository;
 
   @Autowired
   private PasswordEncoder passwordEncoder;
@@ -52,7 +54,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final JwtTokenUtil jwtTokenUtil;
   
   public UserAccountController(UserAccountServiceImp service, UserAccountRepository userAccountRepository, 
-    ModelMapper mapper, JwtTokenUtil jwtTokenUtil, RoleGroupRepository roleGroupRepository, RoleRepository roleRepository, DriverRepository driverRepository) {
+    ModelMapper mapper, JwtTokenUtil jwtTokenUtil, RoleGroupRepository roleGroupRepository, RoleRepository roleRepository, DriverRepository driverRepository, DriverTenantMappingRepository driverTenantMappingRepository) {
     super(service);
     this.service = service;
     this.mapper =  mapper;
@@ -61,6 +63,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     this.roleGroupRepository = roleGroupRepository;
     this.roleRepository = roleRepository;
     this.driverRepository = driverRepository;
+    this.driverTenantMappingRepository = driverTenantMappingRepository;
   }
   
 
@@ -186,7 +189,16 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     data.put("user", user);
 
     if (user != null) {
-      driverRepository.findByAccount_Id(user.getId()).ifPresent(driver -> data.put("driver", driver));
+      driverRepository.findByAccount_Id(user.getId()).ifPresent(driver -> {
+        data.put("driver", driver);
+
+      driverTenantMappingRepository.findByDriver_IdAndActiveTrue(driver.getId())
+        .ifPresent(mapping -> {
+          data.put("tenant", mapping.getTenant());
+          data.put("driverTenantMapping", mapping);
+        });
+
+      });
     }
 
     return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", data));

@@ -45,4 +45,11 @@ public interface DriverTenantMappingRepository extends BaseRepository<DriverTena
       @Param("email") String email,
       Pageable pageable
   );
+
+  List<DriverTenantMapping> findByDriver_Id(UUID driverId);
+
+  @EntityGraph(attributePaths = {"tenant", "driver", "driver.account"})
+  Optional<DriverTenantMapping> findByDriver_IdAndActiveTrue(UUID driverId);
+
+
 }

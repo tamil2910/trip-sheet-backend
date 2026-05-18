@@ -234,6 +234,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     Driver driver = repository.findById(driverId)
         .orElseThrow(() -> new RuntimeException("Driver not found"));
 
+    deactivateDriverInOtherTenants(driver.getId(), tokenTenant.getId(), createdBy);
     DriverTenantMapping mapping = createMappingIfRequired(driver, tokenTenant, createdBy);
     return DriverTenantResponseDto.fromEntity(mapping);
   }
@@ -731,5 +732,16 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
   private String requirePassword(String password) {
     validatePasswordRequired(password);
     return password;
+  }
+
+  
+  private void deactivateDriverInOtherTenants(UUID driverId, UUID currentTenantId, UUID updatedBy) {
+    driverTenantMappingRepository.findByDriver_Id(driverId).stream()
+        .filter(mapping -> !mapping.getTenant().getId().equals(currentTenantId))
+        .forEach(mapping -> {
+          mapping.setActive(false);
+          mapping.setUpdatedBy(updatedBy.toString());
+          driverTenantMappingRepository.save(mapping);
+        });
   }
 }
