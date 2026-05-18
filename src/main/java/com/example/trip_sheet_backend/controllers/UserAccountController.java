@@ -4,6 +4,7 @@ import java.util.UUID;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -47,6 +48,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final RoleRepository roleRepository;
   private final DriverRepository driverRepository;
   private final DriverTenantMappingRepository driverTenantMappingRepository;
+  private final ObjectMapper objectMapper;
 
   @Autowired
   private PasswordEncoder passwordEncoder;
@@ -54,7 +56,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final JwtTokenUtil jwtTokenUtil;
   
   public UserAccountController(UserAccountServiceImp service, UserAccountRepository userAccountRepository, 
-    ModelMapper mapper, JwtTokenUtil jwtTokenUtil, RoleGroupRepository roleGroupRepository, RoleRepository roleRepository, DriverRepository driverRepository, DriverTenantMappingRepository driverTenantMappingRepository) {
+    ModelMapper mapper, JwtTokenUtil jwtTokenUtil, RoleGroupRepository roleGroupRepository, RoleRepository roleRepository, DriverRepository driverRepository, DriverTenantMappingRepository driverTenantMappingRepository, ObjectMapper objectMapper) {
     super(service);
     this.service = service;
     this.mapper =  mapper;
@@ -64,6 +66,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     this.roleRepository = roleRepository;
     this.driverRepository = driverRepository;
     this.driverTenantMappingRepository = driverTenantMappingRepository;
+    this.objectMapper = objectMapper;
   }
   
 
@@ -190,14 +193,13 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
 
     if (user != null) {
       driverRepository.findByAccount_Id(user.getId()).ifPresent(driver -> {
-        data.put("driver", driver);
-
-      driverTenantMappingRepository.findByDriver_IdAndActiveTrue(driver.getId())
-        .ifPresent(mapping -> {
-          data.put("tenant", mapping.getTenant());
-          data.put("driverTenantMapping", mapping);
-        });
-
+        Map<String, Object> driverData = objectMapper.convertValue(driver, Map.class);
+        driverTenantMappingRepository.findByDriver_IdAndActiveTrue(driver.getId())
+            .ifPresent(mapping -> {
+              driverData.put("tenant", mapping.getTenant());
+              driverData.put("driverTenantMapping", mapping);
+            });
+        data.put("driver", driverData);
       });
     }
 
