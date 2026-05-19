@@ -147,7 +147,7 @@ public class TripController {
         Math.max(size, 1),
         sort);
 
-    String globalSearch = filters.get("searchValue") != null ? filters.get("searchValue").toString().trim() : null;
+    List<String> globalSearchValues = extractSearchValues(filters, request);
 
     Map<String, Object> effectiveFilters = new java.util.HashMap<>();
     if (filters != null) {
@@ -159,7 +159,7 @@ public class TripController {
       }
     }
 
-    Page<Trip> result = tripServiceImp.searchResourcesWithGlobalSearch(tenantId, effectiveFilters, globalSearch, effectivePageable);
+    Page<Trip> result = tripServiceImp.searchResourcesWithGlobalSearch(tenantId, effectiveFilters, globalSearchValues, effectivePageable);
 
     List<TripResponseDTO> data = result.getContent().stream()
         .map(TripResponseMapper::toDTO)
@@ -191,6 +191,36 @@ public class TripController {
     } catch (Exception ex) {
       return defaultValue;
     }
+  }
+
+  private List<String> extractSearchValues(Map<String, Object> filters, HttpServletRequest request) {
+    String[] rawValues = request.getParameterValues("searchValue");
+    if (rawValues != null && rawValues.length > 0) {
+      return java.util.Arrays.stream(rawValues)
+          .map(this::sanitizeSearchValue)
+          .filter(value -> value != null && !value.isBlank())
+          .toList();
+    }
+
+    if (filters == null || filters.get("searchValue") == null) {
+      return List.of();
+    }
+
+    String sanitizedValue = sanitizeSearchValue(filters.get("searchValue").toString());
+    return sanitizedValue == null || sanitizedValue.isBlank() ? List.of() : List.of(sanitizedValue);
+  }
+
+  private String sanitizeSearchValue(String value) {
+    if (value == null) {
+      return null;
+    }
+
+    String trimmedValue = value.trim();
+    if (trimmedValue.length() >= 2 && trimmedValue.startsWith("\"") && trimmedValue.endsWith("\"")) {
+      return trimmedValue.substring(1, trimmedValue.length() - 1).trim();
+    }
+
+    return trimmedValue;
   }
 
   @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
@@ -429,4 +459,21 @@ public class TripController {
     }
   }
 
+  @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
+  @PutMapping("/confirm-trip/{tripId}")
+  public ResponseEntity<ApiResponse<?>> confirmTrip(
+      @PathVariable @NotNull UUID tripId,
+      HttpServletRequest request
+  ) {
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+
+    try {
+      Trip trip = tripServiceImp.confirmTrip(tokenTenant, tripId, updatedBy);
+      TripResponseDTO response = TripResponseMapper.toDTO(trip);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip confirmed successfully", response));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
 }

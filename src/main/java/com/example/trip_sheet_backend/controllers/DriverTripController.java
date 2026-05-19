@@ -1,10 +1,13 @@
 package com.example.trip_sheet_backend.controllers;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,12 +21,16 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
-import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
+import com.example.trip_sheet_backend.mappers.TripResponseMapper;
+import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.TripService.TripServiceImp;
 
@@ -35,9 +42,11 @@ import jakarta.validation.Valid;
 public class DriverTripController {
 
   private final TripServiceImp tripServiceImp;
+  private final DriverRepository driverRepository;
 
-  public DriverTripController(TripServiceImp tripServiceImp) {
+  public DriverTripController(TripServiceImp tripServiceImp, DriverRepository driverRepository) {
     this.tripServiceImp = tripServiceImp;
+    this.driverRepository = driverRepository;
   }
 
   @PreAuthorize("hasAuthority('DRIVER_CREATE_TRIP')")
@@ -61,27 +70,62 @@ public class DriverTripController {
     return ResponseEntity.ok(new ApiResponse<>(true, "Trip created successfully", trip));
   }
 
-  @PreAuthorize("hasAuthority('DRIVER_READ_TRIP')")
+  @PreAuthorize("hasAuthority('CAN_READ_TRIP') or hasRole('DRIVER')")
   @GetMapping
   public ApiResponse<Map<String, Object>> getDriverTrips(@RequestParam Map<String, Object> filters,
       Pageable pageable, HttpServletRequest request) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
-    UUID driverId = (UUID) request.getAttribute("userId");
+    UserAccount currentUser = (UserAccount) request.getAttribute("user");
 
-    if (driverId == null) throw new RuntimeException("Driver id missing");
+    if (currentUser == null || currentUser.getId() == null) {
+      throw new RuntimeException("Authenticated driver account missing");
+    }
 
-    Page<Trip> result = tripServiceImp.findByDriverOrCreatedBy(tenantId, driverId, pageable);
+    Driver driver = driverRepository.findByAccount_Id(currentUser.getId())
+        .orElseThrow(() -> new RuntimeException("Driver profile not found for authenticated user"));
 
-    Map<String, Object> response = Map.of(
-        "data", result.getContent(),
-        "currentPage", result.getNumber(),
-        "pageSize", result.getSize(),
-        "currentPageCount", result.getNumberOfElements(),
-        "totalItems", result.getTotalElements(),
-        "totalPages", result.getTotalPages()
-    );
+    Integer size = parseInt(filters.get("size"), null);
+    if (size == null) {
+      size = parseInt(filters.get("limit"), 10);
+    }
 
-    return new ApiResponse<>(true, "Success", response);
+    Integer page = parseInt(filters.get("page"), null);
+    if (page == null) {
+      Integer skip = parseInt(filters.get("skip"), 0);
+      page = size > 0 ? Math.max(skip / size, 0) : 0;
+    }
+
+    Sort sort = Sort.by(Sort.Direction.ASC, "pickupTime");
+    if (pageable != null && pageable.getSort().isSorted()) {
+      sort = pageable.getSort();
+    }
+
+    Pageable effectivePageable = PageRequest.of(
+        Math.max(page, 0),
+        Math.max(size, 1),
+        sort);
+
+    Page<Trip> result = tripServiceImp.findByDriverOrCreatedBy(tenantId, driver.getId(), effectivePageable);
+
+    List<TripResponseDTO> data = result.getContent().stream()
+        .map(TripResponseMapper::toDTO)
+        .toList();
+
+    Map<String, Object> response = new java.util.HashMap<>();
+    response.put("data", data);
+    response.put("currentPage", result.getNumber());
+    response.put("pageSize", result.getSize());
+    response.put("currentPageCount", result.getNumberOfElements());
+    response.put("totalItems", result.getTotalElements());
+    response.put("totalPages", result.getTotalPages());
+    response.put("isFirst", result.isFirst());
+    response.put("isLast", result.isLast());
+    response.put("hasNext", result.hasNext());
+    response.put("hasPrevious", result.hasPrevious());
+    response.put("page", page);
+    response.put("size", size);
+
+    return new ApiResponse<>(true, "Driver trips fetched successfully", response);
   }
 
   @PreAuthorize("hasAuthority('DRIVER_UPDATE_TRIP')")
@@ -151,6 +195,17 @@ public class DriverTripController {
 
     Trip ended = tripServiceImp.dropTrip(tenantId, tokenTenant, user, id, dto);
     return new ApiResponse<>(true, "Trip completed", ended);
+  }
+
+  private Integer parseInt(Object value, Integer defaultValue) {
+    if (value == null) {
+      return defaultValue;
+    }
+    try {
+      return Integer.parseInt(value.toString());
+    } catch (Exception ex) {
+      return defaultValue;
+    }
   }
 
 }

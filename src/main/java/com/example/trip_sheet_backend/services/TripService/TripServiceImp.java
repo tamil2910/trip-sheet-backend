@@ -563,6 +563,13 @@ public Trip splitChildTrip(UUID tenantId, UUID tripId) {
 
 @Override
 public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable) {
+  List<String> globalSearchTerms = globalSearch == null || globalSearch.isBlank()
+      ? List.of()
+      : List.of(globalSearch.trim());
+  return searchResourcesWithGlobalSearch(tenantId, filters, globalSearchTerms, pageable);
+}
+
+public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, List<String> globalSearchTerms, Pageable pageable) {
   Specification<Trip> spec = (root, query, cb) -> {
     query.distinct(true);
     List<Predicate> predicates = new ArrayList<>();
@@ -571,6 +578,9 @@ public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Obj
       List<Predicate> tenantVisibilityPredicates = new ArrayList<>();
       try {
         tenantVisibilityPredicates.add(cb.equal(root.join("tenant", JoinType.LEFT).get("id"), tenantId));
+      } catch (Exception ignored) {}
+      try {
+        tenantVisibilityPredicates.add(cb.equal(root.join("organisation", JoinType.LEFT).get("id"), tenantId));
       } catch (Exception ignored) {}
       try {
         tenantVisibilityPredicates.add(cb.equal(root.join("vendor", JoinType.LEFT).get("id"), tenantId));
@@ -587,58 +597,64 @@ public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Obj
       }
     }
 
-    if (globalSearch != null && !globalSearch.isBlank()) {
-      String searchLower = "%" + globalSearch.toLowerCase() + "%";
-      List<Predicate> searchPredicates = new ArrayList<>();
-      String[] searchFields = {"tripCode", "notes"};
-      for (String field : searchFields) {
+    if (globalSearchTerms != null && !globalSearchTerms.isEmpty()) {
+      List<Predicate> combinedSearchPredicates = new ArrayList<>();
+      for (String searchTerm : globalSearchTerms) {
+        if (searchTerm == null || searchTerm.isBlank()) {
+          continue;
+        }
+
+        String searchLower = "%" + searchTerm.toLowerCase() + "%";
+        String[] searchFields = {"tripCode", "notes"};
+        for (String field : searchFields) {
+          try {
+            combinedSearchPredicates.add(cb.like(cb.lower(root.get(field).as(String.class)), searchLower));
+          } catch (Exception ignored) {}
+        }
         try {
-          searchPredicates.add(cb.like(cb.lower(root.get(field).as(String.class)), searchLower));
+          Join<Object, Object> driverJoin = root.join("driver", JoinType.LEFT);
+          combinedSearchPredicates.add(cb.like(cb.lower(driverJoin.get("fullName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> vehicleJoin = root.join("vehicle", JoinType.LEFT);
+          combinedSearchPredicates.add(cb.like(cb.lower(vehicleJoin.get("vehicleNumber").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> bookerJoin = root.join("booker", JoinType.LEFT);
+          combinedSearchPredicates.add(cb.like(cb.lower(bookerJoin.get("name").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> passengersJoin = root.join("passengers", JoinType.LEFT);
+          combinedSearchPredicates.add(cb.like(cb.lower(passengersJoin.get("name").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> orgJoin = root.join("organisation", JoinType.LEFT);
+          combinedSearchPredicates.add(cb.like(cb.lower(orgJoin.get("tenantName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> vendorJoin = root.join("vendor", JoinType.LEFT);
+          combinedSearchPredicates.add(cb.like(cb.lower(vendorJoin.get("tenantName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> assignedByVendorJoin = root.join("assignedByVendor", JoinType.LEFT);
+          combinedSearchPredicates.add(cb.like(cb.lower(assignedByVendorJoin.get("tenantName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> previousVendorJoin = root.join("previousVendor", JoinType.LEFT);
+          combinedSearchPredicates.add(cb.like(cb.lower(previousVendorJoin.get("tenantName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> dutyTypeJoin = root.join("dutyType", JoinType.LEFT);
+          combinedSearchPredicates.add(cb.like(cb.lower(dutyTypeJoin.get("name").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> vehicleTypeJoin = root.join("vehicleType", JoinType.LEFT);
+          combinedSearchPredicates.add(cb.like(cb.lower(vehicleTypeJoin.get("defaultName").as(String.class)), searchLower));
         } catch (Exception ignored) {}
       }
-      try {
-        Join<Object, Object> driverJoin = root.join("driver", JoinType.LEFT);
-        searchPredicates.add(cb.like(cb.lower(driverJoin.get("fullName").as(String.class)), searchLower));
-      } catch (Exception ignored) {}
-      try {
-        Join<Object, Object> vehicleJoin = root.join("vehicle", JoinType.LEFT);
-        searchPredicates.add(cb.like(cb.lower(vehicleJoin.get("vehicleNumber").as(String.class)), searchLower));
-      } catch (Exception ignored) {}
-      try {
-        Join<Object, Object> bookerJoin = root.join("booker", JoinType.LEFT);
-        searchPredicates.add(cb.like(cb.lower(bookerJoin.get("name").as(String.class)), searchLower));
-      } catch (Exception ignored) {}
-      try {
-        Join<Object, Object> passengersJoin = root.join("passengers", JoinType.LEFT);
-        searchPredicates.add(cb.like(cb.lower(passengersJoin.get("name").as(String.class)), searchLower));
-      } catch (Exception ignored) {}
-      try {
-        Join<Object, Object> orgJoin = root.join("organisation", JoinType.LEFT);
-        searchPredicates.add(cb.like(cb.lower(orgJoin.get("tenantName").as(String.class)), searchLower));
-      } catch (Exception ignored) {}
-      try {
-        Join<Object, Object> vendorJoin = root.join("vendor", JoinType.LEFT);
-        searchPredicates.add(cb.like(cb.lower(vendorJoin.get("tenantName").as(String.class)), searchLower));
-      } catch (Exception ignored) {}
-      try {
-        Join<Object, Object> assignedByVendorJoin = root.join("assignedByVendor", JoinType.LEFT);
-        searchPredicates.add(cb.like(cb.lower(assignedByVendorJoin.get("tenantName").as(String.class)), searchLower));
-      } catch (Exception ignored) {}
-      try {
-        Join<Object, Object> previousVendorJoin = root.join("previousVendor", JoinType.LEFT);
-        searchPredicates.add(cb.like(cb.lower(previousVendorJoin.get("tenantName").as(String.class)), searchLower));
-      } catch (Exception ignored) {}
-      try {
-        Join<Object, Object> dutyTypeJoin = root.join("dutyType", JoinType.LEFT);
-        searchPredicates.add(cb.like(cb.lower(dutyTypeJoin.get("name").as(String.class)), searchLower));
-      } catch (Exception ignored) {}
-      try {
-        Join<Object, Object> vehicleTypeJoin = root.join("vehicleType", JoinType.LEFT);
-        searchPredicates.add(cb.like(cb.lower(vehicleTypeJoin.get("defaultName").as(String.class)), searchLower));
-      } catch (Exception ignored) {}
 
-      if (!searchPredicates.isEmpty()) {
-        predicates.add(cb.or(searchPredicates.toArray(new Predicate[0])));
+      if (!combinedSearchPredicates.isEmpty()) {
+        predicates.add(cb.or(combinedSearchPredicates.toArray(new Predicate[0])));
       }
     }
 
@@ -697,9 +713,26 @@ public Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Pageable
     query.distinct(true);
     List<Predicate> preds = new ArrayList<>();
     if (tenantId != null) {
+      List<Predicate> tenantPreds = new ArrayList<>();
       try {
-        preds.add(cb.equal(root.join("tenant").get("id"), tenantId));
+        tenantPreds.add(cb.equal(root.join("tenant", JoinType.LEFT).get("id"), tenantId));
       } catch (Exception ignored) {}
+      try {
+        tenantPreds.add(cb.equal(root.join("organisation", JoinType.LEFT).get("id"), tenantId));
+      } catch (Exception ignored) {}
+      try {
+        tenantPreds.add(cb.equal(root.join("vendor", JoinType.LEFT).get("id"), tenantId));
+      } catch (Exception ignored) {}
+      try {
+        tenantPreds.add(cb.equal(root.join("assignedByVendor", JoinType.LEFT).get("id"), tenantId));
+      } catch (Exception ignored) {}
+      try {
+        tenantPreds.add(cb.equal(root.join("previousVendor", JoinType.LEFT).get("id"), tenantId));
+      } catch (Exception ignored) {}
+
+      if (!tenantPreds.isEmpty()) {
+        preds.add(cb.or(tenantPreds.toArray(new Predicate[0])));
+      }
     }
 
     try {
@@ -1133,8 +1166,28 @@ private List<Trip> getActiveSeriesTrips(UUID tenantId, UUID rootTripId) {
       return cb.and(notDeletedPredicate, cb.or(rootPredicate, childPredicate));
     }
 
-    var tenantPredicate = cb.equal(root.join("tenant").get("id"), tenantId);
-    return cb.and(tenantPredicate, notDeletedPredicate, cb.or(rootPredicate, childPredicate));
+    List<Predicate> tenantVisibilityPredicates = new ArrayList<>();
+    try {
+      tenantVisibilityPredicates.add(cb.equal(root.join("tenant", JoinType.LEFT).get("id"), tenantId));
+    } catch (Exception ignored) {}
+    try {
+      tenantVisibilityPredicates.add(cb.equal(root.join("organisation", JoinType.LEFT).get("id"), tenantId));
+    } catch (Exception ignored) {}
+    try {
+      tenantVisibilityPredicates.add(cb.equal(root.join("vendor", JoinType.LEFT).get("id"), tenantId));
+    } catch (Exception ignored) {}
+    try {
+      tenantVisibilityPredicates.add(cb.equal(root.join("assignedByVendor", JoinType.LEFT).get("id"), tenantId));
+    } catch (Exception ignored) {}
+    try {
+      tenantVisibilityPredicates.add(cb.equal(root.join("previousVendor", JoinType.LEFT).get("id"), tenantId));
+    } catch (Exception ignored) {}
+
+    if (!tenantVisibilityPredicates.isEmpty()) {
+      return cb.and(cb.or(tenantVisibilityPredicates.toArray(new Predicate[0])), notDeletedPredicate, cb.or(rootPredicate, childPredicate));
+    }
+
+    return cb.and(notDeletedPredicate, cb.or(rootPredicate, childPredicate));
   }, Pageable.unpaged()).getContent();
 
   seriesTrips.sort(Comparator.comparing(trip -> trip.getPickupTime() != null ? trip.getPickupTime() : Long.MAX_VALUE));
@@ -1540,8 +1593,10 @@ private boolean isTripVisibleToTenant(Trip trip, UUID tenantId) {
   UUID vendorTenantId = trip.getVendor() != null ? trip.getVendor().getId() : null;
   UUID assignedByVendorTenantId = trip.getAssignedByVendor() != null ? trip.getAssignedByVendor().getId() : null;
   UUID previousVendorTenantId = trip.getPreviousVendor() != null ? trip.getPreviousVendor().getId() : null;
+    UUID organisationTenantId = trip.getOrganisation() != null ? trip.getOrganisation().getId() : null;
 
-  return tenantId.equals(contextTenantId)
+    return tenantId.equals(contextTenantId)
+      || tenantId.equals(organisationTenantId)
       || tenantId.equals(vendorTenantId)
       || tenantId.equals(assignedByVendorTenantId)
       || tenantId.equals(previousVendorTenantId);
@@ -1685,5 +1740,12 @@ private DispatchCenter resolveOptionalDispatchCenter(String dispatchCenterId) {
       .orElseThrow(() -> new RuntimeException("Invalid dispatch center"));  
 }
 
+public Trip confirmTrip(Tenant tokenTenant, UUID tripId, UUID updatedBy){
+  Trip trip = findTripForTenant(tokenTenant.getId(), tripId);
+  
+  trip.setUpdatedBy(updatedBy.toString());
+  trip.setTripStatus(Trip.TripStatus.CONFIRMED);
+  return repository.save(trip);
+}
 
 }
