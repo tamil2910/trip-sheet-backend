@@ -9,5 +9,5 @@ import com.example.trip_sheet_backend.models.Trip;
 
 @Repository
 public interface TripRepository extends BaseRepository<Trip, UUID> {
-
+  boolean existsByTripCode(String tripCode);
 }

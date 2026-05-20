@@ -50,4 +50,28 @@ public class UniqueCodeGeneratorService {
 
     return builder.toString();
   }
+
+  public String generateUniqueNumericCode(int length, Predicate<String> existChecker) {
+    if (length < 1) {
+      throw new RuntimeException("Code length must be greater than 0");
+    }
+
+    for(int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      StringBuilder builder = new StringBuilder(length);
+      for (int i = 0; i < length; i++) {
+        int digit = secureRandom.nextInt(10);
+        if (i == 0 && length > 1 && digit == 0) {
+          digit = secureRandom.nextInt(9) + 1;
+        }
+        builder.append(digit);
+      }
+
+      String code = builder.toString();
+      if (!existChecker.test(code)) {
+        return code;
+      }
+    }
+
+    throw new RuntimeException("Unable to generate a unique numeric code. Please try again.");
+  }
 }

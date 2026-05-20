@@ -27,6 +27,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
+import com.example.trip_sheet_backend.common.services.UniqueCodeGeneratorService;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
@@ -91,6 +92,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final DriverTenantMappingRepository driverTenantMappingRepository;
     private final VendorDelegationHistoryRepository vendorDelegationHistoryRepository;
     private final TripFeedbackService tripFeedbackService;
+    private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
 
     private final ModelMapper mapper;
 
@@ -101,7 +103,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
       DispatchCenterRepository dispatchCenterRepository, TripSummaryRepository tripSummaryRepository,
       DriverTenantMappingRepository driverTenantMappingRepository,
       VendorDelegationHistoryRepository vendorDelegationHistoryRepository,
-      TripFeedbackService tripFeedbackService) {
+      TripFeedbackService tripFeedbackService, UniqueCodeGeneratorService uniqueCodeGeneratorService) {
     super(repository);
     this.repository = repository;
     this.tenantRepository = tenantRepository;
@@ -117,6 +119,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     this.driverTenantMappingRepository = driverTenantMappingRepository;
     this.vendorDelegationHistoryRepository = vendorDelegationHistoryRepository;
     this.tripFeedbackService = tripFeedbackService;
+    this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
   }
 
 @Override
@@ -149,7 +152,7 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
 
   // ✅ Create Trip manually (avoid mapper poisoning)
   Trip trip = new Trip();
-  trip.setTripCode(createTripDto.getTripCode());
+  trip.setTripCode(generateTripCode());
   trip.setTripType(createTripDto.getTripType());
   trip.setRecurrenceInterval(createTripDto.getRecurrenceInterval());
   trip.setDaysOfWeek(createTripDto.getDaysOfWeek());
@@ -333,9 +336,6 @@ public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdat
   List<Trip> existingSeriesTrips = isParentSeriesTrip(trip) ? getActiveSeriesTrips(tenantId, trip.getId()) : List.of();
   boolean partnerVendorRestrictedUpdate = isPartnerVendorRestrictedUpdate(tokenTenant, trip);
 
-  if (!partnerVendorRestrictedUpdate && updateDto.getTripCode() != null) {
-    trip.setTripCode(updateDto.getTripCode());
-  }
   if (!partnerVendorRestrictedUpdate && updateDto.getTripType() != null) {
     trip.setTripType(updateDto.getTripType());
   }
@@ -804,6 +804,8 @@ private Trip createMultiDayTrips(Trip templateTrip) {
     dailyTrip.setTripStatus(Trip.TripStatus.CREATED);
     dailyTrip.setStartOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
     dailyTrip.setEndOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
+    dailyTrip.setTripCode(uniqueCodeGeneratorService.generateUniqueNumericCode(8,
+      repository::existsByTripCode));
 
     Trip savedTrip = repository.save(dailyTrip);
     if (firstTrip == null) {
@@ -856,6 +858,8 @@ private Trip createRecurringTrips(Trip templateTrip) {
       recurringTrip.setTripStatus(Trip.TripStatus.CREATED);
       recurringTrip.setStartOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
       recurringTrip.setEndOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
+      recurringTrip.setTripCode(uniqueCodeGeneratorService.generateUniqueNumericCode(8,
+        repository::existsByTripCode));
 
       Trip savedTrip = repository.save(recurringTrip);
       if (firstTrip == null) {
@@ -883,7 +887,8 @@ private Trip createRecurringTrips(Trip templateTrip) {
       recurringTrip.setTripStatus(Trip.TripStatus.CREATED);
       recurringTrip.setStartOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
       recurringTrip.setEndOtp((long) ThreadLocalRandom.current().nextInt(1000, 10000));
-
+      recurringTrip.setTripCode(uniqueCodeGeneratorService.generateUniqueNumericCode(8,
+        repository::existsByTripCode));
       Trip savedTrip = repository.save(recurringTrip);
       if (firstTrip == null) {
         firstTrip = savedTrip;
@@ -1486,7 +1491,7 @@ private enum DayOfWeekValue {
 public Trip dispatchTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripDispatchRequestDTO dispatchData) {
   Trip trip = findTripForTenant(tokenTenantId, tripID);
   authorizeTripLifecycleAction(trip, tokenTenantId, tokenTenant, user, false);
-  ensureTripStatus(trip, Trip.TripStatus.CREATED, Trip.TripStatus.CONFIRMED);
+  ensureTripStatus(trip, Trip.TripStatus.CREATED, Trip.TripStatus.CONFIRMED, Trip.TripStatus.ALLOTTED, Trip.TripStatus.DRIVER_ACCEPTED, Trip.TripStatus.REALLOCATED);
 
   TripSummary summary = getOrCreateTripSummary(trip);
   summary.setDispatchLat(dispatchData.getDispatchLat());
@@ -1683,6 +1688,10 @@ private boolean isDriverUser(UserAccount user) {
     return false;
   }
   return driverRepository.findByAccount_Id(user.getId()).isPresent();
+}
+
+private String generateTripCode() {
+  return uniqueCodeGeneratorService.generateUniqueNumericCode(8, repository::existsByTripCode);
 }
 
 private TripSummary getOrCreateTripSummary(Trip trip) {

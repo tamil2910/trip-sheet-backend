@@ -136,7 +136,8 @@ public class Trip extends BaseModel implements TenantScoped {
   public enum TripStatus {
       CREATED, REQUESTING, CONFIRMED, ALLOTTED,
       DISPATCHED, ARRIVED, STARTED, COMPLETED,
-      CLOSED, CANCELLED, FAILED, NO_SHOW, EXPIRED
+      CLOSED, CANCELLED, FAILED, NO_SHOW, EXPIRED, VENDOR_CANCELLED, 
+      DRIVER_ACCEPTED, DRIVER_REJECTED, REALLOCATED
   }
 
   public enum TripType {
