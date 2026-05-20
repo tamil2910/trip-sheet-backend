@@ -54,5 +54,5 @@ public interface TripService extends BaseService<Trip, UUID> {
   
   Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable);
   Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, List<String> globalSearchTerms, Pageable pageable);
-  Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Pageable pageable);
+  Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Map<String, Object> filters, Pageable pageable);
 }

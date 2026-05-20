@@ -76,6 +76,7 @@ public class DriverTripController {
       Pageable pageable, HttpServletRequest request) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
     UserAccount currentUser = (UserAccount) request.getAttribute("user");
+    List<String> searchValues = extractSearchValues(filters, request);
 
     if (currentUser == null || currentUser.getId() == null) {
       throw new RuntimeException("Authenticated driver account missing");
@@ -105,7 +106,7 @@ public class DriverTripController {
         Math.max(size, 1),
         sort);
 
-    Page<Trip> result = tripServiceImp.findByDriverOrCreatedBy(tenantId, driver.getId(), effectivePageable);
+    Page<Trip> result = tripServiceImp.findByDriverOrCreatedBy(tenantId, driver.getId(), filters, searchValues, effectivePageable);
 
     List<TripResponseDTO> data = result.getContent().stream()
         .map(TripResponseMapper::toDTO)
@@ -206,6 +207,36 @@ public class DriverTripController {
     } catch (Exception ex) {
       return defaultValue;
     }
+  }
+
+  private List<String> extractSearchValues(Map<String, Object> filters, HttpServletRequest request) {
+    String[] rawValues = request.getParameterValues("searchValue");
+    if (rawValues != null && rawValues.length > 0) {
+      return java.util.Arrays.stream(rawValues)
+          .map(this::sanitizeSearchValue)
+          .filter(value -> value != null && !value.isBlank())
+          .toList();
+    }
+
+    if (filters == null || filters.get("searchValue") == null) {
+      return List.of();
+    }
+
+    String sanitizedValue = sanitizeSearchValue(filters.get("searchValue").toString());
+    return sanitizedValue == null || sanitizedValue.isBlank() ? List.of() : List.of(sanitizedValue);
+  }
+
+  private String sanitizeSearchValue(String value) {
+    if (value == null) {
+      return null;
+    }
+
+    String trimmedValue = value.trim();
+    if (trimmedValue.length() >= 2 && trimmedValue.startsWith("\"") && trimmedValue.endsWith("\"")) {
+      return trimmedValue.substring(1, trimmedValue.length() - 1).trim();
+    }
+
+    return trimmedValue;
   }
 
 }

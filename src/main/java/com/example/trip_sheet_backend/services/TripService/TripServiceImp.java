@@ -632,6 +632,10 @@ public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Obj
           combinedSearchPredicates.add(cb.like(cb.lower(orgJoin.get("tenantName").as(String.class)), searchLower));
         } catch (Exception ignored) {}
         try {
+          Join<Object, Object> tenantJoin = root.join("tenant", JoinType.LEFT);
+          combinedSearchPredicates.add(cb.like(cb.lower(tenantJoin.get("tenantName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
           Join<Object, Object> vendorJoin = root.join("vendor", JoinType.LEFT);
           combinedSearchPredicates.add(cb.like(cb.lower(vendorJoin.get("tenantName").as(String.class)), searchLower));
         } catch (Exception ignored) {}
@@ -708,7 +712,11 @@ public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Obj
 }
 
 @Override
-public Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Pageable pageable) {
+public Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Map<String, Object> filters, Pageable pageable) {
+  return findByDriverOrCreatedBy(tenantId, driverId, filters, List.of(), pageable);
+}
+
+public Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Map<String, Object> filters, List<String> globalSearchTerms, Pageable pageable) {
   Specification<Trip> spec = (root, query, cb) -> {
     query.distinct(true);
     List<Predicate> preds = new ArrayList<>();
@@ -733,6 +741,63 @@ public Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Pageable
       if (!tenantPreds.isEmpty()) {
         preds.add(cb.or(tenantPreds.toArray(new Predicate[0])));
       }
+    }
+
+    if (globalSearchTerms != null && !globalSearchTerms.isEmpty()) {
+      List<Predicate> searchPredicates = new ArrayList<>();
+      for (String searchTerm : globalSearchTerms) {
+        if (searchTerm == null || searchTerm.isBlank()) {
+          continue;
+        }
+
+        String searchLower = "%" + searchTerm.toLowerCase() + "%";
+        try {
+          searchPredicates.add(cb.like(cb.lower(root.get("tripCode").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> passengersJoin = root.join("passengers", JoinType.LEFT);
+          searchPredicates.add(cb.like(cb.lower(passengersJoin.get("name").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> orgJoin = root.join("organisation", JoinType.LEFT);
+          searchPredicates.add(cb.like(cb.lower(orgJoin.get("tenantName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> vendorJoin = root.join("vendor", JoinType.LEFT);
+          searchPredicates.add(cb.like(cb.lower(vendorJoin.get("tenantName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> tenantJoin = root.join("tenant", JoinType.LEFT);
+          searchPredicates.add(cb.like(cb.lower(tenantJoin.get("tenantName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> assignedByVendorJoin = root.join("assignedByVendor", JoinType.LEFT);
+          searchPredicates.add(cb.like(cb.lower(assignedByVendorJoin.get("tenantName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> previousVendorJoin = root.join("previousVendor", JoinType.LEFT);
+          searchPredicates.add(cb.like(cb.lower(previousVendorJoin.get("tenantName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+      }
+
+      if (!searchPredicates.isEmpty()) {
+        preds.add(cb.or(searchPredicates.toArray(new Predicate[0])));
+      }
+    }
+
+    if (filters != null) {
+      try {
+        Long startDateFilter = parseLongValue(filters.get("startDate"));
+        if (startDateFilter != null) {
+          preds.add(cb.greaterThanOrEqualTo(root.get("startDate"), startDateFilter));
+        }
+      } catch (Exception ignored) {}
+      try {
+        Long endDateFilter = parseLongValue(filters.get("endDate"));
+        if (endDateFilter != null) {
+          preds.add(cb.lessThanOrEqualTo(root.get("endDate"), endDateFilter));
+        }
+      } catch (Exception ignored) {}
     }
 
     try {
