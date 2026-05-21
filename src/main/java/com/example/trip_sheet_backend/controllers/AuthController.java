@@ -20,6 +20,7 @@ import com.example.trip_sheet_backend.dtos.AuthDtos.LoginUserResponseDTO;
 import com.example.trip_sheet_backend.dtos.UserAccountDtos.UserAccountByFormDto;
 import com.example.trip_sheet_backend.models.Admin;
 import com.example.trip_sheet_backend.models.Driver;
+import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Permission;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.RoleGroup;
@@ -27,6 +28,7 @@ import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.AdminRepository;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
+import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.repositories.PermissionRepository;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
@@ -62,17 +64,18 @@ public class AuthController {
   private final RoleRepository roleRepository;
   private final GoogleAuthService googleAuthService;
   private final AdminRepository adminRepository;
-    private final TenantRepository tenantRepository;
-    private final PermissionRepository permissionRepository;
-    private final DriverRepository driverRepository;
-    private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
+  private final TenantRepository tenantRepository;
+  private final PermissionRepository permissionRepository;
+  private final DriverRepository driverRepository;
+  private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
   private final ModelMapper mapper;
+  private final PeopleTenantRepository peopleTenantRepository;
 
   @Value("${GOOGLE_AUTH_CLIENT_ID}")
   private String googleClientId; // 👈 inject env variable here
   
   public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, GoogleAuthService googleAuthService,
-      PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository, DriverRepository driverRepository, UniqueCodeGeneratorService uniqueCodeGeneratorService) {
+      PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository, DriverRepository driverRepository, UniqueCodeGeneratorService uniqueCodeGeneratorService, PeopleTenantRepository peopleTenantRepository) {
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
     this.roleGroupRepository = roleGroupRepository;
@@ -85,6 +88,7 @@ public class AuthController {
     this.roleRepository = roleRepository;
         this.driverRepository = driverRepository;
         this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
+        this.peopleTenantRepository = peopleTenantRepository;
   }
 
   @PreAuthorize("permitAll()")
@@ -313,6 +317,32 @@ public class AuthController {
                     resolvedRole = roleRepository.findByName("USER")
                             .orElseThrow(() -> new RuntimeException("Default USER role not found"));
                 }
+
+                // ---------- finding Guest from Existing PassengerList/ PeopleTenant and create profile for them in UserAccount----------
+                user = new UserAccount();
+                final Role guestRole = resolvedRole;
+                if ("GUEST".equals(guestRole.getName())) {
+                    PeopleTenant peopleTenantOpt = peopleTenantRepository.findByEmail(email)
+                        .orElse(null); 
+                    if (peopleTenantOpt != null) {
+                       newUser = true;
+                       user.setUsername(requestedUsername != null ? requestedUsername : peopleTenantOpt.getName());
+                       user.setEmail(peopleTenantOpt.getEmail());
+                       user.setPhone(peopleTenantOpt.getPhone());
+                       user.setRole(guestRole);
+                       user.setLoginType(UserAccount.LoginType.GOOGLE);
+                       user.setTenant(peopleTenantOpt.getOrganisation());
+                       user.setProfilePicture(picture);
+                       user.setIsActive(true);
+                       user.setGoogleId(googleId);
+                       user.setDeviceId(null);
+                       userAccountRepository.saveAndFlush(user);
+                    } else {
+                        throw new RuntimeException("No matching guest profile found for email: " + email);
+                    }
+                }
+
+
 
                 // ---------- CREATE USER ----------
                 user = new UserAccount();

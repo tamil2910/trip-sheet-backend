@@ -52,4 +52,6 @@ public interface PeopleTenantRepository extends BaseRepository<PeopleTenant, UUI
       Pageable pageable
   );
 
+  Optional<PeopleTenant> findByEmail(String email);
+
 }
