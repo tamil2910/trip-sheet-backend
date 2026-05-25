@@ -282,6 +282,10 @@ public class AuthController {
             if (requestedFullName == null) {
                 requestedFullName = name;
             }
+            String requestedOrganisationId = normalizeString(payload.get("organisationId"));
+            if (requestedOrganisationId == null) {
+                requestedOrganisationId = normalizeString(payload.get("organizationId"));
+            }
 
             Optional<UserAccount> existingUserOpt = userAccountRepository.findByEmail(email);
             UserAccount user;
@@ -338,16 +342,38 @@ public class AuthController {
                        user.setDeviceId(null);
                        userAccountRepository.saveAndFlush(user);
                     } else {
+                        if (requestedOrganisationId == null) {
+                            throw new RuntimeException(
+                                "No matching guest profile found for email: " + email +
+                                " and organisationId was not provided in the request.");
+                        }
+
+                        Tenant organisation = tenantRepository.findById(UUID.fromString(requestedOrganisationId))
+                            .orElseThrow(() -> new RuntimeException("Organisation not found for ID: " + requestedOrganisationId));
+
                         PeopleTenant peopleTenant = new PeopleTenant();
                         peopleTenant.setEmail(email);
                         peopleTenant.setName(requestedFullName);
                         peopleTenant.setPhone(null);
-                        peopleTenant.setOrganisation(null);
+                        peopleTenant.setOrganisation(organisation);
                         peopleTenant.setTenantType(PeopleTenant.PeopleTenantType.WALKIN);
+                        peopleTenant.setPeopleType(PeopleTenant.PeopleType.PASSENGER);
                         peopleTenant.setGender(null);
-                        peopleTenant.setCreatorType(null);
+                        peopleTenant.setCreatorType(PeopleTenant.CreatorType.ORGANISATION);
                         peopleTenantRepository.saveAndFlush(peopleTenant);
-                        // throw new RuntimeException("No matching guest profile found for email: " + email);
+
+                        newUser = true;
+                        user.setUsername(requestedUsername != null ? requestedUsername : peopleTenant.getName());
+                        user.setEmail(peopleTenant.getEmail());
+                        user.setPhone(peopleTenant.getPhone());
+                        user.setRole(guestRole);
+                        user.setLoginType(UserAccount.LoginType.GOOGLE);
+                        user.setTenant(organisation);
+                        user.setProfilePicture(picture);
+                        user.setIsActive(true);
+                        user.setGoogleId(googleId);
+                        user.setDeviceId(null);
+                        userAccountRepository.saveAndFlush(user);
                     }
                 }
 
