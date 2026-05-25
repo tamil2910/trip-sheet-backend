@@ -338,7 +338,16 @@ public class AuthController {
                        user.setDeviceId(null);
                        userAccountRepository.saveAndFlush(user);
                     } else {
-                        throw new RuntimeException("No matching guest profile found for email: " + email);
+                        PeopleTenant peopleTenant = new PeopleTenant();
+                        peopleTenant.setEmail(email);
+                        peopleTenant.setName(requestedFullName);
+                        peopleTenant.setPhone(null);
+                        peopleTenant.setOrganisation(null);
+                        peopleTenant.setTenantType(PeopleTenant.PeopleTenantType.WALKIN);
+                        peopleTenant.setGender(null);
+                        peopleTenant.setCreatorType(null);
+                        peopleTenantRepository.saveAndFlush(peopleTenant);
+                        // throw new RuntimeException("No matching guest profile found for email: " + email);
                     }
                 }
 
