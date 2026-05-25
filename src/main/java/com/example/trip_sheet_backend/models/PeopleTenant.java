@@ -40,7 +40,7 @@ public class PeopleTenant extends BaseModel implements TenantScoped {
   }
 
   @ManyToOne
-  @JoinColumn(name = "organisation_id", nullable = false)
+  @JoinColumn(name = "organisation_id")
   private Tenant organisation;
 
   @ManyToMany
