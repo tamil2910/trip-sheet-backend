@@ -286,6 +286,7 @@ public class AuthController {
             if (requestedOrganisationId == null) {
                 requestedOrganisationId = normalizeString(payload.get("organizationId"));
             }
+            final String resolvedOrganisationId = requestedOrganisationId;
 
             Optional<UserAccount> existingUserOpt = userAccountRepository.findByEmail(email);
             UserAccount user;
@@ -342,14 +343,11 @@ public class AuthController {
                        user.setDeviceId(null);
                        userAccountRepository.saveAndFlush(user);
                     } else {
-                        if (requestedOrganisationId == null) {
-                            throw new RuntimeException(
-                                "No matching guest profile found for email: " + email +
-                                " and organisationId was not provided in the request.");
+                        Tenant organisation = null;
+                        if (resolvedOrganisationId != null) {
+                            organisation = tenantRepository.findById(UUID.fromString(resolvedOrganisationId))
+                                    .orElseThrow(() -> new RuntimeException("Organisation not found for ID: " + resolvedOrganisationId));
                         }
-
-                        Tenant organisation = tenantRepository.findById(UUID.fromString(requestedOrganisationId))
-                            .orElseThrow(() -> new RuntimeException("Organisation not found for ID: " + requestedOrganisationId));
 
                         PeopleTenant peopleTenant = new PeopleTenant();
                         peopleTenant.setEmail(email);
@@ -359,7 +357,7 @@ public class AuthController {
                         peopleTenant.setTenantType(PeopleTenant.PeopleTenantType.WALKIN);
                         peopleTenant.setPeopleType(PeopleTenant.PeopleType.PASSENGER);
                         peopleTenant.setGender(null);
-                        peopleTenant.setCreatorType(PeopleTenant.CreatorType.ORGANISATION);
+                        peopleTenant.setCreatorType(organisation != null ? PeopleTenant.CreatorType.ORGANISATION : null);
                         peopleTenantRepository.saveAndFlush(peopleTenant);
 
                         newUser = true;
