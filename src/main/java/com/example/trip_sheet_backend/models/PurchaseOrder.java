@@ -16,6 +16,9 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
 
 @Getter
 @Setter
@@ -53,6 +56,10 @@ public class PurchaseOrder extends BaseModel implements TenantScoped {
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "trip_summary_id")
   private TripSummary tripSummary;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "allocation_id")
+  private TripBillingAllocation allocation;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "tenant_id")
