@@ -355,7 +355,6 @@ public class AuthController {
                         peopleTenant.setPhone(null);
                         peopleTenant.setOrganisation(organisation);
                         peopleTenant.setTenantType(PeopleTenant.PeopleTenantType.WALKIN);
-                        peopleTenant.setPeopleType(PeopleTenant.PeopleType.PASSENGER);
                         peopleTenant.setGender(null);
                         peopleTenant.setCreatorType(organisation != null ? PeopleTenant.CreatorType.ORGANISATION : null);
                         peopleTenantRepository.saveAndFlush(peopleTenant);
