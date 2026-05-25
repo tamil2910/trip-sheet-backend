@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.controllers;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -288,7 +289,10 @@ public class AuthController {
             }
             final String resolvedOrganisationId = requestedOrganisationId;
 
-            Optional<UserAccount> existingUserOpt = userAccountRepository.findByEmail(email);
+                List<UserAccount> existingUsers = userAccountRepository.findAllByEmailOrderByCreatedAtDesc(email);
+                Optional<UserAccount> existingUserOpt = existingUsers.isEmpty()
+                    ? Optional.empty()
+                    : Optional.of(existingUsers.get(0));
             UserAccount user;
             Role resolvedRole = null;
 
@@ -326,9 +330,10 @@ public class AuthController {
                 // ---------- finding Guest from Existing PassengerList/ PeopleTenant and create profile for them in UserAccount----------
                 user = new UserAccount();
                 final Role guestRole = resolvedRole;
+                boolean guestUserHandled = false;
                 if ("GUEST".equals(guestRole.getName())) {
-                    PeopleTenant peopleTenantOpt = peopleTenantRepository.findByEmail(email)
-                        .orElse(null); 
+                    List<PeopleTenant> peopleTenants = peopleTenantRepository.findAllByEmailOrderByCreatedAtDesc(email);
+                    PeopleTenant peopleTenantOpt = peopleTenants.isEmpty() ? null : peopleTenants.get(0);
                     if (peopleTenantOpt != null) {
                        newUser = true;
                        user.setUsername(requestedUsername != null ? requestedUsername : peopleTenantOpt.getName());
@@ -342,6 +347,7 @@ public class AuthController {
                        user.setGoogleId(googleId);
                        user.setDeviceId(null);
                        userAccountRepository.saveAndFlush(user);
+                       guestUserHandled = true;
                     } else {
                         Tenant organisation = null;
                         if (resolvedOrganisationId != null) {
@@ -371,43 +377,46 @@ public class AuthController {
                         user.setGoogleId(googleId);
                         user.setDeviceId(null);
                         userAccountRepository.saveAndFlush(user);
+                        guestUserHandled = true;
                     }
                 }
 
 
 
                 // ---------- CREATE USER ----------
-                user = new UserAccount();
-                String baseName = (requestedUsername != null) ? requestedUsername : requestedFullName;
-                if (baseName == null || baseName.trim().isEmpty()) {
-                    baseName = email.split("@")[0];
-                }
+                if (!guestUserHandled) {
+                    user = new UserAccount();
+                    String baseName = (requestedUsername != null) ? requestedUsername : requestedFullName;
+                    if (baseName == null || baseName.trim().isEmpty()) {
+                        baseName = email.split("@")[0];
+                    }
 
-                user.setUsername(generateUniqueUsername(baseName));
-                user.setEmail(email);
-                user.setGoogleId(googleId);
-                user.setProfilePicture(picture);
-                user.setRole(resolvedRole);
-                user.setLoginType(UserAccount.LoginType.GOOGLE);
-                user.setTenant(null); // IMPORTANT
+                    user.setUsername(generateUniqueUsername(baseName));
+                    user.setEmail(email);
+                    user.setGoogleId(googleId);
+                    user.setProfilePicture(picture);
+                    user.setRole(resolvedRole);
+                    user.setLoginType(UserAccount.LoginType.GOOGLE);
+                    user.setTenant(null); // IMPORTANT
 
-                userAccountRepository.saveAndFlush(user);
-                newUser = true;
+                    userAccountRepository.saveAndFlush(user);
+                    newUser = true;
 
-                // ---------- 🔐 ADMIN PRE-TENANT ROLE GROUP ----------
-                if ("ADMIN".equals(resolvedRole.getName())) {
+                    // ---------- 🔐 ADMIN PRE-TENANT ROLE GROUP ----------
+                    if ("ADMIN".equals(resolvedRole.getName())) {
 
-                    RoleGroup preTenantGroup =
-                            roleGroupRepository.findByNameAndTenantIsNull("ADMIN_PRE_TENANT")
-                                    .orElseThrow(() ->
-                                            new RuntimeException("ADMIN_PRE_TENANT role group not found"));
+                        RoleGroup preTenantGroup =
+                                roleGroupRepository.findByNameAndTenantIsNull("ADMIN_PRE_TENANT")
+                                        .orElseThrow(() ->
+                                                new RuntimeException("ADMIN_PRE_TENANT role group not found"));
 
-                    user.getRoleGroups().add(preTenantGroup);
-                    userAccountRepository.save(user);
-                }
+                        user.getRoleGroups().add(preTenantGroup);
+                        userAccountRepository.save(user);
+                    }
 
-                if ("DRIVER".equalsIgnoreCase(resolvedRole.getName())) {
-                    attachDriverResources(user, requestedFullName);
+                    if ("DRIVER".equalsIgnoreCase(resolvedRole.getName())) {
+                        attachDriverResources(user, requestedFullName);
+                    }
                 }
 
             } 

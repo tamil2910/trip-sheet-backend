@@ -1,5 +1,6 @@
 package com.example.trip_sheet_backend.repositories;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -53,5 +54,6 @@ public interface PeopleTenantRepository extends BaseRepository<PeopleTenant, UUI
   );
 
   Optional<PeopleTenant> findByEmail(String email);
+  List<PeopleTenant> findAllByEmailOrderByCreatedAtDesc(String email);
 
 }
