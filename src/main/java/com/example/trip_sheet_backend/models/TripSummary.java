@@ -1,11 +1,16 @@
 package com.example.trip_sheet_backend.models;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
+import io.micrometer.common.lang.Nullable;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.validation.Valid;
@@ -71,6 +76,11 @@ public class TripSummary extends BaseModel implements TenantScoped {
   // Garage end coordinates
   private Double garageEndLat;
   private Double garageEndLng;
+
+  @OneToMany(fetch = FetchType.LAZY)
+  @JoinColumn(name = "trip_summary_id")
+  @Nullable
+  private List<TripCharges> tripCharges = new ArrayList<>();
 
   @Valid
   @ManyToOne(fetch = FetchType.LAZY)

@@ -36,7 +36,7 @@ public class TripCharges extends BaseModel implements TenantScoped {
     Toll, Parking, Other
   }
 
-  private String receipt;
+  private String receiptImageUrl;
   private Long amount;
   private String description;
 
