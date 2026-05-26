@@ -126,16 +126,29 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
 @Transactional(rollbackFor = Exception.class)
 public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID createdBy) {
   System.out.println("---- DEBUG TRIP CREATE ----");
-  Tenant organisation = tenantRepository.findById(
-          UUID.fromString(createTripDto.getOrganisationId()))
-      .orElseThrow(() -> new RuntimeException("Invalid organisation"));
 
-  DutyType dutyType = dutyTypeRepository.findById(
-          UUID.fromString(createTripDto.getDutyTypeId()))
+  Tenant organisation;
+  if (hasText(createTripDto.getOrganisationId())) {
+    organisation = tenantRepository.findById(UUID.fromString(createTripDto.getOrganisationId()))
+        .orElseThrow(() -> new RuntimeException("Invalid organisation"));
+  } else if (tenant != null && tenant.getTenantType() == Tenant.TenantType.ORGANISATION) {
+    organisation = tenant;
+  } else {
+    throw new RuntimeException("organisationId is required");
+  }
+
+  if (!hasText(createTripDto.getDutyTypeId())) {
+    throw new RuntimeException("dutyTypeId is required");
+  }
+
+  DutyType dutyType = dutyTypeRepository.findById(UUID.fromString(createTripDto.getDutyTypeId()))
       .orElseThrow(() -> new RuntimeException("Invalid duty type"));
 
-  VehicleType vehicleType = vehicleTypeRepository.findById(
-          UUID.fromString(createTripDto.getVehicleTypeId()))
+  if (!hasText(createTripDto.getVehicleTypeId())) {
+    throw new RuntimeException("vehicleTypeId is required");
+  }
+
+  VehicleType vehicleType = vehicleTypeRepository.findById(UUID.fromString(createTripDto.getVehicleTypeId()))
       .orElseThrow(() -> new RuntimeException("Invalid vehicle type"));
 
   Driver driver = null;
