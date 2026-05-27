@@ -1,14 +1,15 @@
 package com.example.trip_sheet_backend.repositories;
 
+import java.util.List;
+import java.util.UUID;
+
 import org.springframework.stereotype.Repository;
 
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.TripCharges;
 
-import java.util.Optional;
-import java.util.UUID;
-
 @Repository
 public interface TripChargesRepository extends BaseRepository<TripCharges, UUID> {
-  Optional<TripCharges> findByTripId_Id(UUID tripId);
+  List<TripCharges> findByTripId_Id(UUID tripId);
+  List<TripCharges> findByTripId_IdAndTenant_Id(UUID tripId, UUID tenantId);
 }
