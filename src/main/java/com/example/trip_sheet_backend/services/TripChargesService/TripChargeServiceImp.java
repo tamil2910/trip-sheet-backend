@@ -138,7 +138,7 @@ public class TripChargeServiceImp implements TripChargeService {
     }
 
     Tenant tenant = new Tenant();
-    if(user != null && "DRIVER".equals(user.getRole())) {
+    if(user != null && "DRIVER".equals(user.getRole().getName())) {
       Optional<Driver> driver = driverRepository.findByAccount_Id(user.getId());
       // .orElseThrow(() -> new RuntimeException("Driver not found for the user"));
 
