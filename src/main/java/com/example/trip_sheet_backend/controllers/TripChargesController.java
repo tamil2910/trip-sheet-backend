@@ -76,7 +76,7 @@ public class TripChargesController extends BaseController<TripCharges, UUID> {
   }
 
   @GetMapping("/trip/{tripId}")
-  public ResponseEntity<ApiResponse<List<TripChargeResponseDto>>> getChargesOfTrip(@RequestParam UUID tripId, HttpServletRequest request) {
+  public ResponseEntity<ApiResponse<List<TripChargeResponseDto>>> getChargesOfTrip(@PathVariable UUID tripId, HttpServletRequest request) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
     List<TripCharges> tripCharges = tripChargeService.getTripChargesByTripId(tenantId, tripId);
     List<TripChargeResponseDto> response = tripCharges.stream()
