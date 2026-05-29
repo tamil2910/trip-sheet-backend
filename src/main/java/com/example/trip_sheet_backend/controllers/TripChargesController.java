@@ -15,7 +15,7 @@ import com.example.trip_sheet_backend.dtos.TripChargesDtos.TripChargesBulkCreate
 import com.example.trip_sheet_backend.dtos.TripChargesDtos.TripChargesUpdateRequestDto;
 import com.example.trip_sheet_backend.models.TripCharges;
 import com.example.trip_sheet_backend.models.UserAccount;
-import com.example.trip_sheet_backend.services.TripChargesService.TripChargeServiceImp;
+import com.example.trip_sheet_backend.services.TripChargesService.TripChargeService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,12 +33,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/trip-charges")
-public class TripChargesController extends BaseController<TripCharges, UUID> {
-  private final TripChargeServiceImp tripChargeService;
+public class TripChargesController {
+  private final TripChargeService tripChargeService;
   private final ObjectMapper objectMapper;
 
-  public TripChargesController(TripChargeServiceImp tripChargeService, ObjectMapper objectMapper) {
-    super(tripChargeService);
+  public TripChargesController(TripChargeService tripChargeService, ObjectMapper objectMapper) {
     this.tripChargeService = tripChargeService;
     this.objectMapper = objectMapper;
   }
@@ -67,11 +66,9 @@ public class TripChargesController extends BaseController<TripCharges, UUID> {
   public ResponseEntity<ApiResponse<TripChargeResponseDto>> updateTripCharge(@PathVariable UUID id, @RequestBody TripChargesUpdateRequestDto payload, HttpServletRequest request) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
     UUID userId = (UUID) request.getAttribute("userId");
+    UserAccount user = request.getAttribute("user") != null ? (UserAccount) request.getAttribute("user") : null;
 
-    TripCharges tripCharges = objectMapper.convertValue(payload, TripCharges.class);
-    tripCharges.setUpdatedBy(userId.toString());
-
-    TripCharges updatedTripCharge = tripChargeService.updateResource(tenantId, id, tripCharges);
+    TripCharges updatedTripCharge = tripChargeService.updateTripCharge(tenantId, id, payload, user);
     return ResponseEntity.ok(new ApiResponse<>(true, "Trip charge updated successfully", TripChargeResponseDto.fromEntity(updatedTripCharge)));
   }
 
@@ -86,9 +83,9 @@ public class TripChargesController extends BaseController<TripCharges, UUID> {
   }
 
   @DeleteMapping("/{tripChargeId}")
-  public ResponseEntity<ApiResponse<Void>> deleteTripCharge(@RequestParam UUID tripChargeId, HttpServletRequest request) {
+  public ResponseEntity<ApiResponse<Void>> deleteTripCharge(@PathVariable UUID tripChargeId, HttpServletRequest request) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
-    tripChargeService.deleteResource(tenantId, tripChargeId);
+    tripChargeService.deleteTripCharge(tenantId, tripChargeId);
     return ResponseEntity.ok(new ApiResponse<>(true, "Trip charge deleted successfully", null));
   }
   

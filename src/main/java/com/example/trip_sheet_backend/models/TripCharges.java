@@ -27,7 +27,7 @@ public class TripCharges extends BaseModel implements TenantScoped {
   @NotNull(message = "Trip id is required")
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "trip_id")
-  private Trip tripId;
+  private Trip trip;
 
   @Enumerated(EnumType.STRING)
   private chargeType type;

@@ -41,6 +41,7 @@ import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.TripService.TripServiceImp;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.transaction.annotation.Transactional;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 
@@ -79,7 +80,7 @@ public class TripController {
 
   @PreAuthorize("hasAuthority('CAN_CREATE_TRIP')")
   @PostMapping("/bulk-create")
-  @org.springframework.transaction.annotation.Transactional
+  @Transactional
   public ResponseEntity<ApiResponse<List<TripResponseDTO>>> createBulkTrips(
       HttpServletRequest request,
       @Valid @RequestBody List<TripCreateRequestDTO> createTripDtos
@@ -101,8 +102,7 @@ public class TripController {
 
   @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
   @GetMapping("/{id}")
-  @org.springframework.transaction.annotation.Transactional(readOnly = true)
-  @SuppressWarnings({ "rawtypes", "unchecked" })
+  @Transactional(readOnly = true)
   public ApiResponse<Trip> getById(
       @PathVariable @NotNull UUID id,
       HttpServletRequest request
@@ -120,7 +120,7 @@ public class TripController {
 
   @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
   @GetMapping
-  @org.springframework.transaction.annotation.Transactional(readOnly = true)
+  @Transactional(readOnly = true)
   public ApiResponse<Map<String, Object>> getAll(@RequestParam Map<String, Object> filters,
     Pageable pageable,
     HttpServletRequest request) {
@@ -225,9 +225,8 @@ public class TripController {
 
   @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
   @PutMapping("/{id}")
-  @org.springframework.transaction.annotation.Transactional
-  @SuppressWarnings({ "rawtypes", "unchecked" })
-  public ApiResponse<Trip> update(
+  @Transactional
+  public ResponseEntity<ApiResponse<Trip>> update(
       @PathVariable @NotNull UUID id,
       @Valid @RequestBody TripUpdateRequestDTO payload,
       HttpServletRequest request
@@ -238,28 +237,28 @@ public class TripController {
 
     Trip existingTrip = tripServiceImp.findByIdResource(tenantId, id);
     if (existingTrip == null || Boolean.TRUE.equals(existingTrip.getIsDeleted())) {
-      return new ApiResponse<>(false, "Trip not found", null);
+      return ResponseEntity.status(404).body(new ApiResponse<>(false, "Trip not found", null));
     }
 
     Trip updatedTrip = tripServiceImp.updateTrip(tenantId, tokenTenant, id, payload, updatedBy);
 
     if (updatedTrip == null) {
-      return new ApiResponse<>(false, "Trip updation failed", null);
+      return ResponseEntity.status(400).body(new ApiResponse<>(false, "Trip updation failed", null));
     }
 
     TripResponseDTO response = TripResponseMapper.toDTO(updatedTrip);
-    return (ApiResponse<Trip>) (ApiResponse) new ApiResponse<>(true, "Trip updated successfully!", response);
+    return ResponseEntity.ok(new ApiResponse<>(true, "Trip updated successfully!", response));
   }
 
   @PreAuthorize("hasAuthority('CAN_DELETE_TRIP')")
   @DeleteMapping("/{id}")
-  public ApiResponse<Void> delete(@PathVariable @NotNull UUID id, HttpServletRequest request) {
+  public ResponseEntity<ApiResponse<Void>> delete(@PathVariable @NotNull UUID id, HttpServletRequest request) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
     UUID deletedBy = (UUID) request.getAttribute("createdBy");
 
     Trip trip = tripServiceImp.findByIdResource(tenantId, id);
     if (trip == null || Boolean.TRUE.equals(trip.getIsDeleted())) {
-      return new ApiResponse<>(false, "Trip not found", null);
+      return ResponseEntity.status(404).body(new ApiResponse<>(false, "Trip not found", null));
     }
 
     trip.setIsDeleted(true);
@@ -269,13 +268,13 @@ public class TripController {
     }
 
     tripServiceImp.updateResource(tenantId, id, trip);
-    return new ApiResponse<>(true, "Trip deleted successfully!", null);
+    return ResponseEntity.ok(new ApiResponse<>(true, "Trip deleted successfully!", null));
   }
 
   @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
   @GetMapping("/parent-child-trips/{id}")
-  @SuppressWarnings({ "rawtypes", "unchecked" })
-  public ApiResponse<List<TripResponseDTO>> getParentAndChildTrips(
+  
+  public ResponseEntity<ApiResponse<List<TripResponseDTO>>> getParentAndChildTrips(
       @PathVariable @NotNull UUID id,
       HttpServletRequest request
   ) {
@@ -286,11 +285,11 @@ public class TripController {
         .map(TripResponseMapper::toDTO)
         .toList();
 
-    return (ApiResponse<List<TripResponseDTO>>) (ApiResponse) new ApiResponse<>(
+    return ResponseEntity.ok(new ApiResponse<>(
         true,
         "Parent and child trips fetched successfully!",
         response
-    );
+    ));
   }
 
   @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")

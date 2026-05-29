@@ -29,7 +29,7 @@ public class TripChargeResponseDto {
 
     return new TripChargeResponseDto(
         tripCharge.getId(),
-        tripCharge.getTripId() != null ? tripCharge.getTripId().getId() : null,
+        tripCharge.getTrip() != null ? tripCharge.getTrip().getId() : null,
         tripCharge.getType() != null ? tripCharge.getType().name() : null,
         tripCharge.getReceiptImageUrl(),
         tripCharge.getAmount(),
