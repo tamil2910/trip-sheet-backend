@@ -20,8 +20,10 @@ import com.example.trip_sheet_backend.common.controllers.BaseController;
 // import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.CreatePeopleRequestDto;
 import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.UpdatePeopleTenantRequestDto;
+import com.example.trip_sheet_backend.dtos.TripChargesDtos.UpdatePhoneRequestDto;
 import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.PeopleTenant.CreatorType;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -228,6 +230,27 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
       HttpServletRequest request
   ) {
     throw new RuntimeException("Direct update not supported. Please use PUT /people-tenant/update/" + id);
+  }
+
+  @PutMapping("/update-phone/{id}")
+  public ResponseEntity<ApiResponse<PeopleTenant>> updatePhone(
+      @PathVariable UUID id,
+      @Valid @RequestBody UpdatePhoneRequestDto body,
+      HttpServletRequest request
+  ) {
+
+    UUID createdBy = (UUID) request.getAttribute("createdBy");
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    UserAccount user = request.getAttribute("user") != null ? (UserAccount) request.getAttribute("user") : null;
+
+    if (tenant == null) {
+      throw new RuntimeException("Tenant not found in token");
+    }
+    PeopleTenant updated = peopleTenantServiceImp.updatePhone(id, body.getPhone(), tenant.getId(), user);
+
+    return ResponseEntity.ok(
+        new ApiResponse<>(true, "Person phone updated successfully", updated)
+    );
   }
 
 }

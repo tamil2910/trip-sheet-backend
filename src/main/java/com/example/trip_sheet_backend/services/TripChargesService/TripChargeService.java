@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -128,21 +129,25 @@ public class TripChargeService {
     TripCharges existingTripCharge = tripChargesRepository.findById(id).orElseThrow(
       () -> new RuntimeException("TripCharge resource can not be found!"));
 
-    if(payload.getAmount() != null) {
-      existingTripCharge.setAmount(payload.getAmount());
-    }
+    // if(payload.getAmount() != null) {
+    //   existingTripCharge.setAmount(payload.getAmount());
+    // }
 
-    if(payload.getDescription() != null) {
-      existingTripCharge.setDescription(payload.getDescription());
-    }
+    // if(payload.getDescription() != null) {
+    //   existingTripCharge.setDescription(payload.getDescription());
+    // }
 
-    if(payload.getReceiptImageUrl() != null) {
-      existingTripCharge.setReceiptImageUrl(payload.getReceiptImageUrl());
-    }
+    // if(payload.getReceiptImageUrl() != null) {
+    //   existingTripCharge.setReceiptImageUrl(payload.getReceiptImageUrl());
+    // }
 
-    if (payload.getType() != null) {
-      existingTripCharge.setType(parseChargeType(payload.getType()));
-    }
+    // if (payload.getType() != null) {
+    //   existingTripCharge.setType(parseChargeType(payload.getType()));
+    // }
+
+    ModelMapper mapper = new ModelMapper();
+    mapper.getConfiguration().setSkipNullEnabled(true); // only maps non-null fields from payload to existingTripCharge
+    mapper.map(payload, existingTripCharge);
 
     existingTripCharge.setTrip(trip);
 

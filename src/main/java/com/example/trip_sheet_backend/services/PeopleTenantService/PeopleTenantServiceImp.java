@@ -13,8 +13,11 @@ import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.PeopleTenant.CreatorType;
 import com.example.trip_sheet_backend.models.Tenant.TenantType;
+import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
+
+import jakarta.transaction.Transactional;
 
 @Service
 public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> implements PeopleTenantService {
@@ -102,6 +105,22 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
     person.setAdditionalContact(additionalContact);
     person.setEmergencyContact(emergencyContact);
 
+    return repository.save(person);
+  }
+
+  @Transactional(rollbackOn = Exception.class)
+  public PeopleTenant updatePhone(UUID id, String Phone, UUID tenantId, UserAccount user) {
+    PeopleTenant person = repository.findById(id)
+        .orElseThrow(() -> new RuntimeException("Person not found"));
+
+    if (user == null) {
+      throw new RuntimeException("User not found in token");
+    }
+
+    if(user.getEmail() != person.getEmail()) {
+      throw new RuntimeException("Authorized user can only update their own phone number");
+    }
+    person.setPhone(Phone);
     return repository.save(person);
   }
 

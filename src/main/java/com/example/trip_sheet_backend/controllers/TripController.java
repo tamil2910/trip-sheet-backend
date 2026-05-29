@@ -103,7 +103,7 @@ public class TripController {
   @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
   @GetMapping("/{id}")
   @Transactional(readOnly = true)
-  public ApiResponse<Trip> getById(
+  public ResponseEntity<ApiResponse<TripResponseDTO>> getById(
       @PathVariable @NotNull UUID id,
       HttpServletRequest request
   ) {
@@ -111,17 +111,19 @@ public class TripController {
 
     Trip trip = tripServiceImp.findByIdResource(tenantId, id);
     if (trip == null || Boolean.TRUE.equals(trip.getIsDeleted())) {
-      return new ApiResponse<>(false, "Trip not found", null);
+      return ResponseEntity.ok(new ApiResponse<>(false, "Trip not found", null));
     }
 
     TripResponseDTO response = TripResponseMapper.toDTO(trip);
-    return (ApiResponse<Trip>) (ApiResponse) new ApiResponse<>(true, "Trip fetched successfully!", response);
+    // return (ApiResponse<Trip>) (ApiResponse) new ApiResponse<>(true, "Trip fetched successfully!", response);
+    return ResponseEntity.ok(new ApiResponse<>(true, "Trip fetched successfully!", response));
+
   }
 
   @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
   @GetMapping
   @Transactional(readOnly = true)
-  public ApiResponse<Map<String, Object>> getAll(@RequestParam Map<String, Object> filters,
+  public ResponseEntity<ApiResponse<Map<String, Object>>> getAll(@RequestParam Map<String, Object> filters,
     Pageable pageable,
     HttpServletRequest request) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
@@ -179,7 +181,7 @@ public class TripController {
     response.put("page", page);
     response.put("size", size);
 
-    return new ApiResponse<>(true, "Trips fetched successfully!", response);
+    return ResponseEntity.ok(new ApiResponse<>(true, "Trips fetched successfully!", response));
   }
 
   private Integer parseInt(Object value, Integer defaultValue) {
@@ -226,7 +228,7 @@ public class TripController {
   @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
   @PutMapping("/{id}")
   @Transactional
-  public ResponseEntity<ApiResponse<Trip>> update(
+  public ResponseEntity<ApiResponse<TripResponseDTO>> update(
       @PathVariable @NotNull UUID id,
       @Valid @RequestBody TripUpdateRequestDTO payload,
       HttpServletRequest request
