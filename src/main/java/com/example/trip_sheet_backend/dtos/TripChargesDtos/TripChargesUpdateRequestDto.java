@@ -12,7 +12,7 @@ import lombok.Setter;
 @AllArgsConstructor
 @NoArgsConstructor
 public class TripChargesUpdateRequestDto {
-  private String tripId;
+  // private String tripId;
 
   private String type;
   private String receiptImageUrl;

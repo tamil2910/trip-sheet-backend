@@ -117,15 +117,6 @@ public class TripChargeService {
       throw new RuntimeException("No Tenant Found for this user");
     }
 
-    if (payload.getTripId() == null) {
-      throw new RuntimeException("Trip id is missing in the request!");
-    }
-
-    UUID tripId = UUID.fromString(payload.getTripId());
-
-    Trip trip = tripRepository.findById(tripId)
-        .orElseThrow(() -> new RuntimeException("Trip not found"));
-
     TripCharges existingTripCharge = tripChargesRepository.findById(id).orElseThrow(
       () -> new RuntimeException("TripCharge resource can not be found!"));
 
@@ -149,7 +140,7 @@ public class TripChargeService {
     mapper.getConfiguration().setSkipNullEnabled(true); // only maps non-null fields from payload to existingTripCharge
     mapper.map(payload, existingTripCharge);
 
-    existingTripCharge.setTrip(trip);
+    // existingTripCharge.setTrip(trip);
 
     return tripChargesRepository.saveAndFlush(existingTripCharge);
   }
