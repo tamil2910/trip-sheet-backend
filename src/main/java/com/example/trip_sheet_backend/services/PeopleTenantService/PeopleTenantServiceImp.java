@@ -109,7 +109,7 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
   }
 
   @Transactional(rollbackOn = Exception.class)
-  public PeopleTenant updatePhone(UUID id, String Phone, UUID tenantId, UserAccount user) {
+  public PeopleTenant updatePhone(UUID id, String Phone, UserAccount user) {
     PeopleTenant person = repository.findById(id)
         .orElseThrow(() -> new RuntimeException("Person not found"));
 

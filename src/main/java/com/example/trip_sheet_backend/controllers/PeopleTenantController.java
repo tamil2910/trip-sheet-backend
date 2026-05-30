@@ -240,10 +240,9 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
   ) {
 
     UUID createdBy = (UUID) request.getAttribute("createdBy");
-    Tenant tenant = (Tenant) request.getAttribute("tenant");
     UserAccount user = request.getAttribute("user") != null ? (UserAccount) request.getAttribute("user") : null;
 
-    PeopleTenant updated = peopleTenantServiceImp.updatePhone(id, body.getPhone(), tenant.getId(), user);
+    PeopleTenant updated = peopleTenantServiceImp.updatePhone(id, body.getPhone(), user);
 
     return ResponseEntity.ok(
         new ApiResponse<>(true, "Person phone updated successfully", updated)
