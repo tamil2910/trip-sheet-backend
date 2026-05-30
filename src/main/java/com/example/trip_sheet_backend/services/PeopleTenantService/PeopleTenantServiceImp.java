@@ -109,19 +109,16 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
   }
 
   @Transactional(rollbackOn = Exception.class)
-  public PeopleTenant updatePhone(UUID id, String Phone, UserAccount user) {
-    PeopleTenant person = repository.findById(id)
-        .orElseThrow(() -> new RuntimeException("Person not found"));
-
+  public PeopleTenant updatePhone(String Phone, UserAccount user) {
+    
     if (user == null) {
       throw new RuntimeException("User not found in token");
     }
 
-    if(user.getEmail() != person.getEmail()) {
-      throw new RuntimeException("Authorized user can only update their own phone number");
-    }
+    PeopleTenant person = repository.findByEmail(user.getEmail()).orElseThrow(() -> new RuntimeException("Person not found"));
+
     person.setPhone(Phone);
-    return repository.save(person);
+    return repository.saveAndFlush(person);
   }
 
 }

@@ -232,9 +232,8 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
     throw new RuntimeException("Direct update not supported. Please use PUT /people-tenant/update/" + id);
   }
 
-  @PutMapping("/update-phone/{id}")
+  @PutMapping("/update-phone")
   public ResponseEntity<ApiResponse<PeopleTenant>> updatePhone(
-      @PathVariable UUID id,
       @Valid @RequestBody UpdatePhoneRequestDto body,
       HttpServletRequest request
   ) {
@@ -242,7 +241,7 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
     UUID createdBy = (UUID) request.getAttribute("createdBy");
     UserAccount user = request.getAttribute("user") != null ? (UserAccount) request.getAttribute("user") : null;
 
-    PeopleTenant updated = peopleTenantServiceImp.updatePhone(id, body.getPhone(), user);
+    PeopleTenant updated = peopleTenantServiceImp.updatePhone(body.getPhone(), user);
 
     return ResponseEntity.ok(
         new ApiResponse<>(true, "Person phone updated successfully", updated)
