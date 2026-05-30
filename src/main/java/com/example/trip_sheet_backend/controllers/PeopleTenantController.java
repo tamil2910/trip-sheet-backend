@@ -243,9 +243,6 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
     Tenant tenant = (Tenant) request.getAttribute("tenant");
     UserAccount user = request.getAttribute("user") != null ? (UserAccount) request.getAttribute("user") : null;
 
-    if (tenant == null) {
-      throw new RuntimeException("Tenant not found in token");
-    }
     PeopleTenant updated = peopleTenantServiceImp.updatePhone(id, body.getPhone(), tenant.getId(), user);
 
     return ResponseEntity.ok(
