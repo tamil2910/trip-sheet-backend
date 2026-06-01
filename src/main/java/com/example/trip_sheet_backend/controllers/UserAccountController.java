@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -22,6 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.common.controllers.BaseController;
 import com.example.trip_sheet_backend.dtos.RoleGroupDtos.AssignRoleGroupDto;
 import com.example.trip_sheet_backend.dtos.UserAccountDtos.UserAccountByFormDto;
+import com.example.trip_sheet_backend.dtos.UserAccountDtos.UserAccountResponseDto;
+import com.example.trip_sheet_backend.dtos.UserAccountDtos.UserAccountUpdateRequestDto;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.UserAccount;
@@ -210,6 +213,63 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     }
 
     return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", data));
+  }
+  
+  @PutMapping("update/my-profile/{id}")
+  // @PreAuthorize("hasAuthority('CAN_UPDATE_USERACCOUNT') or hasRole('SUPER_ADMIN')")
+  public ResponseEntity<ApiResponse<UserAccountResponseDto>> updateMyProfile(
+    @PathVariable UUID id,
+    @Valid @RequestBody UserAccountUpdateRequestDto body,
+    HttpServletRequest request
+  ) {
+    UserAccount user = request.getAttribute("user") == null ? null : (UserAccount) request.getAttribute("user");
+    if (user == null || !user.getId().equals(id)) {
+      throw new RuntimeException("Unauthorized to update this profile");
+    }
+
+    UserAccount existingUser = userAccountRepository.findById(id)
+      .orElseThrow(() -> new RuntimeException("User not found!"));
+
+    if (body.getEmail() != null
+      && !body.getEmail().equalsIgnoreCase(existingUser.getEmail())
+      && userAccountRepository.existsByEmail(body.getEmail())) {
+      throw new RuntimeException("Email already exists");
+    }
+
+    if (body.getPhone() != null
+      && !body.getPhone().equals(existingUser.getPhone())
+      && userAccountRepository.existsByPhone(body.getPhone())) {
+      throw new RuntimeException("Phone already exists");
+    }
+
+    if (body.getUsername() != null) {
+      existingUser.setUsername(body.getUsername());
+    }
+
+    if (body.getEmail() != null) {
+      existingUser.setEmail(body.getEmail());
+    }
+
+    if (body.getPhone() != null) {
+      existingUser.setPhone(body.getPhone());
+    }
+
+    if (body.getLoginType() != null) {
+      existingUser.setLoginType(body.getLoginType());
+    }
+
+    if (body.getProfilePicture() != null) {
+      existingUser.setProfilePicture(body.getProfilePicture());
+    }
+
+    existingUser.setUpdatedBy(user.getId().toString());
+
+    UserAccount savedUser = userAccountRepository.saveAndFlush(existingUser);
+
+    UserAccountResponseDto responseDto = mapper.map(savedUser, UserAccountResponseDto.class);
+
+    return ResponseEntity.ok().body(new ApiResponse<>(true, "Profile updated successfully!", responseDto));
+
   }
   
 }
