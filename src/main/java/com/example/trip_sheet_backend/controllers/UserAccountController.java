@@ -215,7 +215,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", data));
   }
   
-  @PutMapping("update/my-profile/{id}")
+  @PutMapping({"/update/my-profile/{id}", "/update-my-profile/{id}", "/my-profile/{id}"})
   // @PreAuthorize("hasAuthority('CAN_UPDATE_USERACCOUNT') or hasRole('SUPER_ADMIN')")
   public ResponseEntity<ApiResponse<UserAccountResponseDto>> updateMyProfile(
     @PathVariable UUID id,
