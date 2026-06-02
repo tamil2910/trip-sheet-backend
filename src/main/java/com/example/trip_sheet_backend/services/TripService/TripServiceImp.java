@@ -93,6 +93,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final VendorDelegationHistoryRepository vendorDelegationHistoryRepository;
     private final TripFeedbackService tripFeedbackService;
     private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
+    private final TripRealtimePublisher tripRealtimePublisher;
 
     private final ModelMapper mapper;
 
@@ -103,7 +104,8 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
       DispatchCenterRepository dispatchCenterRepository, TripSummaryRepository tripSummaryRepository,
       DriverTenantMappingRepository driverTenantMappingRepository,
       VendorDelegationHistoryRepository vendorDelegationHistoryRepository,
-      TripFeedbackService tripFeedbackService, UniqueCodeGeneratorService uniqueCodeGeneratorService) {
+      TripFeedbackService tripFeedbackService, UniqueCodeGeneratorService uniqueCodeGeneratorService,
+      TripRealtimePublisher tripRealtimePublisher) {
     super(repository);
     this.repository = repository;
     this.tenantRepository = tenantRepository;
@@ -120,6 +122,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     this.vendorDelegationHistoryRepository = vendorDelegationHistoryRepository;
     this.tripFeedbackService = tripFeedbackService;
     this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
+    this.tripRealtimePublisher = tripRealtimePublisher;
   }
 
 @Override
@@ -313,7 +316,9 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
     return createRecurringTrips(trip);
   }
 
-  return repository.save(trip);
+  Trip savedTrip = repository.save(trip);
+  tripRealtimePublisher.publishCreated(savedTrip);
+  return savedTrip;
 }
 
 @Override
@@ -337,6 +342,7 @@ public List<Trip> createBulkTrips(List<TripCreateRequestDTO> createTripDtos, Ten
 
     createdTrip.setParentTrip(firstCreatedTrip);
     Trip updatedTrip = repository.save(createdTrip);
+    tripRealtimePublisher.publishUpdated(updatedTrip);
     createdTrips.add(updatedTrip);
   }
 
@@ -428,7 +434,9 @@ public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdat
     return updateParentSeriesTrip(trip, existingSeriesTrips, updateDto, updatedBy);
   }
 
-  return repository.save(trip);
+  Trip savedTrip = repository.save(trip);
+  tripRealtimePublisher.publishUpdated(savedTrip);
+  return savedTrip;
 }
 
 @Override
@@ -482,6 +490,7 @@ public Trip assignTripToPartnerVendor(
     history.setUpdatedBy(updatedBy.toString());
   }
   vendorDelegationHistoryRepository.save(history);
+  tripRealtimePublisher.publishUpdated(savedTrip);
 
   return savedTrip;
 }
@@ -518,7 +527,9 @@ public Trip assignVendorToTrip(
     trip.setUpdatedBy(updatedBy.toString());
   }
 
-  return repository.save(trip);
+  Trip savedTrip = repository.save(trip);
+  tripRealtimePublisher.publishUpdated(savedTrip);
+  return savedTrip;
 }
 
 @Override
@@ -571,7 +582,19 @@ public Trip splitChildTrip(UUID tenantId, UUID tripId) {
   }
 
   trip.setParentTrip(null);
-  return repository.save(trip);
+  Trip savedTrip = repository.save(trip);
+  tripRealtimePublisher.publishUpdated(savedTrip);
+  return savedTrip;
+}
+
+@Override
+@Transactional(rollbackFor = Exception.class)
+public Trip deleteTrip(UUID tenantId, UUID tripId, UUID deletedBy) {
+  Trip trip = findTripForTenant(tenantId, tripId);
+  softDeleteTrip(trip, deletedBy);
+  Trip deletedTrip = repository.save(trip);
+  tripRealtimePublisher.publishDeleted(deletedTrip);
+  return deletedTrip;
 }
 
 @Override
@@ -886,6 +909,7 @@ private Trip createMultiDayTrips(Trip templateTrip) {
       repository::existsByTripCode));
 
     Trip savedTrip = repository.save(dailyTrip);
+    tripRealtimePublisher.publishCreated(savedTrip);
     if (firstTrip == null) {
       firstTrip = savedTrip;
       seriesParentTrip = savedTrip;
@@ -940,6 +964,7 @@ private Trip createRecurringTrips(Trip templateTrip) {
         repository::existsByTripCode));
 
       Trip savedTrip = repository.save(recurringTrip);
+      tripRealtimePublisher.publishCreated(savedTrip);
       if (firstTrip == null) {
         firstTrip = savedTrip;
         seriesParentTrip = savedTrip;
@@ -968,6 +993,7 @@ private Trip createRecurringTrips(Trip templateTrip) {
       recurringTrip.setTripCode(uniqueCodeGeneratorService.generateUniqueNumericCode(8,
         repository::existsByTripCode));
       Trip savedTrip = repository.save(recurringTrip);
+      tripRealtimePublisher.publishCreated(savedTrip);
       if (firstTrip == null) {
         firstTrip = savedTrip;
         seriesParentTrip = savedTrip;
@@ -1028,6 +1054,7 @@ private Trip updateParentSeriesTrip(
   newRoot.setDeletedAt(null);
   newRoot.setDeletedBy(null);
   Trip savedRoot = repository.save(newRoot);
+  tripRealtimePublisher.publishUpdated(savedRoot);
 
   for (Trip scheduledTrip : scheduledTrips.values()) {
     if (scheduledTrip == savedRoot) {
@@ -1037,12 +1064,14 @@ private Trip updateParentSeriesTrip(
     scheduledTrip.setIsDeleted(false);
     scheduledTrip.setDeletedAt(null);
     scheduledTrip.setDeletedBy(null);
-    repository.save(scheduledTrip);
+    Trip savedScheduledTrip = repository.save(scheduledTrip);
+    tripRealtimePublisher.publishUpdated(savedScheduledTrip);
   }
 
   for (Trip obsoleteTrip : existingByDate.values()) {
     softDeleteTrip(obsoleteTrip, updatedBy);
-    repository.save(obsoleteTrip);
+    Trip deletedTrip = repository.save(obsoleteTrip);
+    tripRealtimePublisher.publishDeleted(deletedTrip);
   }
 
   return savedRoot;
@@ -1577,7 +1606,9 @@ public Trip dispatchTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount use
   tripSummaryRepository.save(summary);
 
   trip.setTripStatus(Trip.TripStatus.DISPATCHED);
-  return repository.save(trip);
+  Trip savedTrip = repository.save(trip);
+  tripRealtimePublisher.publishUpdated(savedTrip);
+  return savedTrip;
 }
 
 @Override
@@ -1593,7 +1624,9 @@ public Trip arrivedTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user
   tripSummaryRepository.save(summary);
 
   trip.setTripStatus(Trip.TripStatus.ARRIVED);
-  return repository.save(trip);
+  Trip savedTrip = repository.save(trip);
+  tripRealtimePublisher.publishUpdated(savedTrip);
+  return savedTrip;
 }
 
 @Override
@@ -1615,7 +1648,9 @@ public Trip startTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, 
   tripSummaryRepository.save(summary);
 
   trip.setTripStatus(Trip.TripStatus.STARTED);
-  return repository.save(trip);
+  Trip savedTrip = repository.save(trip);
+  tripRealtimePublisher.publishUpdated(savedTrip);
+  return savedTrip;
 }
 
 @Override
@@ -1641,6 +1676,7 @@ public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, U
 
   trip.setTripStatus(Trip.TripStatus.COMPLETED);
   Trip completedTrip = repository.save(trip);
+  tripRealtimePublisher.publishUpdated(completedTrip);
   tripFeedbackService.sendFeedbackRequestsForTrip(completedTrip);
   return completedTrip;
 }
@@ -1815,7 +1851,9 @@ public Trip allotDriverVehicle(Tenant tokenTenant, UUID tokenTenantId, UserAccou
      trip.setVehicle(vehicle);
      trip.setDispatchCenter(dispatchCenter);
      trip.setTripStatus(Trip.TripStatus.ALLOTTED);
-     return repository.save(trip);
+     Trip savedTrip = repository.save(trip);
+     tripRealtimePublisher.publishUpdated(savedTrip);
+     return savedTrip;
 
 }
 
@@ -1832,7 +1870,9 @@ public Trip confirmTrip(Tenant tokenTenant, UUID tripId, UUID updatedBy){
   
   trip.setUpdatedBy(updatedBy.toString());
   trip.setTripStatus(Trip.TripStatus.CONFIRMED);
-  return repository.save(trip);
+  Trip savedTrip = repository.save(trip);
+  tripRealtimePublisher.publishUpdated(savedTrip);
+  return savedTrip;
 }
 
 }

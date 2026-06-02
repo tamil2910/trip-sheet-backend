@@ -51,6 +51,8 @@ public interface TripService extends BaseService<Trip, UUID> {
       TripOrganisationVendorAssignRequestDTO payload,
       UUID updatedBy
   );
+
+  Trip deleteTrip(UUID tenantId, UUID tripId, UUID deletedBy);
   
   Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, String globalSearch, Pageable pageable);
   Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Object> filters, List<String> globalSearchTerms, Pageable pageable);

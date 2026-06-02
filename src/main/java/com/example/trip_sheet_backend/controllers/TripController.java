@@ -263,13 +263,7 @@ public class TripController {
       return ResponseEntity.status(404).body(new ApiResponse<>(false, "Trip not found", null));
     }
 
-    trip.setIsDeleted(true);
-    trip.setDeletedAt(Instant.now().toEpochMilli());
-    if (deletedBy != null) {
-      trip.setDeletedBy(deletedBy.toString());
-    }
-
-    tripServiceImp.updateResource(tenantId, id, trip);
+    tripServiceImp.deleteTrip(tenantId, id, deletedBy);
     return ResponseEntity.ok(new ApiResponse<>(true, "Trip deleted successfully!", null));
   }
 
