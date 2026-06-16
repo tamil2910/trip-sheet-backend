@@ -3,6 +3,7 @@ package com.example.trip_sheet_backend.controllers;
 import java.util.UUID;
 import java.util.Map;
 import java.util.List;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import java.time.Instant;
 
 import org.springframework.data.domain.Page;
@@ -51,10 +52,12 @@ public class TripController {
 
   private final TripServiceImp tripServiceImp;
   private final JwtTokenUtil jwtTokenUtil;
+  private final SimpMessagingTemplate messagingTemplate;
 
-  public TripController(TripServiceImp tripServiceImp, JwtTokenUtil jwtTokenUtil) {
+  public TripController(TripServiceImp tripServiceImp, JwtTokenUtil jwtTokenUtil, SimpMessagingTemplate messagingTemplate) {
     this.tripServiceImp = tripServiceImp;
     this.jwtTokenUtil = jwtTokenUtil;
+    this.messagingTemplate = messagingTemplate;
   }
 
   @PreAuthorize("hasAuthority('CAN_CREATE_TRIP')")
@@ -328,6 +331,9 @@ public class TripController {
       TripDispatchResponseDTO dispatchResponse = new TripDispatchResponseDTO();
       dispatchResponse.setTrip(response);
       dispatchResponse.setTrackingToken(trackingToken);
+
+      // Broadcast update to all subscribers on the general topic
+      messagingTemplate.convertAndSend("/topic/trips", response);
 
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip dispatched successfully!", dispatchResponse));
     } catch (RuntimeException ex) {

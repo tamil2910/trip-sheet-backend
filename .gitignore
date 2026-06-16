@@ -34,3 +34,5 @@ build/
 .env
 docker-compose.override.yaml
 .m2/
+TRIP_PO_DEBUG_FLOW.md
+TRIP_PO_INPUT_PAYLOADS.md

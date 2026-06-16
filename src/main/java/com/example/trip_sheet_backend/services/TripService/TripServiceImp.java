@@ -54,6 +54,7 @@ import com.example.trip_sheet_backend.models.VendorDelegationHistory;
 // import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleType;
+import com.example.trip_sheet_backend.services.TripBillingService.TripBillingService;
 import com.example.trip_sheet_backend.services.TripFeedbackService;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
@@ -92,6 +93,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final DriverTenantMappingRepository driverTenantMappingRepository;
     private final VendorDelegationHistoryRepository vendorDelegationHistoryRepository;
     private final TripFeedbackService tripFeedbackService;
+    private final TripBillingService tripBillingService;
     private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
     private final TripRealtimePublisher tripRealtimePublisher;
 
@@ -104,7 +106,8 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
       DispatchCenterRepository dispatchCenterRepository, TripSummaryRepository tripSummaryRepository,
       DriverTenantMappingRepository driverTenantMappingRepository,
       VendorDelegationHistoryRepository vendorDelegationHistoryRepository,
-      TripFeedbackService tripFeedbackService, UniqueCodeGeneratorService uniqueCodeGeneratorService,
+      TripFeedbackService tripFeedbackService, TripBillingService tripBillingService,
+      UniqueCodeGeneratorService uniqueCodeGeneratorService,
       TripRealtimePublisher tripRealtimePublisher) {
     super(repository);
     this.repository = repository;
@@ -121,6 +124,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     this.driverTenantMappingRepository = driverTenantMappingRepository;
     this.vendorDelegationHistoryRepository = vendorDelegationHistoryRepository;
     this.tripFeedbackService = tripFeedbackService;
+    this.tripBillingService = tripBillingService;
     this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
     this.tripRealtimePublisher = tripRealtimePublisher;
   }
@@ -1676,6 +1680,7 @@ public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, U
 
   trip.setTripStatus(Trip.TripStatus.COMPLETED);
   Trip completedTrip = repository.save(trip);
+  tripBillingService.generatePurchaseOrdersForTrip(completedTrip);
   tripRealtimePublisher.publishUpdated(completedTrip);
   tripFeedbackService.sendFeedbackRequestsForTrip(completedTrip);
   return completedTrip;

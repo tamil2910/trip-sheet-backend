@@ -154,8 +154,8 @@ public class DutyTypeCustomNameController extends BaseController<DutyTypeCustomN
                 }
 
                 String name = "monthly_max_hr_" + body.getTotalKm() + "km_" +
-                        (body.getMaxHrPerDay() != null ? body.getMaxHrPerDay() + "hr" : "24hr") +
-                        (body.getMaxDays() != null ? body.getMaxDays() + "days" : "30days");
+                        (body.getMaxHrPerDay() != null ? body.getMaxHrPerDay() + "hr" : "12hr") +
+                        (body.getMaxDays() != null ? body.getMaxDays() + "days" : "28days");
 
                 savedDutyType = dutyTypeservice
                         .findMonthlyMaxHr(body.getTotalKm(), body.getMaxHrPerDay(), body.getMaxDays())
