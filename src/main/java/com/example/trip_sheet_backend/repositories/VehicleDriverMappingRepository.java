@@ -7,12 +7,9 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.VehicleDriverMapping;
 
-@Repository
 public interface VehicleDriverMappingRepository extends BaseRepository<VehicleDriverMapping, UUID> {
     Optional<VehicleDriverMapping> findByDriverIdAndTenantIdAndIsActive(
       UUID driverId,

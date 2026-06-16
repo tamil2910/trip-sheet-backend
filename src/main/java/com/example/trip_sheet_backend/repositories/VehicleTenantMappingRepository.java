@@ -5,12 +5,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.EntityGraph;
-import org.springframework.stereotype.Repository;
-
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.VehicleTenantMapping;
 
-@Repository
 public interface VehicleTenantMappingRepository extends BaseRepository<VehicleTenantMapping, UUID> {
 
   boolean existsByVehicle_IdAndTenant_Id(UUID vehicleId, UUID tenantId);

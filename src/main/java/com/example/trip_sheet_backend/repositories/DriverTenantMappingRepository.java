@@ -9,12 +9,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
-import org.springframework.stereotype.Repository;
-
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.DriverTenantMapping;
 
-@Repository
 public interface DriverTenantMappingRepository extends BaseRepository<DriverTenantMapping, UUID> {
 
   boolean existsByDriver_IdAndTenant_Id(UUID driverId, UUID tenantId);
