@@ -187,7 +187,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     );
   }
 
-  @PreAuthorize("hasAuthority('CAN_READ_TENANT') or hasAuthority('CAN_READ_USERACCOUNT') or hasRole('SUPER_ADMIN')")
+  // @PreAuthorize("hasAuthority('CAN_READ_TENANT') or hasAuthority('CAN_READ_USERACCOUNT') or hasRole('SUPER_ADMIN')")
   @GetMapping("/my-profile")
   public ResponseEntity<ApiResponse<Map<String,Object>>> getMyProfileData(HttpServletRequest request) {
     UserAccount user = request.getAttribute("user") == null ? null : (UserAccount) request.getAttribute("user");
