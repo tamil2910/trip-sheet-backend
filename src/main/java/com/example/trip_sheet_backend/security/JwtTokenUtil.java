@@ -35,7 +35,7 @@ public class JwtTokenUtil {
         this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    private static final long EXPIRATION_TIME = 86400000; // 1 day in milliseconds
+    private static final long EXPIRATION_TIME = 86400000L * 180; // 180 days in milliseconds
 
 
     // ✅ Generate token

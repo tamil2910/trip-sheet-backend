@@ -39,6 +39,7 @@ import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.common.services.UniqueCodeGeneratorService;
 import com.example.trip_sheet_backend.security.GoogleAuthService;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
+import com.example.trip_sheet_backend.services.PasswordResetService;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.api.client.util.Value;
@@ -71,12 +72,13 @@ public class AuthController {
   private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
   private final ModelMapper mapper;
   private final PeopleTenantRepository peopleTenantRepository;
+    private final PasswordResetService passwordResetService;
 
   @Value("${GOOGLE_AUTH_CLIENT_ID}")
   private String googleClientId; // 👈 inject env variable here
   
   public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, GoogleAuthService googleAuthService,
-      PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository, DriverRepository driverRepository, UniqueCodeGeneratorService uniqueCodeGeneratorService, PeopleTenantRepository peopleTenantRepository) {
+      PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository, DriverRepository driverRepository, UniqueCodeGeneratorService uniqueCodeGeneratorService, PeopleTenantRepository peopleTenantRepository, PasswordResetService passwordResetService) {
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
     this.roleGroupRepository = roleGroupRepository;
@@ -90,6 +92,7 @@ public class AuthController {
         this.driverRepository = driverRepository;
         this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
         this.peopleTenantRepository = peopleTenantRepository;
+          this.passwordResetService = passwordResetService;
   }
 
   @PreAuthorize("permitAll()")
@@ -257,6 +260,52 @@ public class AuthController {
     
     return new ApiResponse<>(true, "Login successful", response);
   }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<?>> forgotPassword(@RequestBody Map<String, Object> body) {
+        if (body == null || body.get("email") == null) {
+            throw new RuntimeException("Email is required");
+        }
+
+        String email = body.get("email").toString().trim();
+        if (!email.contains("@")) {
+            throw new RuntimeException("Invalid email format");
+        }
+
+        passwordResetService.sendPasswordResetOTP(email);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "OTP sent to your email. Check your inbox for the verification code", null));
+    }
+
+    @PostMapping("/verify-otp-and-reset-password")
+    public ResponseEntity<ApiResponse<?>> verifyOTPAndResetPassword(@RequestBody Map<String, Object> body) {
+        if (body == null || body.get("email") == null) {
+            throw new RuntimeException("Email is required");
+        }
+        if (body.get("otpCode") == null) {
+            throw new RuntimeException("OTP code is required");
+        }
+        if (body.get("newPassword") == null) {
+            throw new RuntimeException("New password is required");
+        }
+
+        String email = body.get("email").toString().trim();
+        String otpCode = body.get("otpCode").toString().trim();
+        String newPassword = body.get("newPassword").toString();
+
+        if (!email.contains("@")) {
+            throw new RuntimeException("Invalid email format");
+        }
+        if (newPassword.length() < 6) {
+            throw new RuntimeException("Password must be at least 6 characters long");
+        }
+
+        passwordResetService.resetPasswordWithOTP(email, otpCode, newPassword);
+
+        return ResponseEntity.ok(
+                new ApiResponse<>(true, "Password reset successfully. You can now login with your new password", null));
+    }
 
     @PostMapping("/google-signup")
     public ApiResponse<Map<String, Object>> googleSignup(@RequestBody Map<String, Object> payload) {
