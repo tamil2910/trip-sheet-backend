@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.controllers;
 
 import java.util.UUID;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -209,7 +210,20 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     // }
 
     if (user != null) {
-      driverRepository.findByAccount_Id(user.getId()).ifPresent(driver -> data.put("driver", driver));
+      Boolean driverRoleExists = user.getRole().getName().equals("DRIVER");
+      if (driverRoleExists) {
+          driverRepository.findByAccount_Id(user.getId()).ifPresent(driver -> {
+          Map<String, Object> driverData = objectMapper.convertValue(driver, Map.class);
+          driverTenantMappingRepository.findByDriver_IdAndActiveTrue(driver.getId())
+          .ifPresent(mapping -> {
+            Map<String, Object> tenantData = objectMapper.convertValue(mapping.getTenant(), Map.class);
+            driverData.put("tenant", tenantData);
+            data.put("driver", driverData);
+          });
+          data.put("driver", driver);
+        });
+      }
+      
     }
 
     return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", data));
