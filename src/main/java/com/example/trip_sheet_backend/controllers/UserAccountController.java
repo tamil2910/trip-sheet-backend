@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.controllers;
 
 import java.util.UUID;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,11 +31,15 @@ import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.Driver;
+import com.example.trip_sheet_backend.models.DriverTenantMapping;
+import com.example.trip_sheet_backend.models.PeopleTenant;
+import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
+import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.UserAccountService.UserAccountServiceImp;
@@ -53,6 +58,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final DriverRepository driverRepository;
   private final DriverTenantMappingRepository driverTenantMappingRepository;
   private final ObjectMapper objectMapper;
+  private final PeopleTenantRepository peopleTenantRepository;
 
   @Autowired
   private PasswordEncoder passwordEncoder;
@@ -60,12 +66,13 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final JwtTokenUtil jwtTokenUtil;
   
   public UserAccountController(UserAccountServiceImp service, UserAccountRepository userAccountRepository, 
-    ModelMapper mapper, JwtTokenUtil jwtTokenUtil, RoleGroupRepository roleGroupRepository, RoleRepository roleRepository, DriverRepository driverRepository, DriverTenantMappingRepository driverTenantMappingRepository, ObjectMapper objectMapper) {
+    ModelMapper mapper, JwtTokenUtil jwtTokenUtil, RoleGroupRepository roleGroupRepository, RoleRepository roleRepository, DriverRepository driverRepository, DriverTenantMappingRepository driverTenantMappingRepository, ObjectMapper objectMapper, PeopleTenantRepository peopleTenantRepository) {
     super(service);
     this.service = service;
     this.mapper =  mapper;
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
+    this.peopleTenantRepository = peopleTenantRepository;
     this.roleGroupRepository = roleGroupRepository;
     this.roleRepository = roleRepository;
     this.driverRepository = driverRepository;
@@ -195,39 +202,70 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     Map<String,Object> data = new HashMap<>();
     data.put("user", user);
 
-    // if (user != null) {
-    //   driverRepository.findByAccount_Id(user.getId()).ifPresent(driver -> {
-    //     Map<String, Object> driverData = objectMapper.convertValue(driver, Map.class);
-    //     driverTenantMappingRepository.findByDriver_IdAndActiveTrue(driver.getId())
-    //         .ifPresent(mapping -> {
-    //           Map<String, Object> tenantData = objectMapper.convertValue(mapping.getTenant(), Map.class);
-    //           // Add properties inside tenant object here if needed
-    //           // tenantData.put("key", value);
-    //           driverData.put("tenant", tenantData);
-    //         });
-    //     data.put("driver", driverData);
-    //   });
-    // }
-
     if (user != null) {
-      Boolean driverRoleExists = user.getRole().getName().equals("DRIVER");
-      if (driverRoleExists) {
-          driverRepository.findByAccount_Id(user.getId()).ifPresent(driver -> {
-          Map<String, Object> driverData = objectMapper.convertValue(driver, Map.class);
-          driverTenantMappingRepository.findByDriver_IdAndActiveTrue(driver.getId())
-          .ifPresent(mapping -> {
-            Map<String, Object> tenantData = objectMapper.convertValue(mapping.getTenant(), Map.class);
-            driverData.put("tenant", tenantData);
-            data.put("driver", driverData);
-          });
-          data.put("driver", driver);
-        });
-      }
-      
-    }
+      String roleName = user.getRole().getName().toString();
 
+      if (roleName.equals("DRIVER")) {
+        Driver driver = driverRepository.findByAccount_Id(user.getId())
+            .orElseThrow(() -> new RuntimeException("Driver not found for the user!"));
+        
+      }
+      switch (roleName) {
+        case "DRIVER":
+          driverRepository.findByAccount_Id(user.getId()).ifPresent(driver -> {
+            Map<String, Object> driverData = objectMapper.convertValue(driver, Map.class);
+            Map<String, Object> userData = objectMapper.convertValue(user, Map.class);
+    
+            List<DriverTenantMapping> tenants = driverTenantMappingRepository.findByDriver_Id(driver.getId());
+            List<Map<String, Object>> tenantDataList = new ArrayList<>();
+    
+            if (tenants != null && !tenants.isEmpty()) {
+              Map<String, Object> tenantData = new HashMap<>();
+              tenants.stream()
+              .filter(t -> t.getTenant() != null)
+              .forEach(t -> {
+                tenantData.put("id", t.getTenant().getId());
+                tenantData.put("name", t.getTenant().getTenantName());
+                tenantDataList.add(tenantData);
+              });
+              
+            }
+    
+            // userData.remove("tenant"); // Remove password from user data for security reasons
+            userData.put("tenant", tenantDataList); // Add tenants list to user data
+            data.put("user", userData);
+    
+            data.put("driver", driverData);
+        });
+
+        break;
+
+        case "GUEST":
+          // For GUEST role, we can just return the user data without any additional processing
+          List<Map<String, Object>> guestOrgList = new ArrayList<>();
+          Map<String, Object> guestData = objectMapper.convertValue(user, Map.class);
+          List<PeopleTenant> peopleTenants = peopleTenantRepository.findAllByEmailOrderByCreatedAtDesc(user.getEmail());
+          Map<String, Object> org = new HashMap<>();
+
+          if (!peopleTenants.isEmpty()) {
+            peopleTenants.stream()
+            .filter(pt -> pt.getOrganisation() != null)
+            .forEach(pt -> {
+              org.put("id", pt.getOrganisation().getId());
+              org.put("name", pt.getOrganisation().getTenantName());
+              guestOrgList.add(org);
+            });
+          }
+          guestData.remove("tenant"); // Remove tenant from user data for security reasons
+          guestData.put("organisations", guestOrgList);
+          data.put("user", guestData);
+        break;
+
+      }
+    }
     return ResponseEntity.ok().body(new ApiResponse<>(true, "Success", data));
-  }
+
+}
   
   @PutMapping({"/update/my-profile/{id}", "/update-my-profile/{id}", "/my-profile/{id}"})
   // @PreAuthorize("hasAuthority('CAN_UPDATE_USERACCOUNT') or hasRole('SUPER_ADMIN')")
