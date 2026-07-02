@@ -280,6 +280,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     return ResponseEntity.ok(new ApiResponse<>(true, "Tenant linked with driver successfully", response));
   }
 
+  @PreAuthorize("hasRole('DRIVER')")
   @GetMapping("/tenant-vehicles/{tenantId}")
   public ResponseEntity<ApiResponse<TenantVehiclesDto>> listOfTenantVehicles(@PathVariable UUID tenantId, HttpServletRequest request) {
     UserAccount currentUser = (UserAccount) request.getAttribute("user");
@@ -316,6 +317,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     return ResponseEntity.ok(new ApiResponse<>(true, "List of tenant vehicles retrieved successfully", tenantVehiclesDto));
   }
 
+  @PreAuthorize("hasRole('DRIVER')")
   @PatchMapping("/link-vehicle/{vehicleId}")
   public ResponseEntity<ApiResponse<?>> linkWithVehicle(@PathVariable UUID vehicleId, HttpServletRequest request) {
     UserAccount currentUser = (UserAccount) request.getAttribute("user");
