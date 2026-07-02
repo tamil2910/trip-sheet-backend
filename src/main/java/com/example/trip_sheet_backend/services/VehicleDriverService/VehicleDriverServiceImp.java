@@ -229,4 +229,11 @@ public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping
       throw new RuntimeException("Tenant not found in token");
     }
   }
+
+  @Transactional(rollbackFor = Exception.class)
+  public VehicleDriverMapping linkDriverWithVehicle(UUID driverId, UUID vehicleId, UUID updatedBy, UUID tenantId) {
+    // Implementation for linking driver with vehicle
+    repository.updateDriverVehicleTenantMapping(driverId, vehicleId, updatedBy.toString(), tenantId);
+    return null;
+  }
 }

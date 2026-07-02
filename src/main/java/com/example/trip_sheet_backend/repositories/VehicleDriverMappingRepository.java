@@ -5,8 +5,11 @@ import java.util.UUID;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.transaction.annotation.Transactional;
+
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.VehicleDriverMapping;
 
@@ -52,5 +55,21 @@ public interface VehicleDriverMappingRepository extends BaseRepository<VehicleDr
       UUID vehicleId,
       UUID tenantId,
       Boolean isActive
+    );
+
+    @Modifying
+    @Transactional
+    @Query("""
+        UPDATE VehicleDriverMapping vdm
+        SET vdm.updatedBy = :updatedBy
+        WHERE vdm.driver.id = :driverId
+          AND vdm.vehicle.id = :vehicleId
+          AND vdm.tenant.id = :tenantId
+    """)
+    int updateDriverVehicleTenantMapping(
+        @Param("driverId") UUID driverId,
+        @Param("vehicleId") UUID vehicleId,
+        @Param("updatedBy") String updatedBy,
+        @Param("tenantId") UUID tenantId
     );
 }

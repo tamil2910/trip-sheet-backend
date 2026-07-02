@@ -39,6 +39,7 @@ import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.DriverTenantMapping;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.models.VehicleDriverMapping;
 import com.example.trip_sheet_backend.models.VehicleTenantMapping;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
@@ -313,6 +314,27 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     tenantVehiclesDto.setVehicles(vehicles);
     
     return ResponseEntity.ok(new ApiResponse<>(true, "List of tenant vehicles retrieved successfully", tenantVehiclesDto));
+  }
+
+  @PatchMapping("/link-vehicle/{vehicleId}")
+  public ResponseEntity<ApiResponse<?>> linkWithVehicle(@PathVariable UUID vehicleId, HttpServletRequest request) {
+    UserAccount currentUser = (UserAccount) request.getAttribute("user");
+    if (currentUser == null) {
+      throw new RuntimeException("User not found in token");
+    }
+
+    if (currentUser.getTenant() == null) {
+      throw new RuntimeException("Tenant not found in token");
+    }
+
+    Driver driver = driverRepository.findByAccount_Id(currentUser.getId())
+        .orElseThrow(() -> new RuntimeException("Driver profile not found for current user"));
+
+    Tenant tenant = tenantRepository.findById(currentUser.getTenant().getId())
+        .orElseThrow(() -> new RuntimeException("Tenant not found"));
+    
+    VehicleDriverMapping vD = vehicleDriverService.linkDriverWithVehicle(driver.getId(), vehicleId, currentUser.getId(), tenant.getId());
+    return ResponseEntity.ok(new ApiResponse<>(true, "Driver linked with vehicle successfully", vD));
   }
 
 
