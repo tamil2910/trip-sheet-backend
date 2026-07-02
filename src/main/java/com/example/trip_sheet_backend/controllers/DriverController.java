@@ -1,5 +1,8 @@
 package com.example.trip_sheet_backend.controllers;
 
+import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
+
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,14 +33,20 @@ import com.example.trip_sheet_backend.dtos.DriverDtos.DriverTenantResponseDto;
 import com.example.trip_sheet_backend.dtos.DriverDtos.DriverUpdateRequestDto;
 import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleDriverLinkRequestDto;
 import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleDriverMappingResponseDto;
+import com.example.trip_sheet_backend.dtos.TenantVehiclesDtos.TenantVehiclesDto;
+import com.example.trip_sheet_backend.dtos.TenantVehiclesDtos.VehiclesDto;
 import com.example.trip_sheet_backend.models.Driver;
+import com.example.trip_sheet_backend.models.DriverTenantMapping;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.models.VehicleTenantMapping;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
+import com.example.trip_sheet_backend.repositories.VehicleTenantMappingRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.DriverService.DriverServiceImp;
 import com.example.trip_sheet_backend.services.VehicleDriverService.VehicleDriverServiceImp;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -45,22 +54,30 @@ import jakarta.validation.Valid;
 @RestController
 @RequestMapping("/drivers")
 public class DriverController extends GlobalBaseController<Driver, UUID> {
+  private final DriverTenantMappingRepository driverTenantMappingRepository;
   private final DriverServiceImp driverService;
   private final VehicleDriverServiceImp vehicleDriverService;
   private final DriverRepository driverRepository;
   private final TenantRepository tenantRepository;
+  private final VehicleTenantMappingRepository vehicleTenantMappingRepository;
+  private final ObjectMapper objectMapper;
 
   public DriverController(
       DriverServiceImp driverService,
       VehicleDriverServiceImp vehicleDriverService,
       DriverRepository driverRepository,
-      TenantRepository tenantRepository
+      TenantRepository tenantRepository, DriverTenantMappingRepository driverTenantMappingRepository,
+      VehicleTenantMappingRepository vehicleTenantMappingRepository,
+      ObjectMapper objectMapper
   ) {
     super(driverService);
     this.driverService = driverService;
     this.vehicleDriverService = vehicleDriverService;
     this.driverRepository = driverRepository;
     this.tenantRepository = tenantRepository;
+    this.driverTenantMappingRepository = driverTenantMappingRepository;
+    this.vehicleTenantMappingRepository = vehicleTenantMappingRepository;
+    this.objectMapper = objectMapper;
   }
 
   @PostMapping("/create")
@@ -260,6 +277,42 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     );
 
     return ResponseEntity.ok(new ApiResponse<>(true, "Tenant linked with driver successfully", response));
+  }
+
+  @GetMapping("/tenant-vehicles/{tenantId}")
+  public ResponseEntity<ApiResponse<TenantVehiclesDto>> listOfTenantVehicles(@PathVariable UUID tenantId, HttpServletRequest request) {
+    UserAccount currentUser = (UserAccount) request.getAttribute("user");
+    if (currentUser == null) {
+      throw new RuntimeException("User not found in token");
+    }
+    Driver driver = driverRepository.findByAccount_Id(currentUser.getId())
+        .orElseThrow(() -> new RuntimeException("Driver profile not found for current user"));
+
+    Tenant tenant = tenantRepository.findById(tenantId)
+        .orElseThrow(() -> new RuntimeException("Tenant not found"));
+
+    DriverTenantMapping driverTenant = driverTenantMappingRepository.findByTenant_IdAndDriver_Id(tenant.getId(), driver.getId())
+        .orElseThrow(() -> new RuntimeException("Driver is not linked with the specified tenant"));
+
+    List<VehicleTenantMapping> vehicleTenantMappings = vehicleTenantMappingRepository.findByTenant_Id(tenantId);
+    // return ResponseEntity.ok(new ApiResponse<>(true, "List of tenant vehicles retrieved successfully", vehicleTenantMappings));
+    TenantVehiclesDto tenantVehiclesDto = new TenantVehiclesDto();
+    tenantVehiclesDto.setTenantId(tenantId);
+    tenantVehiclesDto.setTenantName(tenant.getTenantName());
+
+    List<VehiclesDto> vehicles = new ArrayList<>();
+    Map<String, Object> vehicleMap = new HashMap<>();
+    vehicleTenantMappings.forEach(vt -> {
+        vehicleMap.put("vehicleId", vt.getVehicle().getId());
+        vehicleMap.put("vehicleNumber", vt.getVehicle().getVehicleNumber());
+        vehicleMap.put("vehicleUniqueCode", vt.getVehicle().getVehicleUniqueCode());
+        vehicleMap.put("vehicleType", vt.getVehicle().getVehicleType());
+        vehicles.add(objectMapper.convertValue(vehicleMap, VehiclesDto.class));
+    });
+
+    tenantVehiclesDto.setVehicles(vehicles);
+    
+    return ResponseEntity.ok(new ApiResponse<>(true, "List of tenant vehicles retrieved successfully", tenantVehiclesDto));
   }
 
 
