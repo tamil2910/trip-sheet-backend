@@ -21,6 +21,7 @@ import com.example.trip_sheet_backend.dtos.DriverVehicleDtos.VehicleDriverMappin
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.DriverTenantMapping;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleDriverMapping;
 import com.example.trip_sheet_backend.models.VehicleTenantMapping;
@@ -231,9 +232,56 @@ public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping
   }
 
   @Transactional(rollbackFor = Exception.class)
-  public VehicleDriverMapping linkDriverWithVehicle(UUID driverId, UUID vehicleId, UUID updatedBy, UUID tenantId) {
-    // Implementation for linking driver with vehicle
-    repository.updateDriverVehicleTenantMapping(driverId, vehicleId, updatedBy.toString(), tenantId);
-    return null;
+  public VehicleDriverMapping linkDriverWithVehicle(Driver driver, Vehicle vehicle, UserAccount updatedBy, Tenant tenant) {
+
+    Boolean isExist = repository.existsByDriverIdAndVehicleIdNotAndTenantIdAndIsActiveTrue(driver.getId(), vehicle.getId(), tenant.getId());
+    if (isExist) {
+      throw new RuntimeException("Driver is already linked with another vehicle for the given tenant");
+    }
+
+    Boolean isExistVehicle = repository.existsByDriverIdNotAndVehicleIdAndTenantIdAndIsActiveTrue(driver.getId(), vehicle.getId(), tenant.getId());
+
+    if (isExistVehicle) {
+      throw new RuntimeException("Vehicle is already linked with another driver for the given tenant");
+    }
+
+    repository.findByDriverIdAndVehicleIdAndTenantIdAndIsActiveFalse(driver.getId(), vehicle.getId(), tenant.getId())
+    .ifPresentOrElse(existing -> {
+      existing.setIsActive(true);
+      existing.setUpdatedBy(updatedBy.getId().toString());
+      repository.saveAndFlush(existing);
+    }, () -> {
+      VehicleDriverMapping newMapping = new VehicleDriverMapping();
+      newMapping.setDriver(driver);
+      newMapping.setVehicle(vehicle);
+      newMapping.setTenant(tenant);
+      newMapping.setIsActive(true);
+      newMapping.setCreatedBy(updatedBy.getId().toString());
+      newMapping.setUpdatedBy(updatedBy.getId().toString());
+      repository.saveAndFlush(newMapping);
+    });
+
+    return repository.findByDriverIdAndVehicleIdAndTenantIdAndIsActiveTrue(driver.getId(), vehicle.getId(), tenant.getId())
+          .orElseThrow(() -> new RuntimeException("Failed to retrieve the updated mapping after linking"));
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  public VehicleDriverMapping unlinkDriverWithVehicle(UUID driverId, UUID vehicleId, UUID updatedBy, UUID tenantId) {
+
+    Boolean isExist = repository.existsByDriverIdAndVehicleIdAndTenantIdAndIsActiveTrue(driverId, vehicleId, tenantId);
+    if (!isExist) {
+      throw new RuntimeException("Driver is not linked with the vehicle for the given tenant");
+    }
+
+    repository.findByDriverIdAndVehicleIdAndTenantIdAndIsActiveTrue(driverId, vehicleId, tenantId)
+    .ifPresent(existing -> {
+
+      existing.setIsActive(false);
+      existing.setUpdatedBy(updatedBy.toString());
+      repository.saveAndFlush(existing);
+    });
+
+    return repository.findByDriverIdAndVehicleIdAndTenantIdAndIsActiveFalse(driverId, vehicleId, tenantId)
+          .orElseThrow(() -> new RuntimeException("Failed to retrieve the updated mapping after unlinking"));
   }
 }

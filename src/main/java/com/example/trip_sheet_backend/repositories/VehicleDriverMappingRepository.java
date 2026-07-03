@@ -72,4 +72,37 @@ public interface VehicleDriverMappingRepository extends BaseRepository<VehicleDr
         @Param("updatedBy") String updatedBy,
         @Param("tenantId") UUID tenantId
     );
+
+    @Modifying
+    @Transactional
+    @Query("""
+        UPDATE VehicleDriverMapping vdm
+        SET vdm.updatedBy = :updatedBy
+        WHERE vdm.driver.id = :driverId
+          AND vdm.vehicle.id = :vehicleId
+          AND vdm.tenant.id = :tenantId
+    """)
+    int updateDriverVehicleTenantMappingInActive(
+        @Param("driverId") UUID driverId,
+        @Param("vehicleId") UUID vehicleId,
+        @Param("updatedBy") String updatedBy,
+        @Param("tenantId") UUID tenantId
+    );
+
+    Optional<VehicleDriverMapping> findByDriverIdAndVehicleIdNotAndTenantIdAndIsActiveTrue(UUID driverId, UUID vehicleId, UUID tenantId);
+    Optional<VehicleDriverMapping> findByDriverIdAndVehicleIdAndTenantIdAndIsActiveFalse(UUID driverId, UUID vehicleId, UUID tenantId);
+
+    boolean existsByDriverIdAndVehicleIdNotAndTenantIdAndIsActiveTrue(UUID driverId, UUID vehicleId, UUID tenantId);
+
+    boolean existsByDriverIdAndVehicleIdAndTenantIdAndIsActiveTrue(UUID driverId, UUID vehicleId, UUID tenantId);
+
+    Optional<VehicleDriverMapping> findByDriverIdNotAndVehicleIdAndTenantIdAndIsActiveTrue(UUID driverId, UUID vehicleId, UUID tenantId);
+    
+    boolean existsByDriverIdNotAndVehicleIdAndTenantIdAndIsActiveTrue(UUID driverId, UUID vehicleId, UUID tenantId);
+
+     Optional<VehicleDriverMapping> findByDriverIdAndVehicleIdAndTenantIdAndIsActiveTrue(
+      UUID driverId,
+      UUID vehicleId,
+      UUID tenantId
+    );
 }

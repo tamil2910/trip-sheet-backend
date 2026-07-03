@@ -39,10 +39,12 @@ import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.DriverTenantMapping;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleDriverMapping;
 import com.example.trip_sheet_backend.models.VehicleTenantMapping;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
+import com.example.trip_sheet_backend.repositories.VehicleRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTenantMappingRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.DriverService.DriverServiceImp;
@@ -62,6 +64,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
   private final TenantRepository tenantRepository;
   private final VehicleTenantMappingRepository vehicleTenantMappingRepository;
   private final ObjectMapper objectMapper;
+  private final VehicleRepository vehicleRepository;
 
   public DriverController(
       DriverServiceImp driverService,
@@ -69,7 +72,8 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
       DriverRepository driverRepository,
       TenantRepository tenantRepository, DriverTenantMappingRepository driverTenantMappingRepository,
       VehicleTenantMappingRepository vehicleTenantMappingRepository,
-      ObjectMapper objectMapper
+      ObjectMapper objectMapper,
+      VehicleRepository vehicleRepository
   ) {
     super(driverService);
     this.driverService = driverService;
@@ -79,6 +83,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     this.driverTenantMappingRepository = driverTenantMappingRepository;
     this.vehicleTenantMappingRepository = vehicleTenantMappingRepository;
     this.objectMapper = objectMapper;
+    this.vehicleRepository = vehicleRepository;
   }
 
   @PostMapping("/create")
@@ -305,7 +310,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     List<VehiclesDto> vehicles = new ArrayList<>();
     Map<String, Object> vehicleMap = new HashMap<>();
     vehicleTenantMappings.forEach(vt -> {
-        vehicleMap.put("vehicleId", vt.getVehicle().getId());
+        vehicleMap.put("id", vt.getVehicle().getId());
         vehicleMap.put("vehicleNumber", vt.getVehicle().getVehicleNumber());
         vehicleMap.put("vehicleUniqueCode", vt.getVehicle().getVehicleUniqueCode());
         vehicleMap.put("vehicleType", vt.getVehicle().getVehicleType());
@@ -319,7 +324,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
 
   @PreAuthorize("hasRole('DRIVER')")
   @PatchMapping("/link-vehicle/{vehicleId}")
-  public ResponseEntity<ApiResponse<?>> linkWithVehicle(@PathVariable UUID vehicleId, HttpServletRequest request) {
+  public ResponseEntity<ApiResponse<VehicleDriverMapping>> linkWithVehicle(@PathVariable UUID vehicleId, HttpServletRequest request) {
     UserAccount currentUser = (UserAccount) request.getAttribute("user");
     if (currentUser == null) {
       throw new RuntimeException("User not found in token");
@@ -334,9 +339,37 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
 
     Tenant tenant = tenantRepository.findById(currentUser.getTenant().getId())
         .orElseThrow(() -> new RuntimeException("Tenant not found"));
+
+    Vehicle vehicle = vehicleRepository.findById(vehicleId)
+        .orElseThrow(() -> new RuntimeException("Vehicle not found"));
     
-    VehicleDriverMapping vD = vehicleDriverService.linkDriverWithVehicle(driver.getId(), vehicleId, currentUser.getId(), tenant.getId());
+    VehicleDriverMapping vD = vehicleDriverService.linkDriverWithVehicle(driver, vehicle, currentUser, tenant);
     return ResponseEntity.ok(new ApiResponse<>(true, "Driver linked with vehicle successfully", vD));
+  }
+
+  @PreAuthorize("hasRole('DRIVER')")
+  @PatchMapping("/unlink-vehicle/{vehicleId}")
+  public ResponseEntity<ApiResponse<VehicleDriverMapping>> unlinkWithVehicle(@PathVariable UUID vehicleId, HttpServletRequest request) {
+    UserAccount currentUser = (UserAccount) request.getAttribute("user");
+    if (currentUser == null) {
+      throw new RuntimeException("User not found in token");
+    }
+
+    if (currentUser.getTenant() == null) {
+      throw new RuntimeException("Tenant not found in token");
+    }
+
+    Driver driver = driverRepository.findByAccount_Id(currentUser.getId())
+        .orElseThrow(() -> new RuntimeException("Driver profile not found for current user"));
+
+    Tenant tenant = tenantRepository.findById(currentUser.getTenant().getId())
+        .orElseThrow(() -> new RuntimeException("Tenant not found"));
+
+    Vehicle vehicle = vehicleRepository.findById(vehicleId)
+        .orElseThrow(() -> new RuntimeException("Vehicle not found"));
+    
+    VehicleDriverMapping vD = vehicleDriverService.unlinkDriverWithVehicle(driver.getId(), vehicle.getId(), currentUser.getId(), tenant.getId());
+    return ResponseEntity.ok(new ApiResponse<>(true, "Driver unlinked from vehicle successfully", vD));
   }
 
 
