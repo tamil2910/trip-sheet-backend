@@ -97,7 +97,7 @@ public interface VehicleDriverMappingRepository extends BaseRepository<VehicleDr
     boolean existsByDriverIdAndVehicleIdAndTenantIdAndIsActiveTrue(UUID driverId, UUID vehicleId, UUID tenantId);
 
     Optional<VehicleDriverMapping> findByDriverIdNotAndVehicleIdAndTenantIdAndIsActiveTrue(UUID driverId, UUID vehicleId, UUID tenantId);
-    
+
     boolean existsByDriverIdNotAndVehicleIdAndTenantIdAndIsActiveTrue(UUID driverId, UUID vehicleId, UUID tenantId);
 
      Optional<VehicleDriverMapping> findByDriverIdAndVehicleIdAndTenantIdAndIsActiveTrue(
@@ -105,4 +105,6 @@ public interface VehicleDriverMappingRepository extends BaseRepository<VehicleDr
       UUID vehicleId,
       UUID tenantId
     );
+
+    Optional<VehicleDriverMapping> findByDriverIdAndTenantIdAndIsActiveTrue(UUID driverId, UUID tenantId);
 }

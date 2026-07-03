@@ -372,5 +372,26 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     return ResponseEntity.ok(new ApiResponse<>(true, "Driver unlinked from vehicle successfully", vD));
   }
 
+  @PreAuthorize("hasRole('DRIVER')")
+  @GetMapping("/current-vehicle")
+  public ResponseEntity<ApiResponse<VehicleDriverMapping>> getCurrentVehicleOfDriver(HttpServletRequest request) {
+    UserAccount currentUser = (UserAccount) request.getAttribute("user");
+    if (currentUser == null) {
+      throw new RuntimeException("User not found in token");
+    }
+
+    if (currentUser.getTenant() == null) {
+      throw new RuntimeException("Tenant not found in token");
+    }
+
+    Driver driver = driverRepository.findByAccount_Id(currentUser.getId())
+        .orElseThrow(() -> new RuntimeException("Driver profile not found for current user"));
+
+    Tenant tenant = tenantRepository.findById(currentUser.getTenant().getId())
+        .orElseThrow(() -> new RuntimeException("Tenant not found"));
+
+    VehicleDriverMapping vD = vehicleDriverService.getCurrentActiveVehicleOfDriver(driver.getId(), tenant);
+    return ResponseEntity.ok(new ApiResponse<>(true, "Active vehicle retrieved successfully", vD));
+  }
 
 }
