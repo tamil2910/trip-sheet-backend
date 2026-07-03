@@ -309,6 +309,7 @@ public class TripController {
   }
 
   // @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
+  @PreAuthorize("hasRole('ADMIN') or hasAuthority('CAN_DISPATCH_TRIP')")
   @PutMapping("/dispatch/{id}")
   public ResponseEntity<ApiResponse<?>> dispatchTrip(
       @PathVariable @NotNull UUID id,
@@ -318,6 +319,11 @@ public class TripController {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     UserAccount user = (UserAccount) request.getAttribute("user");
+
+    String rolename = user.getRole().getName().toString();
+    if (!rolename.equals("ADMIN") || rolename.equals("DRIVER") || rolename.equals("GUEST")) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, "You don't have permission to dispatch trips", null));
+    }
 
     try {
       Trip dispatchedTrip = tripServiceImp.dispatchTrip(tenantId, tokenTenant, user, id, dispatchData);
@@ -341,7 +347,7 @@ public class TripController {
     }
   }
 
-  // @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
+  @PreAuthorize("hasRole('ADMIN') or hasAuthority('CAN_DISPATCH_TRIP')")
   @PutMapping("/arrived/{id}")
   public ResponseEntity<ApiResponse<?>> arrivedTrip(
       @PathVariable @NotNull UUID id,
@@ -352,6 +358,11 @@ public class TripController {
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     UserAccount user = (UserAccount) request.getAttribute("user");
 
+    String rolename = user.getRole().getName().toString();
+    if (!rolename.equals("ADMIN") || rolename.equals("DRIVER") || rolename.equals("GUEST")) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, "You don't have permission to makrk it as arrived trip", null));
+    }
+
     try {
       Trip arrivedTrip = tripServiceImp.arrivedTrip(tenantId, tokenTenant, user, id, arrivedData);
       TripResponseDTO response = TripResponseMapper.toDTO(arrivedTrip);
@@ -361,7 +372,7 @@ public class TripController {
     }
   }
 
-  // @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
+  @PreAuthorize("hasRole('ADMIN') or hasAuthority('CAN_DISPATCH_TRIP')")
   @PutMapping("/start/{id}")
   public ResponseEntity<ApiResponse<?>> startTrip(
       @PathVariable @NotNull UUID id,
@@ -372,6 +383,11 @@ public class TripController {
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     UserAccount user = (UserAccount) request.getAttribute("user");
 
+    String rolename = user.getRole().getName().toString();
+    if (!rolename.equals("ADMIN") || rolename.equals("DRIVER") || rolename.equals("GUEST")) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, "You don't have permission to start trips", null));
+    }
+
     try {
       Trip startedTrip = tripServiceImp.startTrip(tenantId, tokenTenant, user, id, startData);
       TripResponseDTO response = TripResponseMapper.toDTO(startedTrip);
@@ -381,7 +397,7 @@ public class TripController {
     }
   }
 
-  // @PreAuthorize("hasAuthority('CAN_DISPATCH_TRIP')")
+  @PreAuthorize("hasRole('ADMIN') or hasAuthority('CAN_DISPATCH_TRIP')")
   @PutMapping("/drop/{id}")
   public ResponseEntity<ApiResponse<?>> dropTrip(
       @PathVariable @NotNull UUID id,
@@ -392,6 +408,11 @@ public class TripController {
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     UserAccount user = (UserAccount) request.getAttribute("user");
 
+    String rolename = user.getRole().getName().toString();
+    if (!rolename.equals("ADMIN") || rolename.equals("DRIVER") || rolename.equals("GUEST")) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, "You don't have permission to mark as driver dropped guest", null));
+    }
+
     try {
       Trip droppedTrip = tripServiceImp.dropTrip(tenantId, tokenTenant, user, id, dropData);
       TripResponseDTO response = TripResponseMapper.toDTO(droppedTrip);
@@ -401,6 +422,7 @@ public class TripController {
     }
   }
 
+  @PreAuthorize("hasRole('ADMIN')")
   @PutMapping("/allot/{tripId}")
   public ResponseEntity<ApiResponse<?>> reassignTrip(
       @PathVariable @NotNull UUID tripId,
@@ -411,6 +433,11 @@ public class TripController {
     UUID updatedBy = (UUID) request.getAttribute("updatedBy");
     UUID tokenTenantId = (UUID) request.getAttribute("tenantId");
     UserAccount user = (UserAccount) request.getAttribute("user");
+
+    String rolename = user.getRole().getName().toString();
+    if (!rolename.equals("ADMIN") || rolename.equals("DRIVER") || rolename.equals("GUEST")) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, "You don't have permission to allot trips", null));
+    }
     try {
       Trip reassignedTrip = tripServiceImp.allotDriverVehicle(tokenTenant, tokenTenantId, user, tripId, allotData);
       TripResponseDTO response = TripResponseMapper.toDTO(reassignedTrip);
@@ -430,6 +457,12 @@ public class TripController {
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     UUID tokenTenantId = (UUID) request.getAttribute("tenantId");
     UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+    UserAccount user = (UserAccount) request.getAttribute("user");
+
+    String rolename = user.getRole().getName().toString();
+    if (!rolename.equals("ADMIN") || rolename.equals("DRIVER") || rolename.equals("GUEST")) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, "You don't have permission to assign-partner to trips", null));
+    }
 
     try {
       Trip trip = tripServiceImp.assignTripToPartnerVendor(tokenTenant, tokenTenantId, tripId, payload, updatedBy);
@@ -450,6 +483,12 @@ public class TripController {
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     UUID tokenTenantId = (UUID) request.getAttribute("tenantId");
     UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+    UserAccount user = (UserAccount) request.getAttribute("user");
+
+    String rolename = user.getRole().getName().toString();
+    if (!rolename.equals("ADMIN") || rolename.equals("DRIVER") || rolename.equals("GUEST")) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, "You don't have permission to assign-vendor to trips", null));
+    }
 
     try {
       Trip trip = tripServiceImp.assignVendorToTrip(tokenTenant, tokenTenantId, tripId, payload, updatedBy);
@@ -468,7 +507,12 @@ public class TripController {
   ) {
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+    UserAccount user = (UserAccount) request.getAttribute("user");
 
+    String rolename = user.getRole().getName().toString();
+    if (!rolename.equals("ADMIN") || rolename.equals("DRIVER") || rolename.equals("GUEST")) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, "You don't have permission to confirm trips", null));
+    }
     try {
       Trip trip = tripServiceImp.confirmTrip(tokenTenant, tripId, updatedBy);
       TripResponseDTO response = TripResponseMapper.toDTO(trip);
