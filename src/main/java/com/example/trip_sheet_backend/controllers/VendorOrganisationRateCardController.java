@@ -17,14 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationContractApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardBulkCreateRequestDTO;
+import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardBulkReviewRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardResponseDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardUpdateRequestDTO;
-import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardApprovalRequestDTO;
-import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardResponseDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.models.VendorOrganisationRateCard;
-import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.VendorOrganisationRateCardService.VendorOrganisationRateCardServiceImp;
 
@@ -42,18 +40,21 @@ public class VendorOrganisationRateCardController {
   }
 
   @PostMapping("/create")
-  public ResponseEntity<ApiResponse<List<VendorOrganisationRateCardResponseDTO>>> createRateCard(
+    public ResponseEntity<ApiResponse<VendorOrganisationRateCardResponseDTO>> createRateCard(
       HttpServletRequest request,
       @Valid @RequestBody VendorOrganisationRateCardBulkCreateRequestDTO body
   ) {
     UUID createdBy = (UUID) request.getAttribute("createdBy");
     Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
 
-    List<VendorOrganisationRateCardResponseDTO> response = vendorOrganisationRateCardService
-        .createRateCards(body, loggedInTenant, createdBy)
-        .stream()
-        .map(VendorOrganisationRateCardResponseDTO::fromEntity)
-        .toList();
+        List<VendorOrganisationRateCard> createdRateCards = vendorOrganisationRateCardService
+                .createRateCards(body, loggedInTenant, createdBy);
+
+        VendorOrganisationRateCardResponseDTO response = createdRateCards.stream()
+                .findFirst()
+                .map(VendorOrganisationRateCard::getVendorOrganisation)
+                .map(VendorOrganisationRateCardResponseDTO::fromVendorOrganisation)
+                .orElseThrow(() -> new RuntimeException("No rate cards were created"));
 
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(new ApiResponse<>(
@@ -69,15 +70,27 @@ public class VendorOrganisationRateCardController {
       HttpServletRequest request,
       @Valid @RequestBody VendorOrganisationRateCardApprovalRequestDTO body
   ) {
-    UUID approvedBy = (UUID) request.getAttribute("createdBy");
-    Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+        return reviewRateCardInternal(rateCardId, request, body);
+    }
 
-    VendorOrganisationRateCard rateCard = vendorOrganisationRateCardService.reviewRateCard(
-        rateCardId,
-        body,
-        loggedInTenant,
-        approvedBy
-    );
+    @PutMapping("/{rateCardId}/review")
+    public ResponseEntity<ApiResponse<VendorOrganisationRateCardResponseDTO>> reviewRateCard(
+            @PathVariable UUID rateCardId,
+            HttpServletRequest request,
+            @Valid @RequestBody VendorOrganisationRateCardApprovalRequestDTO body
+    ) {
+        return reviewRateCardInternal(rateCardId, request, body);
+    }
+
+    private ResponseEntity<ApiResponse<VendorOrganisationRateCardResponseDTO>> reviewRateCardInternal(
+            UUID rateCardId,
+            HttpServletRequest request,
+            VendorOrganisationRateCardApprovalRequestDTO body
+    ) {
+        UUID approvedBy = (UUID) request.getAttribute("createdBy");
+        Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+
+        VendorOrganisationRateCard rateCard = vendorOrganisationRateCardService.reviewRateCard(rateCardId, body, loggedInTenant, approvedBy);
 
     return ResponseEntity.ok(new ApiResponse<>(
         true,
@@ -109,6 +122,29 @@ public class VendorOrganisationRateCardController {
         ));
     }
 
+  @PutMapping("/vendor-organisation/{vendorOrganisationId}/bulk-review")
+  public ResponseEntity<ApiResponse<VendorOrganisationRateCardResponseDTO>> bulkReviewRateCards(
+      @PathVariable UUID vendorOrganisationId,
+      HttpServletRequest request,
+      @Valid @RequestBody VendorOrganisationRateCardBulkReviewRequestDTO body
+  ) {
+    UUID actedBy = (UUID) request.getAttribute("createdBy");
+    Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+
+    VendorOrganisation vendorOrganisation = vendorOrganisationRateCardService.bulkReviewRateCards(
+        vendorOrganisationId,
+        body,
+        loggedInTenant,
+        actedBy
+    );
+
+    return ResponseEntity.ok(new ApiResponse<>(
+        true,
+        "Vendor organisation rate cards processed successfully",
+        VendorOrganisationRateCardResponseDTO.fromVendorOrganisation(vendorOrganisation)
+    ));
+  }
+
   @GetMapping("/vendor-organisation/{vendorOrganisationId}")
   public ResponseEntity<ApiResponse<?>> getRateCardsByVendorOrganisation(
       @PathVariable UUID vendorOrganisationId,
@@ -128,11 +164,13 @@ public class VendorOrganisationRateCardController {
       ));
     }
 
-    List<VendorOrganisationRateCardResponseDTO> response = vendorOrganisationRateCardService
+    VendorOrganisationRateCardResponseDTO response = vendorOrganisationRateCardService
         .getRateCardsByVendorOrganisation(vendorOrganisationId, loggedInTenant)
         .stream()
-        .map(VendorOrganisationRateCardResponseDTO::fromEntity)
-        .toList();
+        .findFirst()
+        .map(VendorOrganisationRateCard::getVendorOrganisation)
+        .map(VendorOrganisationRateCardResponseDTO::fromVendorOrganisation)
+        .orElse(null);
 
     return ResponseEntity.ok(new ApiResponse<>(
         true,

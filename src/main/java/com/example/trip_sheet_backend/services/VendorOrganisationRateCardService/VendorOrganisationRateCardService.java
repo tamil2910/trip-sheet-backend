@@ -5,8 +5,10 @@ import java.util.UUID;
 
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardBulkCreateRequestDTO;
+import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardBulkReviewRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardUpdateRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.models.VendorOrganisationRateCard;
 
 public interface VendorOrganisationRateCardService {
@@ -28,6 +30,13 @@ public interface VendorOrganisationRateCardService {
       VendorOrganisationRateCardApprovalRequestDTO body,
       Tenant loggedInTenant,
       UUID approvedBy
+  );
+
+  VendorOrganisation bulkReviewRateCards(
+      UUID vendorOrganisationId,
+      VendorOrganisationRateCardBulkReviewRequestDTO body,
+      Tenant loggedInTenant,
+      UUID actedBy
   );
 
   List<VendorOrganisationRateCard> getRateCardsByVendorOrganisation(UUID vendorOrganisationId, Tenant loggedInTenant);

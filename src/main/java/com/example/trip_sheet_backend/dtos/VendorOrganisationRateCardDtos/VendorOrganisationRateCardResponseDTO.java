@@ -25,59 +25,31 @@ public class VendorOrganisationRateCardResponseDTO {
   private UUID id;
   private TenantSummaryDTO vendor;
   private VendorOrganisationSummaryDTO vendorOrganisation;
-  private VehicleTypeSummaryDTO vehicleType;
-  private DutyTypeSummaryDTO dutyType;
-  private String city;
-  private BigDecimal baseFare;
-  private BigDecimal extraKmCharges;
-  private BigDecimal extraHrCharges;
-  private BigDecimal dailyAllowanceCharges;
-  private BigDecimal earlyAllowanceCharges;
-  private BigDecimal lateAllowanceCharges;
-  private Integer switchCutOffHrs;
-  private Integer switchCutOffKms;
-  private DutyTypeSummaryDTO switchDutyType;
-  private BigDecimal hourlyAllowance;
-  private DutyTypeSummaryDTO noShowDutyType;
-  private Integer noOfDaysHourCutoff;
-
-  @JsonFormat(pattern = "HH:mm")
-  private LocalTime earlyAllowanceStartTime;
-
-  @JsonFormat(pattern = "HH:mm")
-  private LocalTime lateAllowanceStartTime;
-
-  private Integer allowanceCutOffHrs;
-  private VendorOrganisationRateCard.ApprovalStatus approvalStatus;
-  private Long approvedAt;
-  private String approvedBy;
+  private List<RelatedRateCardSummaryDTO> rateCards;
 
   public static VendorOrganisationRateCardResponseDTO fromEntity(VendorOrganisationRateCard rateCard) {
+    return rateCard == null ? null : fromVendorOrganisation(rateCard.getVendorOrganisation());
+  }
+
+  public static VendorOrganisationRateCardResponseDTO fromVendorOrganisation(VendorOrganisation vendorOrganisation) {
+    if (vendorOrganisation == null) {
+      return null;
+    }
+
+    List<VendorOrganisationRateCard> activeRateCards = vendorOrganisation.getRateCards() == null
+        ? List.of()
+        : vendorOrganisation.getRateCards().stream()
+            .filter(rateCard -> !Boolean.TRUE.equals(rateCard.getIsDeleted()))
+            .toList();
+
+
     return new VendorOrganisationRateCardResponseDTO(
-        rateCard.getId(),
-        TenantSummaryDTO.fromEntity(rateCard.getVendor()),
-        VendorOrganisationSummaryDTO.fromEntity(rateCard.getVendorOrganisation()),
-        VehicleTypeSummaryDTO.fromEntity(rateCard.getVehicleType()),
-        DutyTypeSummaryDTO.fromEntity(rateCard.getDutyType()),
-        rateCard.getCity(),
-        rateCard.getBaseFare(),
-        rateCard.getExtraKmCharges(),
-        rateCard.getExtraHrCharges(),
-        rateCard.getDailyAllowanceCharges(),
-        rateCard.getEarlyAllowanceCharges(),
-        rateCard.getLateAllowanceCharges(),
-        rateCard.getSwitchCutOffHrs(),
-        rateCard.getSwitchCutOffKms(),
-        DutyTypeSummaryDTO.fromEntity(rateCard.getSwitchDutyType()),
-        rateCard.getHourlyAllowance(),
-        DutyTypeSummaryDTO.fromEntity(rateCard.getNoShowDutyType()),
-        rateCard.getNoOfDaysHourCutoff(),
-        rateCard.getEarlyAllowanceStartTime(),
-        rateCard.getLateAllowanceStartTime(),
-        rateCard.getAllowanceCutOffHrs(),
-        rateCard.getApprovalStatus(),
-        rateCard.getApprovedAt(),
-        rateCard.getApprovedBy()
+        vendorOrganisation.getId(),
+        TenantSummaryDTO.fromEntity(vendorOrganisation.getVendor()),
+        VendorOrganisationSummaryDTO.fromEntity(vendorOrganisation),
+        activeRateCards.stream()
+            .map(RelatedRateCardSummaryDTO::fromEntity)
+            .toList()
     );
   }
 
@@ -122,7 +94,6 @@ public class VendorOrganisationRateCardResponseDTO {
     private Integer maxGtgHrLimit;
     private Long contractStartDate;
     private Long contractEndDate;
-    private List<RelatedRateCardSummaryDTO> vendorOrganisationRateCardId;
 
     public static VendorOrganisationSummaryDTO fromEntity(VendorOrganisation vendorOrganisation) {
       if (vendorOrganisation == null) {
@@ -141,11 +112,7 @@ public class VendorOrganisationRateCardResponseDTO {
           vendorOrganisation.getMaxGtgKmLimit(),
           vendorOrganisation.getMaxGtgHrLimit(),
           vendorOrganisation.getContractStartDate(),
-          vendorOrganisation.getContractEndDate(),
-          vendorOrganisation.getRateCards() == null ? List.of() : vendorOrganisation.getRateCards().stream()
-              .filter(rateCard -> !Boolean.TRUE.equals(rateCard.getIsDeleted()))
-              .map(RelatedRateCardSummaryDTO::fromEntity)
-              .toList()
+          vendorOrganisation.getContractEndDate()
       );
     }
   }

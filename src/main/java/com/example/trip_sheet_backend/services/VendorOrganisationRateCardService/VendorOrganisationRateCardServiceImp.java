@@ -1,9 +1,16 @@
 package com.example.trip_sheet_backend.services.VendorOrganisationRateCardService;
 
+import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationContractApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardBulkCreateRequestDTO;
+import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardBulkReviewRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardUpdateRequestDTO;
 import com.example.trip_sheet_backend.models.DutyType;
@@ -91,6 +99,15 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
 
     DutyType switchDutyType = resolveDutyType(body.getSwitchDutyTypeId());
     DutyType noShowDutyType = resolveDutyType(body.getNoShowDutyTypeId());
+    String normalizedCity = normalizeCity(body.getCity());
+
+    validateDuplicateRateCard(
+      vendorOrganisation.getId(),
+      vehicleType.getId(),
+      dutyType.getId(),
+      normalizedCity,
+      null
+    );
 
     VendorOrganisationRateCard rateCard = new VendorOrganisationRateCard();
     rateCard.setVendor(vendorOrganisation.getVendor());
@@ -99,7 +116,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
         rateCard,
         vehicleType,
         dutyType,
-        body.getCity(),
+        normalizedCity,
         body.getBaseFare(),
         body.getExtraKmCharges(),
         body.getExtraHrCharges(),
@@ -152,12 +169,21 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
 
     DutyType switchDutyType = resolveDutyType(body.getSwitchDutyTypeId());
     DutyType noShowDutyType = resolveDutyType(body.getNoShowDutyTypeId());
+    String normalizedCity = normalizeCity(body.getCity());
+
+    validateDuplicateRateCard(
+      vendorOrganisation.getId(),
+      vehicleType.getId(),
+      dutyType.getId(),
+      normalizedCity,
+      rateCard.getId()
+    );
 
     applyRateCardFields(
         rateCard,
         vehicleType,
         dutyType,
-        body.getCity(),
+      normalizedCity,
         body.getBaseFare(),
         body.getExtraKmCharges(),
         body.getExtraHrCharges(),
@@ -181,10 +207,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
 
     VendorOrganisationRateCard savedRateCard = vendorOrganisationRateCardRepository.save(rateCard);
 
-    vendorOrganisation.setContractStatus(VendorOrganisation.ContractStatus.PENDING_APPROVAL);
-    vendorOrganisation.setActive(false);
-    vendorOrganisation.setUpdatedBy(updatedBy.toString());
-    vendorOrganisationRepository.save(vendorOrganisation);
+    syncVendorOrganisationContractStatus(vendorOrganisation, updatedBy);
 
     return savedRateCard;
   }
@@ -218,22 +241,12 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
     VendorOrganisation vendorOrganisation = rateCard.getVendorOrganisation();
     validateTenantLinkedToVendorOrganisation(loggedInTenant, vendorOrganisation);
 
-    if (!vendorOrganisation.getVendor().getId().equals(loggedInTenant.getId())) {
-      throw new RuntimeException("Only vendor can approve or reject rate cards");
+    if (vendorOrganisation.getVendor().getId().equals(loggedInTenant.getId())) {
+      throw new RuntimeException("The vendor who raised the latest changes cannot approve or reject them");
     }
 
     if (body.getApprovalStatus() == VendorOrganisationRateCard.ApprovalStatus.PENDING_APPROVAL) {
       throw new RuntimeException("Invalid approval status");
-    }
-
-    List<VendorOrganisationRateCard> nonDeletedRateCards = getNonDeletedRateCards(vendorOrganisation.getId());
-    Optional<VendorOrganisationRateCard> currentActiveRateCard = findCurrentActiveRateCard(vendorOrganisation, nonDeletedRateCards);
-
-    if (body.getApprovalStatus() == VendorOrganisationRateCard.ApprovalStatus.APPROVED
-        && currentActiveRateCard.isPresent()
-        && !currentActiveRateCard.get().getId().equals(rateCard.getId())
-        && !isContractExpired(vendorOrganisation)) {
-      throw new RuntimeException("An active contract already exists for this vendor organisation. Approve a new rate card only after the current contract expires");
     }
 
     rateCard.setApprovalStatus(body.getApprovalStatus());
@@ -243,14 +256,57 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
 
     VendorOrganisationRateCard savedRateCard = vendorOrganisationRateCardRepository.save(rateCard);
 
-    if (body.getApprovalStatus() == VendorOrganisationRateCard.ApprovalStatus.APPROVED) {
-      vendorOrganisation.setContractStatus(VendorOrganisation.ContractStatus.ACTIVE);
-      vendorOrganisation.setActive(true);
-      vendorOrganisation.setUpdatedBy(approvedBy.toString());
-      vendorOrganisationRepository.save(vendorOrganisation);
-    }
+    syncVendorOrganisationContractStatus(vendorOrganisation, approvedBy);
 
     return savedRateCard;
+  }
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public VendorOrganisation bulkReviewRateCards(
+      UUID vendorOrganisationId,
+      VendorOrganisationRateCardBulkReviewRequestDTO body,
+      Tenant loggedInTenant,
+      UUID actedBy
+  ) {
+    if (body == null || body.getRateCards() == null || body.getRateCards().isEmpty()) {
+      throw new RuntimeException("At least one rate card action is required");
+    }
+
+    VendorOrganisation vendorOrganisation = resolveVendorOrganisation(vendorOrganisationId, loggedInTenant);
+
+    validateTenantLinkedToVendorOrganisation(loggedInTenant, vendorOrganisation);
+
+    Set<UUID> requestedRateCardIds = body.getRateCards().stream()
+        .map(VendorOrganisationRateCardBulkReviewRequestDTO.RateCardActionDTO::getRateCardId)
+        .collect(Collectors.toSet());
+
+    Map<UUID, VendorOrganisationRateCard> rateCardById = vendorOrganisationRateCardRepository.findAllById(requestedRateCardIds)
+        .stream()
+        .collect(Collectors.toMap(VendorOrganisationRateCard::getId, Function.identity()));
+
+    for (VendorOrganisationRateCardBulkReviewRequestDTO.RateCardActionDTO actionItem : body.getRateCards()) {
+      VendorOrganisationRateCard rateCard = rateCardById.get(actionItem.getRateCardId());
+      if (rateCard == null || Boolean.TRUE.equals(rateCard.getIsDeleted())) {
+        throw new RuntimeException("Vendor organisation rate card not found for id: " + actionItem.getRateCardId());
+      }
+
+      if (!vendorOrganisation.getId().equals(rateCard.getVendorOrganisation().getId())) {
+        throw new RuntimeException("Rate card does not belong to the requested vendor organisation");
+      }
+
+      switch (actionItem.getAction()) {
+        case APPROVE -> applyBulkApprovalDecision(rateCard, VendorOrganisationRateCard.ApprovalStatus.APPROVED, loggedInTenant, actedBy);
+        case REJECT -> applyBulkApprovalDecision(rateCard, VendorOrganisationRateCard.ApprovalStatus.REJECTED, loggedInTenant, actedBy);
+        case UPDATE -> applyPartialRateCardUpdate(rateCard, actionItem.getChanges(), loggedInTenant, actedBy);
+        default -> throw new RuntimeException("Unsupported bulk action");
+      }
+    }
+
+    syncVendorOrganisationContractStatus(vendorOrganisation, actedBy);
+
+    return vendorOrganisationRepository.findById(vendorOrganisationId)
+        .orElseThrow(() -> new RuntimeException("Vendor organisation relationship not found after bulk review"));
   }
 
   @Override
@@ -340,6 +396,163 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
     return contractEndDate != null && contractEndDate < Instant.now().toEpochMilli();
   }
 
+  private void applyBulkApprovalDecision(
+      VendorOrganisationRateCard rateCard,
+      VendorOrganisationRateCard.ApprovalStatus approvalStatus,
+      Tenant loggedInTenant,
+      UUID actedBy
+  ) {
+    if (rateCard.getVendor() != null && rateCard.getVendor().getId().equals(loggedInTenant.getId())) {
+      throw new RuntimeException("The vendor who raised the latest changes cannot approve or reject them");
+    }
+
+    rateCard.setApprovalStatus(approvalStatus);
+    rateCard.setApprovedAt(Instant.now().toEpochMilli());
+    rateCard.setApprovedBy(actedBy.toString());
+    rateCard.setUpdatedBy(actedBy.toString());
+    vendorOrganisationRateCardRepository.save(rateCard);
+  }
+
+  private void applyPartialRateCardUpdate(
+      VendorOrganisationRateCard rateCard,
+      VendorOrganisationRateCardBulkReviewRequestDTO.PartialUpdateDTO changes,
+      Tenant loggedInTenant,
+      UUID actedBy
+  ) {
+    if (changes == null) {
+      throw new RuntimeException("Changes payload is required for UPDATE action");
+    }
+
+    if (!rateCard.getVendor().getId().equals(loggedInTenant.getId())) {
+      throw new RuntimeException("Only vendor can update rate cards");
+    }
+
+    VehicleType vehicleType = changes.getVehicleTypeId() == null
+        ? rateCard.getVehicleType()
+        : vehicleTypeRepository.findById(changes.getVehicleTypeId())
+            .orElseThrow(() -> new RuntimeException("Vehicle type not found"));
+
+    DutyType dutyType = changes.getDutyTypeId() == null
+        ? rateCard.getDutyType()
+        : dutyTypeRepository.findById(changes.getDutyTypeId())
+            .orElseThrow(() -> new RuntimeException("Duty type not found"));
+
+    DutyType switchDutyType = changes.getSwitchDutyTypeId() == null
+        ? rateCard.getSwitchDutyType()
+        : resolveDutyType(changes.getSwitchDutyTypeId());
+
+    DutyType noShowDutyType = changes.getNoShowDutyTypeId() == null
+        ? rateCard.getNoShowDutyType()
+        : resolveDutyType(changes.getNoShowDutyTypeId());
+
+    String normalizedCity = changes.getCity() == null
+        ? rateCard.getCity()
+        : normalizeCity(changes.getCity());
+
+    validateDuplicateRateCard(
+        rateCard.getVendorOrganisation().getId(),
+        vehicleType.getId(),
+        dutyType.getId(),
+        normalizedCity,
+        rateCard.getId()
+    );
+
+    applyRateCardFields(
+        rateCard,
+        vehicleType,
+        dutyType,
+        normalizedCity,
+        firstNonNull(changes.getBaseFare(), rateCard.getBaseFare()),
+        firstNonNull(changes.getExtraKmCharges(), rateCard.getExtraKmCharges()),
+        firstNonNull(changes.getExtraHrCharges(), rateCard.getExtraHrCharges()),
+        firstNonNull(changes.getDailyAllowanceCharges(), rateCard.getDailyAllowanceCharges()),
+        firstNonNull(changes.getEarlyAllowanceCharges(), rateCard.getEarlyAllowanceCharges()),
+        firstNonNull(changes.getLateAllowanceCharges(), rateCard.getLateAllowanceCharges()),
+        firstNonNull(changes.getSwitchCutOffHrs(), rateCard.getSwitchCutOffHrs()),
+        firstNonNull(changes.getSwitchCutOffKms(), rateCard.getSwitchCutOffKms()),
+        switchDutyType,
+        firstNonNull(changes.getHourlyAllowance(), rateCard.getHourlyAllowance()),
+        noShowDutyType,
+        firstNonNull(changes.getNoOfDaysHourCutoff(), rateCard.getNoOfDaysHourCutoff()),
+        firstNonNull(changes.getEarlyAllowanceStartTime(), rateCard.getEarlyAllowanceStartTime()),
+        firstNonNull(changes.getLateAllowanceStartTime(), rateCard.getLateAllowanceStartTime()),
+        firstNonNull(changes.getAllowanceCutOffHrs(), rateCard.getAllowanceCutOffHrs())
+    );
+
+    rateCard.setApprovalStatus(VendorOrganisationRateCard.ApprovalStatus.PENDING_APPROVAL);
+    rateCard.setApprovedAt(null);
+    rateCard.setApprovedBy(null);
+    rateCard.setUpdatedBy(actedBy.toString());
+    vendorOrganisationRateCardRepository.save(rateCard);
+  }
+
+  private <T> T firstNonNull(T updatedValue, T existingValue) {
+    return updatedValue != null ? updatedValue : existingValue;
+  }
+
+  private void syncVendorOrganisationContractStatus(VendorOrganisation vendorOrganisation, UUID updatedBy) {
+    List<VendorOrganisationRateCard> nonDeletedRateCards = getNonDeletedRateCards(vendorOrganisation.getId());
+
+    boolean hasApproved = nonDeletedRateCards.stream()
+        .anyMatch(rateCard -> rateCard.getApprovalStatus() == VendorOrganisationRateCard.ApprovalStatus.APPROVED);
+    boolean hasPending = nonDeletedRateCards.stream()
+        .anyMatch(rateCard -> rateCard.getApprovalStatus() == VendorOrganisationRateCard.ApprovalStatus.PENDING_APPROVAL);
+    boolean hasRejected = nonDeletedRateCards.stream()
+        .anyMatch(rateCard -> rateCard.getApprovalStatus() == VendorOrganisationRateCard.ApprovalStatus.REJECTED);
+
+    if (nonDeletedRateCards.isEmpty()) {
+      vendorOrganisation.setContractStatus(VendorOrganisation.ContractStatus.TERMINATED);
+      vendorOrganisation.setActive(false);
+    } else if (hasApproved) {
+      vendorOrganisation.setContractStatus(VendorOrganisation.ContractStatus.ACTIVE);
+      vendorOrganisation.setActive(true);
+    } else if (hasPending) {
+      vendorOrganisation.setContractStatus(VendorOrganisation.ContractStatus.PENDING_APPROVAL);
+      vendorOrganisation.setActive(false);
+    } else if (hasRejected) {
+      vendorOrganisation.setContractStatus(VendorOrganisation.ContractStatus.REJECTED);
+      vendorOrganisation.setActive(false);
+    }
+
+    vendorOrganisation.setUpdatedBy(updatedBy.toString());
+    vendorOrganisationRepository.save(vendorOrganisation);
+  }
+
+  private void validateDuplicateRateCard(
+      UUID vendorOrganisationId,
+      UUID vehicleTypeId,
+      UUID dutyTypeId,
+      String normalizedCity,
+      UUID excludingRateCardId
+  ) {
+    boolean duplicateExists = excludingRateCardId == null
+        ? vendorOrganisationRateCardRepository.existsByVendorOrganisationIdAndVehicleTypeIdAndDutyTypeIdAndCityIgnoreCaseAndIsDeletedFalse(
+            vendorOrganisationId,
+            vehicleTypeId,
+            dutyTypeId,
+            normalizedCity
+        )
+        : vendorOrganisationRateCardRepository.existsByVendorOrganisationIdAndVehicleTypeIdAndDutyTypeIdAndCityIgnoreCaseAndIsDeletedFalseAndIdNot(
+            vendorOrganisationId,
+            vehicleTypeId,
+            dutyTypeId,
+            normalizedCity,
+            excludingRateCardId
+        );
+
+    if (duplicateExists) {
+      throw new RuntimeException("Duplicate rate card is not allowed for the same vendor organisation, vehicle type, duty type and city");
+    }
+  }
+
+  private String normalizeCity(String city) {
+    if (city == null || city.trim().isEmpty()) {
+      throw new RuntimeException("City is required");
+    }
+
+    return city.trim().toLowerCase(Locale.ROOT);
+  }
+
   private DutyType resolveDutyType(UUID dutyTypeId) {
     if (dutyTypeId == null) {
       return null;
@@ -354,25 +567,25 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       VehicleType vehicleType,
       DutyType dutyType,
       String city,
-      java.math.BigDecimal baseFare,
-      java.math.BigDecimal extraKmCharges,
-      java.math.BigDecimal extraHrCharges,
-      java.math.BigDecimal dailyAllowanceCharges,
-      java.math.BigDecimal earlyAllowanceCharges,
-      java.math.BigDecimal lateAllowanceCharges,
+      BigDecimal baseFare,
+      BigDecimal extraKmCharges,
+      BigDecimal extraHrCharges,
+      BigDecimal dailyAllowanceCharges,
+      BigDecimal earlyAllowanceCharges,
+      BigDecimal lateAllowanceCharges,
       Integer switchCutOffHrs,
       Integer switchCutOffKms,
       DutyType switchDutyType,
-      java.math.BigDecimal hourlyAllowance,
+      BigDecimal hourlyAllowance,
       DutyType noShowDutyType,
       Integer noOfDaysHourCutoff,
-      java.time.LocalTime earlyAllowanceStartTime,
-      java.time.LocalTime lateAllowanceStartTime,
+      LocalTime earlyAllowanceStartTime,
+      LocalTime lateAllowanceStartTime,
       Integer allowanceCutOffHrs
   ) {
     rateCard.setVehicleType(vehicleType);
     rateCard.setDutyType(dutyType);
-    rateCard.setCity(city.trim());
+    rateCard.setCity(city);
     rateCard.setBaseFare(baseFare);
     rateCard.setExtraKmCharges(extraKmCharges);
     rateCard.setExtraHrCharges(extraHrCharges);
