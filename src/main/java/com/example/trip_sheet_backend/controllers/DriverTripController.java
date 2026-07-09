@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
@@ -164,13 +165,13 @@ public class DriverTripController {
 
   @PreAuthorize("hasAuthority('DRIVER_DISPATCH_TRIP')")
   @PutMapping("/arrived/{id}")
-  public ApiResponse<?> arrivedTrip(@PathVariable UUID id, @Valid @RequestBody TripDispatchRequestDTO dto,
+  public ApiResponse<?> arrivedTrip(@PathVariable UUID id, @Valid @RequestBody TripArrivedRequestDTO dto,
       HttpServletRequest request) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     UserAccount user = (UserAccount) request.getAttribute("user");
 
-    Trip arrived = tripServiceImp.arrivedTrip(tenantId, tokenTenant, user, id, null);
+    Trip arrived = tripServiceImp.arrivedTrip(tenantId, tokenTenant, user, id, dto);
     return new ApiResponse<>(true, "Trip marked arrived", arrived);
   }
 

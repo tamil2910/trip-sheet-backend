@@ -8,4 +8,19 @@ import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 
 public interface VendorPartnerRateCardRepository extends BaseRepository<VendorPartnerRateCard, UUID> {
   List<VendorPartnerRateCard> findByVendorPartnerIdAndIsDeletedFalse(UUID vendorPartnerId);
+
+  boolean existsByVendorPartnerIdAndVehicleTypeIdAndDutyTypeIdAndCityIgnoreCaseAndIsDeletedFalse(
+      UUID vendorPartnerId,
+      UUID vehicleTypeId,
+      UUID dutyTypeId,
+      String city
+  );
+
+  boolean existsByVendorPartnerIdAndVehicleTypeIdAndDutyTypeIdAndCityIgnoreCaseAndIsDeletedFalseAndIdNot(
+      UUID vendorPartnerId,
+      UUID vehicleTypeId,
+      UUID dutyTypeId,
+      String city,
+      UUID id
+  );
 }

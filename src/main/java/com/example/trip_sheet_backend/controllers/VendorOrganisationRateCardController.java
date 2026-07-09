@@ -14,12 +14,17 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationContractApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardBulkCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardResponseDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardUpdateRequestDTO;
+import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardApprovalRequestDTO;
+import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardResponseDTO;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.models.VendorOrganisationRateCard;
+import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.VendorOrganisationRateCardService.VendorOrganisationRateCardServiceImp;
 
@@ -135,4 +140,27 @@ public class VendorOrganisationRateCardController {
         response
     ));
   }
+
+    @PutMapping("/{vendorOrgId}/approve-contract")
+    public ResponseEntity<ApiResponse<VendorOrganisation>> approveContract(
+        @PathVariable UUID vendorOrgId,
+        HttpServletRequest request,
+        @Valid @RequestBody VendorOrganisationContractApprovalRequestDTO body
+    ) {
+        UUID approvedBy = (UUID) request.getAttribute("createdBy");
+        Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+
+        VendorOrganisation result = vendorOrganisationRateCardService.updateContractStatus(
+            vendorOrgId,
+            body,
+            loggedInTenant,
+            approvedBy
+        );
+
+        return ResponseEntity.ok(new ApiResponse<>(
+            true,
+            "Vendor organisation contract approved successfully",
+            result
+        ));
+    }
 }

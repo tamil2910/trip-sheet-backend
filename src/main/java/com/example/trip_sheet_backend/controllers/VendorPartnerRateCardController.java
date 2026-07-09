@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,10 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardBulkCreateRequestDTO;
+import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardBulkReviewRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardResponseDTO;
 import com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos.VendorPartnerRateCardUpdateRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.VendorPartnerRateCardService.VendorPartnerRateCardServiceImp;
@@ -38,18 +41,21 @@ public class VendorPartnerRateCardController {
   }
 
   @PostMapping("/create")
-  public ResponseEntity<ApiResponse<List<VendorPartnerRateCardResponseDTO>>> createRateCard(
+  public ResponseEntity<ApiResponse<VendorPartnerRateCardResponseDTO>> createRateCard(
       HttpServletRequest request,
       @Valid @RequestBody VendorPartnerRateCardBulkCreateRequestDTO body
   ) {
     UUID createdBy = (UUID) request.getAttribute("createdBy");
     Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
 
-    List<VendorPartnerRateCardResponseDTO> response = vendorPartnerRateCardService
-        .createRateCards(body, loggedInTenant, createdBy)
-        .stream()
-        .map(VendorPartnerRateCardResponseDTO::fromEntity)
-        .toList();
+    List<VendorPartnerRateCard> createdRateCards = vendorPartnerRateCardService
+      .createRateCards(body, loggedInTenant, createdBy);
+
+    VendorPartnerRateCardResponseDTO response = createdRateCards.stream()
+      .findFirst()
+      .map(VendorPartnerRateCard::getVendorPartner)
+      .map(VendorPartnerRateCardResponseDTO::fromVendorPartner)
+      .orElseThrow(() -> new RuntimeException("No rate cards were created"));
 
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(new ApiResponse<>(
@@ -64,6 +70,23 @@ public class VendorPartnerRateCardController {
       @PathVariable UUID rateCardId,
       HttpServletRequest request,
       @Valid @RequestBody VendorPartnerRateCardApprovalRequestDTO body
+  ) {
+    return reviewRateCardInternal(rateCardId, request, body);
+  }
+
+  @PutMapping("/{rateCardId}/review")
+  public ResponseEntity<ApiResponse<VendorPartnerRateCardResponseDTO>> reviewRateCard(
+      @PathVariable UUID rateCardId,
+      HttpServletRequest request,
+      @Valid @RequestBody VendorPartnerRateCardApprovalRequestDTO body
+  ) {
+    return reviewRateCardInternal(rateCardId, request, body);
+  }
+
+  private ResponseEntity<ApiResponse<VendorPartnerRateCardResponseDTO>> reviewRateCardInternal(
+      UUID rateCardId,
+      HttpServletRequest request,
+      VendorPartnerRateCardApprovalRequestDTO body
   ) {
     UUID approvedBy = (UUID) request.getAttribute("createdBy");
     Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
@@ -83,27 +106,71 @@ public class VendorPartnerRateCardController {
   }
 
     @PutMapping("/{rateCardId}/update")
-    public ResponseEntity<ApiResponse<VendorPartnerRateCardResponseDTO>> updateRateCard(
-            @PathVariable UUID rateCardId,
-            HttpServletRequest request,
-            @Valid @RequestBody VendorPartnerRateCardUpdateRequestDTO body
-    ) {
-        UUID updatedBy = (UUID) request.getAttribute("createdBy");
-        Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+      public ResponseEntity<ApiResponse<VendorPartnerRateCardResponseDTO>> updateRateCard(
+        @PathVariable UUID rateCardId,
+        HttpServletRequest request,
+        @Valid @RequestBody VendorPartnerRateCardUpdateRequestDTO body
+      ) {
+      UUID updatedBy = (UUID) request.getAttribute("createdBy");
+      Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
 
-        VendorPartnerRateCard rateCard = vendorPartnerRateCardService.updateRateCard(
-                rateCardId,
-                body,
-                loggedInTenant,
-                updatedBy
-        );
+      VendorPartnerRateCard rateCard = vendorPartnerRateCardService.updateRateCard(
+        rateCardId,
+        body,
+        loggedInTenant,
+        updatedBy
+      );
 
-        return ResponseEntity.ok(new ApiResponse<>(
-                true,
-                "Vendor partner rate card updated successfully",
-                VendorPartnerRateCardResponseDTO.fromEntity(rateCard)
-        ));
-    }
+      return ResponseEntity.ok(new ApiResponse<>(
+        true,
+        "Vendor partner rate card updated successfully",
+        VendorPartnerRateCardResponseDTO.fromVendorPartner(rateCard.getVendorPartner())
+      ));
+      }
+
+      @DeleteMapping("/{rateCardId}")
+      public ResponseEntity<ApiResponse<VendorPartnerRateCardResponseDTO>> deleteRateCard(
+        @PathVariable UUID rateCardId,
+        HttpServletRequest request
+      ) {
+      UUID deletedBy = (UUID) request.getAttribute("createdBy");
+      Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+
+      VendorPartner vendorPartner = vendorPartnerRateCardService.deleteRateCard(
+        rateCardId,
+        loggedInTenant,
+        deletedBy
+      );
+
+      return ResponseEntity.ok(new ApiResponse<>(
+        true,
+        "Vendor partner rate card deleted successfully",
+        VendorPartnerRateCardResponseDTO.fromVendorPartner(vendorPartner)
+      ));
+      }
+
+      @PutMapping("/vendor-partner/{vendorPartnerId}/bulk-review")
+      public ResponseEntity<ApiResponse<VendorPartnerRateCardResponseDTO>> bulkReviewRateCards(
+        @PathVariable UUID vendorPartnerId,
+        HttpServletRequest request,
+        @Valid @RequestBody VendorPartnerRateCardBulkReviewRequestDTO body
+      ) {
+      UUID actedBy = (UUID) request.getAttribute("createdBy");
+      Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+
+      VendorPartner vendorPartner = vendorPartnerRateCardService.bulkReviewRateCards(
+        vendorPartnerId,
+        body,
+        loggedInTenant,
+        actedBy
+      );
+
+      return ResponseEntity.ok(new ApiResponse<>(
+        true,
+        "Vendor partner rate cards processed successfully",
+        VendorPartnerRateCardResponseDTO.fromVendorPartner(vendorPartner)
+      ));
+      }
 
   @GetMapping("/vendor-partner/{vendorPartnerId}")
   public ResponseEntity<ApiResponse<?>> getRateCardsByVendorPartner(
@@ -124,11 +191,14 @@ public class VendorPartnerRateCardController {
       ));
     }
 
-    List<VendorPartnerRateCardResponseDTO> response = vendorPartnerRateCardService
-        .getRateCardsByVendorPartner(vendorPartnerId, loggedInTenant)
-        .stream()
-        .map(VendorPartnerRateCardResponseDTO::fromEntity)
-        .toList();
+    List<VendorPartnerRateCard> rateCards = vendorPartnerRateCardService
+      .getRateCardsByVendorPartner(vendorPartnerId, loggedInTenant);
+
+    VendorPartnerRateCardResponseDTO response = rateCards.stream()
+      .findFirst()
+      .map(VendorPartnerRateCard::getVendorPartner)
+      .map(VendorPartnerRateCardResponseDTO::fromVendorPartner)
+      .orElse(null);
 
     return ResponseEntity.ok(new ApiResponse<>(
         true,

@@ -8,6 +8,7 @@ import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationContractApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardApprovalRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardBulkCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardCreateRequestDTO;
@@ -387,5 +388,28 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
     rateCard.setEarlyAllowanceStartTime(earlyAllowanceStartTime);
     rateCard.setLateAllowanceStartTime(lateAllowanceStartTime);
     rateCard.setAllowanceCutOffHrs(allowanceCutOffHrs);
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  public VendorOrganisation updateContractStatus(UUID vendorOrgId, VendorOrganisationContractApprovalRequestDTO body, Tenant loggedInTenant, UUID approvedBy) {
+
+    VendorOrganisation exists = vendorOrganisationRepository.findById(vendorOrgId)
+        .orElseThrow(() -> new RuntimeException("Vendor organisation relationship not found"));
+
+    exists.setContractStatus(body.getContractStatus());
+    exists.setUpdatedBy(approvedBy.toString());
+    exists.setUpdatedAt(Instant.now().toEpochMilli());
+
+    vendorOrganisationRateCardRepository.findByVendorOrganisationIdAndIsDeletedFalse(vendorOrgId)
+        .forEach(rateCard -> {
+          rateCard.setApprovalStatus(body.getContractStatus() == VendorOrganisation.ContractStatus.ACTIVE
+              ? VendorOrganisationRateCard.ApprovalStatus.APPROVED
+              : VendorOrganisationRateCard.ApprovalStatus.REJECTED);
+          rateCard.setUpdatedBy(approvedBy.toString());
+          rateCard.setUpdatedAt(Instant.now().toEpochMilli());
+          vendorOrganisationRateCardRepository.saveAndFlush(rateCard);
+        });
+
+    return vendorOrganisationRepository.saveAndFlush(exists);
   }
 }

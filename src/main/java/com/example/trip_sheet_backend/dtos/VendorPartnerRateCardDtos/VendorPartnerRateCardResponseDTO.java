@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.dtos.VendorPartnerRateCardDtos;
 
 import java.math.BigDecimal;
+import java.util.Comparator;
 import java.time.LocalTime;
 import java.util.List;
 import java.util.UUID;
@@ -24,61 +25,64 @@ import lombok.Setter;
 public class VendorPartnerRateCardResponseDTO {
   private UUID id;
   private TenantSummaryDTO primaryVendor;
+  private TenantSummaryDTO raisedByVendor;
   private VendorPartnerSummaryDTO vendorPartner;
-  private VehicleTypeSummaryDTO vehicleType;
-  private DutyTypeSummaryDTO dutyType;
-  private String city;
-  private BigDecimal baseFare;
-  private BigDecimal extraKmCharges;
-  private BigDecimal extraHrCharges;
-  private BigDecimal dailyAllowanceCharges;
-  private BigDecimal earlyAllowanceCharges;
-  private BigDecimal lateAllowanceCharges;
-  private Integer switchCutOffHrs;
-  private Integer switchCutOffKms;
-  private DutyTypeSummaryDTO switchDutyType;
-  private BigDecimal hourlyAllowance;
-  private DutyTypeSummaryDTO noShowDutyType;
-  private Integer noOfDaysHourCutoff;
-
-  @JsonFormat(pattern = "HH:mm")
-  private LocalTime earlyAllowanceStartTime;
-
-  @JsonFormat(pattern = "HH:mm")
-  private LocalTime lateAllowanceStartTime;
-
-  private Integer allowanceCutOffHrs;
-  private VendorPartnerRateCard.ApprovalStatus approvalStatus;
-  private Long approvedAt;
-  private String approvedBy;
+  private List<RelatedRateCardSummaryDTO> rateCards;
 
   public static VendorPartnerRateCardResponseDTO fromEntity(VendorPartnerRateCard rateCard) {
+    return rateCard == null ? null : fromVendorPartner(rateCard.getVendorPartner());
+  }
+
+  public static VendorPartnerRateCardResponseDTO fromVendorPartner(VendorPartner vendorPartner) {
+    if (vendorPartner == null) {
+      return null;
+    }
+
+    List<VendorPartnerRateCard> activeRateCards = vendorPartner.getRateCards() == null
+        ? List.of()
+        : vendorPartner.getRateCards().stream()
+            .filter(relatedRateCard -> !Boolean.TRUE.equals(relatedRateCard.getIsDeleted()))
+            .toList();
+
+    VendorPartnerRateCard anchorRateCard = activeRateCards.stream()
+        .max(Comparator.comparingLong(VendorPartnerRateCardResponseDTO::getRateCardPriorityTimestamp))
+        .orElse(null);
+
     return new VendorPartnerRateCardResponseDTO(
-        rateCard.getId(),
-        TenantSummaryDTO.fromEntity(rateCard.getPrimaryVendor()),
-        VendorPartnerSummaryDTO.fromEntity(rateCard.getVendorPartner()),
-        VehicleTypeSummaryDTO.fromEntity(rateCard.getVehicleType()),
-        DutyTypeSummaryDTO.fromEntity(rateCard.getDutyType()),
-        rateCard.getCity(),
-        rateCard.getBaseFare(),
-        rateCard.getExtraKmCharges(),
-        rateCard.getExtraHrCharges(),
-        rateCard.getDailyAllowanceCharges(),
-        rateCard.getEarlyAllowanceCharges(),
-        rateCard.getLateAllowanceCharges(),
-        rateCard.getSwitchCutOffHrs(),
-        rateCard.getSwitchCutOffKms(),
-        DutyTypeSummaryDTO.fromEntity(rateCard.getSwitchDutyType()),
-        rateCard.getHourlyAllowance(),
-        DutyTypeSummaryDTO.fromEntity(rateCard.getNoShowDutyType()),
-        rateCard.getNoOfDaysHourCutoff(),
-        rateCard.getEarlyAllowanceStartTime(),
-        rateCard.getLateAllowanceStartTime(),
-        rateCard.getAllowanceCutOffHrs(),
-        rateCard.getApprovalStatus(),
-        rateCard.getApprovedAt(),
-        rateCard.getApprovedBy()
+        vendorPartner.getId(),
+        TenantSummaryDTO.fromEntity(vendorPartner.getPrimaryVendor()),
+        TenantSummaryDTO.fromEntity(resolveRaisedByVendor(anchorRateCard)),
+        VendorPartnerSummaryDTO.fromEntity(vendorPartner),
+        activeRateCards.stream()
+            .map(RelatedRateCardSummaryDTO::fromEntity)
+            .toList()
     );
+  }
+
+  private static Tenant resolveRaisedByVendor(VendorPartnerRateCard rateCard) {
+    if (rateCard == null) {
+      return null;
+    }
+
+    return rateCard.getRaisedByVendor() != null
+        ? rateCard.getRaisedByVendor()
+        : rateCard.getPrimaryVendor();
+  }
+
+  private static long getRateCardPriorityTimestamp(VendorPartnerRateCard rateCard) {
+    if (rateCard == null) {
+      return 0L;
+    }
+
+    if (rateCard.getUpdatedAt() != null) {
+      return rateCard.getUpdatedAt();
+    }
+
+    if (rateCard.getCreatedAt() != null) {
+      return rateCard.getCreatedAt();
+    }
+
+    return 0L;
   }
 
   @Getter
@@ -121,7 +125,6 @@ public class VendorPartnerRateCardResponseDTO {
     private Integer maxGtgHrLimit;
     private Long contractStartDate;
     private Long contractEndDate;
-    private List<RelatedRateCardSummaryDTO> vendorPartnerRateCardId;
 
     public static VendorPartnerSummaryDTO fromEntity(VendorPartner vendorPartner) {
       if (vendorPartner == null) {
@@ -139,11 +142,7 @@ public class VendorPartnerRateCardResponseDTO {
           vendorPartner.getMaxGtgKmLimit(),
           vendorPartner.getMaxGtgHrLimit(),
           vendorPartner.getContractStartDate(),
-          vendorPartner.getContractEndDate(),
-          vendorPartner.getRateCards() == null ? List.of() : vendorPartner.getRateCards().stream()
-              .filter(rateCard -> !Boolean.TRUE.equals(rateCard.getIsDeleted()))
-              .map(RelatedRateCardSummaryDTO::fromEntity)
-              .toList()
+          vendorPartner.getContractEndDate()
       );
     }
   }
@@ -154,6 +153,7 @@ public class VendorPartnerRateCardResponseDTO {
   @AllArgsConstructor
   public static class RelatedRateCardSummaryDTO {
     private UUID id;
+    private TenantSummaryDTO raisedByVendor;
     private VehicleTypeSummaryDTO vehicleType;
     private DutyTypeSummaryDTO dutyType;
     private String city;
@@ -188,6 +188,7 @@ public class VendorPartnerRateCardResponseDTO {
 
       return new RelatedRateCardSummaryDTO(
           rateCard.getId(),
+          TenantSummaryDTO.fromEntity(resolveRaisedByVendor(rateCard)),
           VehicleTypeSummaryDTO.fromEntity(rateCard.getVehicleType()),
           DutyTypeSummaryDTO.fromEntity(rateCard.getDutyType()),
           rateCard.getCity(),

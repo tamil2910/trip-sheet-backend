@@ -14,13 +14,23 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Entity
-@Table(name = "vendor_partner_rate_cards")
+@Table(name = "vendor_partner_rate_cards",
+  uniqueConstraints = @UniqueConstraint(
+    columnNames = { 
+      "vendor_partner_id",
+      "vehicle_type_id",
+      "duty_type_id",
+      "city"
+    }
+  )
+)
 @Getter
 @Setter
 @NoArgsConstructor
@@ -30,6 +40,10 @@ public class VendorPartnerRateCard extends BaseModel {
   @ManyToOne
   @JoinColumn(name = "primary_vendor_id", nullable = false)
   private Tenant primaryVendor;
+
+  @ManyToOne
+  @JoinColumn(name = "raised_by_vendor_id")
+  private Tenant raisedByVendor;
 
   @JsonBackReference
   @ManyToOne

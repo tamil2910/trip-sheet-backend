@@ -16,14 +16,12 @@ import lombok.Setter;
 @AllArgsConstructor
 public class VendorPartnerSummaryDTO {
   private UUID vendorPartnerId;
-  private UUID vendorPartnerRateCardId;
   private VendorPartner.ContractStatus contractStatus;
   private Tenant partnerVendor;
 
   public static VendorPartnerSummaryDTO fromEntity(VendorPartner vendorPartner) {
     return new VendorPartnerSummaryDTO(
         vendorPartner.getId(),
-        vendorPartner.getVendorPartnerRateCardId(),
         vendorPartner.getContractStatus(),
         vendorPartner.getPartnerVendor()
     );
