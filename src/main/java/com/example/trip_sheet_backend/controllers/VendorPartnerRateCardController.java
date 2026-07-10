@@ -64,6 +64,7 @@ public class VendorPartnerRateCardController {
             response
         ));
   }
+  
 
   @PutMapping("/{rateCardId}/approve")
   public ResponseEntity<ApiResponse<VendorPartnerRateCardResponseDTO>> approveRateCard(
