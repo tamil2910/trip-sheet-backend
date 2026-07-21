@@ -1,7 +1,11 @@
 package com.example.trip_sheet_backend.config;
 
+import java.util.Arrays;
+import java.util.List;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -19,9 +23,18 @@ import com.example.trip_sheet_backend.security.JwtAuthFilter;
 @EnableMethodSecurity(prePostEnabled = true) // ✅ Enable @PreAuthorize / @PostAuthorize
 public class SecurityConfig {
   private final JwtAuthFilter jwtAuthFilter;
+  private final List<String> allowedOriginPatterns;
 
-  public SecurityConfig(JwtAuthFilter jwtAuthFilter) {
+  public SecurityConfig(
+      JwtAuthFilter jwtAuthFilter,
+      @Value("${app.cors.allowed-origin-patterns:http://localhost:4200,http://localhost:4400,http://127.0.0.1:4200,http://127.0.0.1:4400,https://trip-sheet-frontend.vercel.app,https://*.vercel.app}")
+      String allowedOriginPatternsProperty) {
       this.jwtAuthFilter = jwtAuthFilter;
+      this.allowedOriginPatterns =
+          Arrays.stream(allowedOriginPatternsProperty.split(","))
+              .map(String::trim)
+              .filter(value -> !value.isEmpty())
+              .toList();
   }
 
     // ✅ AuthenticationManager bean (needed for login endpoint if you add one later)
@@ -55,13 +68,10 @@ public class SecurityConfig {
   @Bean
   public org.springframework.web.cors.CorsConfigurationSource corsConfigurationSource() {
       var config = new org.springframework.web.cors.CorsConfiguration();
-      config.addAllowedOrigin("http://localhost:4400"); // Angular app
-      config.addAllowedOrigin("http://localhost:4200");
-      config.addAllowedOrigin("http://127.0.0.1:4400");
-      config.addAllowedOrigin("http://127.0.0.1:4200");
-      config.addAllowedOrigin("https://trip-sheet-frontend.vercel.app");
+      config.setAllowedOriginPatterns(allowedOriginPatterns);
       config.addAllowedHeader("*");
       config.addAllowedMethod("*");
+      config.setExposedHeaders(List.of("Authorization"));
       config.setAllowCredentials(true);
 
       var source = new org.springframework.web.cors.UrlBasedCorsConfigurationSource();
