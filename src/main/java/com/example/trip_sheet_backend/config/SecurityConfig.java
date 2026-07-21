@@ -59,7 +59,7 @@ public class SecurityConfig {
       config.addAllowedOrigin("http://localhost:4200");
       config.addAllowedOrigin("http://127.0.0.1:4400");
       config.addAllowedOrigin("http://127.0.0.1:4200");
-      config.addAllowedOrigin("https://trip-sheet-backend-production.up.railway.app");
+      config.addAllowedOrigin("https://trip-sheet-frontend.vercel.app");
       config.addAllowedHeader("*");
       config.addAllowedMethod("*");
       config.setAllowCredentials(true);
