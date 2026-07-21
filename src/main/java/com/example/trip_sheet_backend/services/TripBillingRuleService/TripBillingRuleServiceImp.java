@@ -32,6 +32,7 @@ public class TripBillingRuleServiceImp implements TripBillingRuleService {
   @Transactional(rollbackFor = Exception.class)
   public TripBillingRule createRule(TripBillingRuleCreateRequestDTO body, Tenant tokenTenant, UUID createdBy) {
     validateTenant(tokenTenant);
+    validateSingleActiveRuleOnCreate(body.getActive(), tokenTenant);
 
     TripBillingRule rule = new TripBillingRule();
     rule.setTenant(tokenTenant);
@@ -78,6 +79,7 @@ public class TripBillingRuleServiceImp implements TripBillingRuleService {
 
     TripBillingRule existingRule = tripBillingRuleRepository.findByIdAndTenant_IdAndIsDeletedFalse(ruleId, tokenTenant.getId())
         .orElseThrow(() -> new RuntimeException("Trip billing rule not found"));
+    validateSingleActiveRuleOnUpdate(existingRule.getId(), body.getActive(), tokenTenant);
 
     applyRuleFields(existingRule, body.getBillingBasis(), body.getCostCenterCustomFieldId(), body.getInvoiceGrouping(), body.getActive(), tokenTenant);
     if (updatedBy != null) {
@@ -151,6 +153,28 @@ public class TripBillingRuleServiceImp implements TripBillingRuleService {
         tripBillingRuleRepository.save(rule);
       }
     }
+  }
+
+  private void validateSingleActiveRuleOnCreate(Boolean active, Tenant tokenTenant) {
+    if (!Boolean.TRUE.equals(active == null ? Boolean.TRUE : active)) {
+      return;
+    }
+
+    if (tripBillingRuleRepository.findFirstByTenant_IdAndActiveTrueAndIsDeletedFalseOrderByUpdatedAtDesc(tokenTenant.getId()).isPresent()) {
+      throw new RuntimeException("An active trip billing rule already exists for this tenant");
+    }
+  }
+
+  private void validateSingleActiveRuleOnUpdate(UUID ruleId, Boolean active, Tenant tokenTenant) {
+    if (!Boolean.TRUE.equals(active)) {
+      return;
+    }
+
+    tripBillingRuleRepository.findFirstByTenant_IdAndActiveTrueAndIsDeletedFalseOrderByUpdatedAtDesc(tokenTenant.getId())
+        .filter(existingActiveRule -> !existingActiveRule.getId().equals(ruleId))
+        .ifPresent(existingActiveRule -> {
+          throw new RuntimeException("An active trip billing rule already exists for this tenant");
+        });
   }
 
   private void validateTenant(Tenant tokenTenant) {

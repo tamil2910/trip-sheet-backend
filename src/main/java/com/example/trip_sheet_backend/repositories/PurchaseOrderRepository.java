@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.repositories;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
@@ -10,4 +11,8 @@ public interface PurchaseOrderRepository extends BaseRepository<PurchaseOrder, U
   boolean existsByAllocation_IdAndIsDeletedFalse(UUID allocationId);
 
   List<PurchaseOrder> findByTripSummary_IdAndIsDeletedFalse(UUID tripSummaryId);
+
+  List<PurchaseOrder> findByTenant_IdAndIsDeletedFalseOrderByUpdatedAtDesc(UUID tenantId);
+
+  Optional<PurchaseOrder> findByIdAndTenant_IdAndIsDeletedFalse(UUID id, UUID tenantId);
 }
