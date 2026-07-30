@@ -2,7 +2,9 @@ package com.example.trip_sheet_backend.models;
 
 import java.util.ArrayList;
 import java.util.List;
-
+import java.util.ArrayList;
+import java.util.List;
+import com.example.trip_sheet_backend.models.PeopleTenantCustomFieldValue;
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
 import jakarta.persistence.Entity;
@@ -13,6 +15,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -78,6 +81,9 @@ public class PeopleTenant extends BaseModel implements TenantScoped {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "emergency_contact_id")
   private PeopleTenant emergencyContact;
+
+  @OneToMany(mappedBy = "peopleTenant", fetch = FetchType.LAZY)
+  private List<PeopleTenantCustomFieldValue> customFieldValues = new ArrayList<>();
 
   @Override
   public Tenant getTenant() {

@@ -1,5 +1,7 @@
 package com.example.trip_sheet_backend.services.PeopleTenantService;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -9,11 +11,15 @@ import org.springframework.stereotype.Service;
 import com.example.trip_sheet_backend.common.services.BaseServiceImp;
 // import com.example.trip_sheet_backend.common.services.GlobalBaseServiceImp;
 import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.CreatePeopleRequestDto;
+import com.example.trip_sheet_backend.dtos.PeopleTenantCustomFieldValueDtos.PeopleTenantCustomFieldValueDto;
+import com.example.trip_sheet_backend.models.CustomField;
 import com.example.trip_sheet_backend.models.PeopleTenant;
+import com.example.trip_sheet_backend.models.PeopleTenantCustomFieldValue;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.PeopleTenant.CreatorType;
 import com.example.trip_sheet_backend.models.Tenant.TenantType;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.repositories.CustomFieldRepository;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 
@@ -23,14 +29,16 @@ import jakarta.transaction.Transactional;
 public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> implements PeopleTenantService {
   private final PeopleTenantRepository repository;
   private final TenantRepository tenantRepository;
+  private final CustomFieldRepository customFieldRepository;
   private final ModelMapper mapper;
 
   public PeopleTenantServiceImp(PeopleTenantRepository repository,
-    TenantRepository tenantRepository, ModelMapper mapper
+    TenantRepository tenantRepository, CustomFieldRepository customFieldRepository, ModelMapper mapper
   ) {
     super(repository);
     this.repository = repository;
     this.tenantRepository = tenantRepository;
+    this.customFieldRepository = customFieldRepository;
     this.mapper = mapper;
   }
 
@@ -62,6 +70,7 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
               person.setCreatorType(CreatorType.ORGANISATION);
               person.setAdditionalContact(additionalContact);
               person.setEmergencyContact(emergencyContact);
+              applyCustomFields(person, dto.getCustomFields());
               return repository.save(person);
           });
     }
@@ -75,6 +84,7 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
               PeopleTenant person = mapper.map(dto, PeopleTenant.class);
               person.setTenantType(PeopleTenant.PeopleTenantType.WALKIN);
               person.setCreatedBy(createdBy.toString());
+              applyCustomFields(person, dto.getCustomFields());
               return repository.save(person);
           });
     }
@@ -104,8 +114,34 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
     person.setCreatorType(CreatorType.VENDOR);
     person.setAdditionalContact(additionalContact);
     person.setEmergencyContact(emergencyContact);
+    applyCustomFields(person, dto.getCustomFields());
 
     return repository.save(person);
+  }
+
+  private void applyCustomFields(
+      PeopleTenant person,
+      List<PeopleTenantCustomFieldValueDto> customFields
+  ) {
+    if (customFields == null) {
+      return;
+    }
+
+    List<PeopleTenantCustomFieldValue> values = new ArrayList<>();
+
+    for (PeopleTenantCustomFieldValueDto item : customFields) {
+      CustomField customField = customFieldRepository.findById(UUID.fromString(item.getCustomFieldId()))
+          .orElseThrow(() -> new RuntimeException("Invalid custom field"));
+
+      PeopleTenantCustomFieldValue row = new PeopleTenantCustomFieldValue();
+      row.setPeopleTenant(person);
+      row.setCustomField(customField);
+      row.setValue(item.getValue());
+
+      values.add(row);
+    }
+
+    person.setCustomFieldValues(values);
   }
 
   @Transactional(rollbackOn = Exception.class)
