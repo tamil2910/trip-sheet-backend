@@ -3,17 +3,18 @@ package com.example.trip_sheet_backend.services.TaxService;
 import java.util.List;
 import java.util.UUID;
 
-import com.example.trip_sheet_backend.common.services.BaseService;
+import com.example.trip_sheet_backend.common.services.GlobalBaseService;
 import com.example.trip_sheet_backend.dtos.TaxDtos.CreateTaxRequestDto;
 import com.example.trip_sheet_backend.models.Tax;
-import com.example.trip_sheet_backend.models.Tenant;
 
-public interface TaxService extends BaseService<Tax, UUID> {
-  Tax createTax(CreateTaxRequestDto body, Tenant tokenTenant, UUID createdBy);
+public interface TaxService extends GlobalBaseService<Tax, UUID> {
+  Tax createTax(CreateTaxRequestDto body, UUID createdBy);
 
-  List<Tax> getTaxesByTenant(Tenant tokenTenant);
+  List<Tax> getTaxes();
 
-  Tax updateTax(UUID taxId, CreateTaxRequestDto body, Tenant tokenTenant, UUID updatedBy);
+  Tax getTaxById(UUID taxId);
 
-  void deleteTax(UUID taxId, Tenant tokenTenant);
+  Tax updateTax(UUID taxId, CreateTaxRequestDto body, UUID updatedBy);
+
+  void deleteTax(UUID taxId, UUID deletedBy);
 }

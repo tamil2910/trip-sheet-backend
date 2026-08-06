@@ -6,14 +6,13 @@ import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 
-import com.example.trip_sheet_backend.common.services.BaseServiceImp;
+import com.example.trip_sheet_backend.common.services.GlobalBaseServiceImp;
 import com.example.trip_sheet_backend.dtos.TaxDtos.CreateTaxRequestDto;
 import com.example.trip_sheet_backend.models.Tax;
-import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.repositories.TaxRepository;
 
 @Service
-public class TaxServiceImp extends BaseServiceImp<Tax, UUID> implements TaxService {
+public class TaxServiceImp extends GlobalBaseServiceImp<Tax, UUID> implements TaxService {
 
   private final TaxRepository taxRepository;
 
@@ -23,22 +22,20 @@ public class TaxServiceImp extends BaseServiceImp<Tax, UUID> implements TaxServi
   }
 
   @Override
-  public Tax createTax(CreateTaxRequestDto body, Tenant tokenTenant, UUID createdBy) {
-    validateTenant(tokenTenant);
-
+  public Tax createTax(CreateTaxRequestDto body, UUID createdBy) {
     BigDecimal normalizedPercentage = body.getTaxPercentage().stripTrailingZeros();
-    String generatedTaxName = buildTaxName(normalizedPercentage, body.getTaxType());
+    String normalizedTaxName = normalizeTaxName(body.getTaxName());
 
-    taxRepository.findByTenant_IdAndTaxNameIgnoreCase(tokenTenant.getId(), generatedTaxName)
+    taxRepository.findByTaxNameIgnoreCaseAndTaxPercentageAndTaxType(
+        normalizedTaxName, normalizedPercentage, body.getTaxType())
         .ifPresent(existing -> {
-          throw new RuntimeException("Tax already exists for this tenant: " + generatedTaxName);
+          throw new RuntimeException("Tax already exists: " + normalizedTaxName);
         });
 
     Tax tax = new Tax();
     tax.setTaxPercentage(normalizedPercentage);
     tax.setTaxType(body.getTaxType());
-    tax.setTaxName(generatedTaxName);
-    tax.setTenant(tokenTenant);
+    tax.setTaxName(normalizedTaxName);
     tax.setIsActive(true);
     if (createdBy != null) {
       tax.setCreatedBy(createdBy.toString());
@@ -49,31 +46,36 @@ public class TaxServiceImp extends BaseServiceImp<Tax, UUID> implements TaxServi
   }
 
   @Override
-  public List<Tax> getTaxesByTenant(Tenant tokenTenant) {
-    validateTenant(tokenTenant);
-    return taxRepository.findByTenant_IdOrderByTaxPercentageAscTaxTypeAsc(tokenTenant.getId());
+  public List<Tax> getTaxes() {
+    return taxRepository.findByIsDeletedFalseOrderByTaxPercentageAscTaxTypeAsc();
   }
 
   @Override
-  public Tax updateTax(UUID taxId, CreateTaxRequestDto body, Tenant tokenTenant, UUID updatedBy) {
-    validateTenant(tokenTenant);
-
-    Tax existingTax = taxRepository.findByIdAndTenant_Id(taxId, tokenTenant.getId())
+  public Tax getTaxById(UUID taxId) {
+    Tax tax = taxRepository.findById(taxId)
+        .filter(existingTax -> !Boolean.TRUE.equals(existingTax.getIsDeleted()))
         .orElseThrow(() -> new RuntimeException("Tax not found"));
+    return tax;
+  }
+
+  @Override
+  public Tax updateTax(UUID taxId, CreateTaxRequestDto body, UUID updatedBy) {
+    Tax existingTax = getTaxById(taxId);
 
     BigDecimal normalizedPercentage = body.getTaxPercentage().stripTrailingZeros();
-    String generatedTaxName = buildTaxName(normalizedPercentage, body.getTaxType());
+    String normalizedTaxName = normalizeTaxName(body.getTaxName());
 
-    taxRepository.findByTenant_IdAndTaxNameIgnoreCase(tokenTenant.getId(), generatedTaxName)
+    taxRepository.findByTaxNameIgnoreCaseAndTaxPercentageAndTaxType(
+        normalizedTaxName, normalizedPercentage, body.getTaxType())
         .ifPresent(duplicateTax -> {
           if (!duplicateTax.getId().equals(existingTax.getId())) {
-            throw new RuntimeException("Tax already exists for this tenant: " + generatedTaxName);
+            throw new RuntimeException("Tax already exists: " + normalizedTaxName);
           }
         });
 
     existingTax.setTaxPercentage(normalizedPercentage);
     existingTax.setTaxType(body.getTaxType());
-    existingTax.setTaxName(generatedTaxName);
+    existingTax.setTaxName(normalizedTaxName);
     if (updatedBy != null) {
       existingTax.setUpdatedBy(updatedBy.toString());
     }
@@ -82,22 +84,19 @@ public class TaxServiceImp extends BaseServiceImp<Tax, UUID> implements TaxServi
   }
 
   @Override
-  public void deleteTax(UUID taxId, Tenant tokenTenant) {
-    validateTenant(tokenTenant);
-
-    Tax existingTax = taxRepository.findByIdAndTenant_Id(taxId, tokenTenant.getId())
-        .orElseThrow(() -> new RuntimeException("Tax not found"));
-
-    taxRepository.delete(existingTax);
-  }
-
-  private void validateTenant(Tenant tokenTenant) {
-    if (tokenTenant == null) {
-      throw new RuntimeException("Tenant not found in token");
+  public void deleteTax(UUID taxId, UUID deletedBy) {
+    Tax existingTax = getTaxById(taxId);
+    existingTax.setIsDeleted(true);
+    if (deletedBy != null) {
+      existingTax.setDeletedBy(deletedBy.toString());
     }
+    taxRepository.save(existingTax);
   }
 
-  private String buildTaxName(BigDecimal taxPercentage, Tax.TaxType taxType) {
-    return taxPercentage.stripTrailingZeros().toPlainString() + "% " + taxType.name();
+  private String normalizeTaxName(String taxName) {
+    if (taxName == null || taxName.isBlank()) {
+      throw new RuntimeException("taxName is required");
+    }
+    return taxName.trim();
   }
 }

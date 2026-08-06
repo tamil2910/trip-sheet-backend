@@ -8,9 +8,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import jakarta.validation.constraints.NotNull;
@@ -27,10 +24,10 @@ import lombok.Setter;
 @Table(
     name = "taxes",
     uniqueConstraints = {
-        @UniqueConstraint(columnNames = { "tenant_id", "tax_name" })
+        @UniqueConstraint(columnNames = { "tax_name", "tax_percentage", "tax_type" })
     }
 )
-public class Tax extends BaseModel implements TenantScoped {
+public class Tax extends BaseModel {
 
   public enum TaxType {
     CGST,
@@ -50,19 +47,5 @@ public class Tax extends BaseModel implements TenantScoped {
   @Column(nullable = false)
   private String taxName;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "tenant_id", nullable = false)
-  private Tenant tenant;
-
   private Boolean isActive = true;
-
-  @Override
-  public Tenant getTenant() {
-    return tenant;
-  }
-
-  @Override
-  public void setTenant(Tenant tenant) {
-    this.tenant = tenant;
-  }
 }

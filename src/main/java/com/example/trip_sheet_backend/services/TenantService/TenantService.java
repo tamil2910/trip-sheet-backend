@@ -1,6 +1,5 @@
 package com.example.trip_sheet_backend.services.TenantService;
 
-import java.util.List;
 import java.util.UUID;
 
 import com.example.trip_sheet_backend.common.services.GlobalBaseService;
@@ -12,5 +11,5 @@ public interface TenantService extends GlobalBaseService<Tenant, UUID> {
 
   Tenant findByUniqueCode(String tenantUniqueCode);
 
-  TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode, UUID createdBy, List<UUID> taxIds);
+  TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode, UUID createdBy);
 }

@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.models.DutyType;
+import com.example.trip_sheet_backend.models.CustomTax;
 import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
 import com.example.trip_sheet_backend.models.Tax;
@@ -27,21 +28,18 @@ import com.example.trip_sheet_backend.models.TripPassengerCustomFieldValue;
 import com.example.trip_sheet_backend.models.TripSummary;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.models.VendorOrganisationRateCard;
-import com.example.trip_sheet_backend.models.VendorOrganisationTax;
 import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
-import com.example.trip_sheet_backend.models.VendorPartnerTax;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderRepository;
+import com.example.trip_sheet_backend.repositories.CustomTaxRepository;
 import com.example.trip_sheet_backend.repositories.TripBillingAllocationRepository;
 import com.example.trip_sheet_backend.repositories.TripBillingRuleRepository;
 import com.example.trip_sheet_backend.repositories.TripPassengerCustomFieldValueRepository;
 import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRateCardRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
-import com.example.trip_sheet_backend.repositories.VendorOrganisationTaxRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRateCardRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
-import com.example.trip_sheet_backend.repositories.VendorPartnerTaxRepository;
 
 @Service
 public class TripBillingService {
@@ -56,10 +54,9 @@ public class TripBillingService {
   private final TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository;
   private final VendorOrganisationRepository vendorOrganisationRepository;
   private final VendorOrganisationRateCardRepository vendorOrganisationRateCardRepository;
-  private final VendorOrganisationTaxRepository vendorOrganisationTaxRepository;
+  private final CustomTaxRepository customTaxRepository;
   private final VendorPartnerRepository vendorPartnerRepository;
   private final VendorPartnerRateCardRepository vendorPartnerRateCardRepository;
-  private final VendorPartnerTaxRepository vendorPartnerTaxRepository;
 
   public TripBillingService(
       TripBillingRuleRepository tripBillingRuleRepository,
@@ -69,10 +66,9 @@ public class TripBillingService {
       TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository,
       VendorOrganisationRepository vendorOrganisationRepository,
       VendorOrganisationRateCardRepository vendorOrganisationRateCardRepository,
-      VendorOrganisationTaxRepository vendorOrganisationTaxRepository,
+      CustomTaxRepository customTaxRepository,
       VendorPartnerRepository vendorPartnerRepository,
-      VendorPartnerRateCardRepository vendorPartnerRateCardRepository,
-      VendorPartnerTaxRepository vendorPartnerTaxRepository
+      VendorPartnerRateCardRepository vendorPartnerRateCardRepository
   ) {
     this.tripBillingRuleRepository = tripBillingRuleRepository;
     this.tripBillingAllocationRepository = tripBillingAllocationRepository;
@@ -81,10 +77,9 @@ public class TripBillingService {
     this.tripPassengerCustomFieldValueRepository = tripPassengerCustomFieldValueRepository;
     this.vendorOrganisationRepository = vendorOrganisationRepository;
     this.vendorOrganisationRateCardRepository = vendorOrganisationRateCardRepository;
-    this.vendorOrganisationTaxRepository = vendorOrganisationTaxRepository;
+    this.customTaxRepository = customTaxRepository;
     this.vendorPartnerRepository = vendorPartnerRepository;
     this.vendorPartnerRateCardRepository = vendorPartnerRateCardRepository;
-    this.vendorPartnerTaxRepository = vendorPartnerTaxRepository;
   }
 
   @Transactional(rollbackFor = Exception.class)
@@ -487,8 +482,8 @@ public class TripBillingService {
         .max(Comparator.comparing(card -> card.getApprovedAt() == null ? 0L : card.getApprovedAt()))
         .orElseThrow(() -> new RuntimeException("No approved vendor organisation rate card found for trip"));
 
-    List<VendorOrganisationTax> taxes =
-        vendorOrganisationTaxRepository.findByVendorOrganisation_IdAndIsDeletedFalse(vendorOrganisation.getId());
+    List<CustomTax> taxes = customTaxRepository
+        .findByTenant_IdAndIsDeletedFalseOrderByUpdatedAtDesc(trip.getVendor().getId());
 
     return new PricingContext(
         trip.getOrganisation(),
@@ -496,7 +491,7 @@ public class TripBillingService {
         rateCard.getBaseFare(),
         rateCard.getExtraKmCharges(),
         rateCard.getExtraHrCharges(),
-        buildTaxRateSummaryFromVendorOrganisationTaxes(taxes),
+        buildTaxRateSummary(taxes),
         trip.getDutyType() == null ? null : trip.getDutyType().getName(),
         buildRateCardPackageName(rateCard.getCity(), trip.getVehicleType(), trip.getDutyType()),
         "Vendor to organisation billing"
@@ -520,8 +515,8 @@ public class TripBillingService {
         .findFirst()
         .orElseThrow(() -> new RuntimeException("No approved vendor partner rate card found for trip"));
 
-    List<VendorPartnerTax> taxes =
-        vendorPartnerTaxRepository.findByVendorPartner_IdAndIsDeletedFalse(vendorPartner.getId());
+    List<CustomTax> taxes = customTaxRepository
+        .findByTenant_IdAndIsDeletedFalseOrderByUpdatedAtDesc(vendorPartner.getPrimaryVendor().getId());
 
     return new PricingContext(
         vendorPartner.getPrimaryVendor(),
@@ -529,7 +524,7 @@ public class TripBillingService {
         rateCard.getBaseFare(),
         rateCard.getExtraKmCharges(),
         rateCard.getExtraHrCharges(),
-        buildTaxRateSummaryFromVendorPartnerTaxes(taxes),
+        buildTaxRateSummary(taxes),
         trip.getDutyType() == null ? null : trip.getDutyType().getName(),
         buildRateCardPackageName(rateCard.getCity(), trip.getVehicleType(), trip.getDutyType()),
         "Partner vendor to primary vendor billing"
@@ -553,18 +548,13 @@ public class TripBillingService {
     return cityPart + " | " + vehicleName + " | " + dutyTypeName;
   }
 
-  private TaxRateSummary buildTaxRateSummaryFromVendorOrganisationTaxes(List<VendorOrganisationTax> relationTaxes) {
+  private TaxRateSummary buildTaxRateSummary(List<CustomTax> customTaxes) {
     TaxRateSummary summary = new TaxRateSummary(ZERO, ZERO, ZERO);
-    for (VendorOrganisationTax relationTax : relationTaxes) {
-      summary = addTax(summary, relationTax.getTax());
-    }
-    return summary;
-  }
-
-  private TaxRateSummary buildTaxRateSummaryFromVendorPartnerTaxes(List<VendorPartnerTax> relationTaxes) {
-    TaxRateSummary summary = new TaxRateSummary(ZERO, ZERO, ZERO);
-    for (VendorPartnerTax relationTax : relationTaxes) {
-      summary = addTax(summary, relationTax.getTax());
+    for (CustomTax customTax : customTaxes) {
+      if (Boolean.FALSE.equals(customTax.getIsActive())) {
+        continue;
+      }
+      summary = addTax(summary, customTax.getTax());
     }
     return summary;
   }

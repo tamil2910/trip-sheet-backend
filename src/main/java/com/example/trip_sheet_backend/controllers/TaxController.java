@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 
 import com.example.trip_sheet_backend.dtos.TaxDtos.CreateTaxRequestDto;
 import com.example.trip_sheet_backend.models.Tax;
-import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.TaxService.TaxService;
 
@@ -38,10 +37,9 @@ public class TaxController {
       @Valid @RequestBody CreateTaxRequestDto body,
       HttpServletRequest request) {
 
-    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     UUID createdBy = (UUID) request.getAttribute("createdBy");
 
-    Tax createdTax = taxService.createTax(body, tokenTenant, createdBy);
+    Tax createdTax = taxService.createTax(body, createdBy);
 
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(new ApiResponse<>(true, "Tax created successfully", createdTax));
@@ -49,9 +47,13 @@ public class TaxController {
 
   @GetMapping
   public ResponseEntity<ApiResponse<List<Tax>>> getTaxes(HttpServletRequest request) {
-    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
-    List<Tax> taxes = taxService.getTaxesByTenant(tokenTenant);
+    List<Tax> taxes = taxService.getTaxes();
     return ResponseEntity.ok(new ApiResponse<>(true, "Taxes fetched successfully", taxes));
+  }
+
+  @GetMapping("/{id}")
+  public ResponseEntity<ApiResponse<Tax>> getTaxById(@PathVariable UUID id) {
+    return ResponseEntity.ok(new ApiResponse<>(true, "Tax fetched successfully", taxService.getTaxById(id)));
   }
 
   @PutMapping("/{id}")
@@ -60,10 +62,12 @@ public class TaxController {
       @Valid @RequestBody CreateTaxRequestDto body,
       HttpServletRequest request) {
 
-    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
     UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+    if (updatedBy == null) {
+      updatedBy = (UUID) request.getAttribute("createdBy");
+    }
 
-    Tax updatedTax = taxService.updateTax(id, body, tokenTenant, updatedBy);
+    Tax updatedTax = taxService.updateTax(id, body, updatedBy);
 
     return ResponseEntity.ok(new ApiResponse<>(true, "Tax updated successfully", updatedTax));
   }
@@ -73,8 +77,11 @@ public class TaxController {
       @PathVariable UUID id,
       HttpServletRequest request) {
 
-    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
-    taxService.deleteTax(id, tokenTenant);
+    UUID deletedBy = (UUID) request.getAttribute("updatedBy");
+    if (deletedBy == null) {
+      deletedBy = (UUID) request.getAttribute("createdBy");
+    }
+    taxService.deleteTax(id, deletedBy);
 
     return ResponseEntity.ok(new ApiResponse<>(true, "Tax deleted successfully", null));
   }

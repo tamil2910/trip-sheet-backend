@@ -1,8 +1,5 @@
 package com.example.trip_sheet_backend.dtos.TenantDtos;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -32,5 +29,4 @@ public class TenantCreateWithTaxIdsRequestDto {
 
   private String address;
 
-  private List<UUID> taxIds = new ArrayList<>();
 }

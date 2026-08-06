@@ -238,8 +238,7 @@ public ResponseEntity<ApiResponse<Tenant>> createPartnerTenant(
     TenantOnboardingResult partnerResult = service.createOrGetPartnerVendor(
             mapTenantRequest(body),
             loggedInTenant,
-            createdBy,
-            body.getTaxIds()
+            createdBy
     );
 
     String message;
@@ -280,8 +279,7 @@ public ResponseEntity<ApiResponse<Tenant>> createClientTenant(
     TenantOnboardingResult clientResult = service.createOrGetCorporateTenant(
             mapTenantRequest(body),
             loggedInTenant,
-            createdBy,
-            body.getTaxIds()
+            createdBy
     );
 
     String message;
@@ -324,8 +322,7 @@ public ResponseEntity<ApiResponse<TenantLinkResponseDto>> addTenantByUniqueCode(
     TenantLinkResponseDto result = service.linkExistingTenantByUniqueCode(
             loggedInTenant,
             body.getTenantUniqueCode(),
-            createdBy,
-            body.getTaxIds()
+            createdBy
     );
 
     String message = result.isAlreadyLinked()

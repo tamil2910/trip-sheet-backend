@@ -8,43 +8,32 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-@Entity
-@Table(
-    name = "vendor_organisation_taxes",
-    uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"tenant_id", "vendor_organisation_id", "tax_id"})
-    }
-)
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class VendorOrganisationTax extends BaseModel implements TenantScoped {
+@Entity
+@Table(name = "custom_tax", uniqueConstraints = {
+    @UniqueConstraint(columnNames = { "tenant_id", "tax_id" })
+})
+public class CustomTax extends BaseModel {
+
+  @NotBlank(message = "Custom tax name is required")
+  private String customTaxName;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "vendor_organisation_id", nullable = false)
-  private VendorOrganisation vendorOrganisation;
-
-  @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "tax_id", nullable = false)
   private Tax tax;
 
-  @Override
-  public Tenant getTenant() {
-    return tenant;
-  }
-
-  @Override
-  public void setTenant(Tenant tenant) {
-    this.tenant = tenant;
-  }
+  private Boolean isActive = true;
 }
