@@ -24,7 +24,7 @@ public class TaxServiceImp extends GlobalBaseServiceImp<Tax, UUID> implements Ta
   @Override
   public Tax createTax(CreateTaxRequestDto body, UUID createdBy) {
     BigDecimal normalizedPercentage = body.getTaxPercentage().stripTrailingZeros();
-    String normalizedTaxName = normalizeTaxName(body.getTaxName());
+    String normalizedTaxName = buildTaxName(normalizedPercentage, body.getTaxType());
 
     taxRepository.findByTaxNameIgnoreCaseAndTaxPercentageAndTaxType(
         normalizedTaxName, normalizedPercentage, body.getTaxType())
@@ -63,7 +63,7 @@ public class TaxServiceImp extends GlobalBaseServiceImp<Tax, UUID> implements Ta
     Tax existingTax = getTaxById(taxId);
 
     BigDecimal normalizedPercentage = body.getTaxPercentage().stripTrailingZeros();
-    String normalizedTaxName = normalizeTaxName(body.getTaxName());
+    String normalizedTaxName = buildTaxName(normalizedPercentage, body.getTaxType());
 
     taxRepository.findByTaxNameIgnoreCaseAndTaxPercentageAndTaxType(
         normalizedTaxName, normalizedPercentage, body.getTaxType())
@@ -93,10 +93,7 @@ public class TaxServiceImp extends GlobalBaseServiceImp<Tax, UUID> implements Ta
     taxRepository.save(existingTax);
   }
 
-  private String normalizeTaxName(String taxName) {
-    if (taxName == null || taxName.isBlank()) {
-      throw new RuntimeException("taxName is required");
-    }
-    return taxName.trim();
+  private String buildTaxName(BigDecimal taxPercentage, Tax.TaxType taxType) {
+    return taxPercentage.stripTrailingZeros().toPlainString() + "% " + taxType.name();
   }
 }

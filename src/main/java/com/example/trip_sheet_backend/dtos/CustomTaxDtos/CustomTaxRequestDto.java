@@ -23,6 +23,4 @@ public class CustomTaxRequestDto {
   @NotNull(message = "taxType is required")
   private TaxType taxType;
 
-  @NotBlank(message = "taxName is required")
-  private String taxName;
 }

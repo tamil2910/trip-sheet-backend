@@ -86,7 +86,7 @@ public class CustomTaxServiceImp implements CustomTaxService {
 
   private Tax resolveOrCreateTax(CustomTaxRequestDto body, UUID actorId) {
     BigDecimal percentage = body.getTaxPercentage().stripTrailingZeros();
-    String taxName = body.getTaxName().trim();
+    String taxName = buildTaxName(percentage, body.getTaxType());
     return taxRepository.findByTaxNameIgnoreCaseAndTaxPercentageAndTaxType(taxName, percentage, body.getTaxType())
         .filter(tax -> !Boolean.TRUE.equals(tax.getIsDeleted()))
         .orElseGet(() -> {
@@ -114,6 +114,10 @@ public class CustomTaxServiceImp implements CustomTaxService {
       throw new RuntimeException("customTaxName is required");
     }
     return customTaxName.trim();
+  }
+
+  private String buildTaxName(BigDecimal taxPercentage, Tax.TaxType taxType) {
+    return taxPercentage.stripTrailingZeros().toPlainString() + "% " + taxType.name();
   }
 
   private void setAuditUsers(CustomTax customTax, UUID actorId) {
