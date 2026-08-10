@@ -19,6 +19,8 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import jakarta.persistence.criteria.Join;
 import jakarta.persistence.criteria.JoinType;
@@ -1680,10 +1682,29 @@ public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, U
 
   trip.setTripStatus(Trip.TripStatus.COMPLETED);
   Trip completedTrip = repository.save(trip);
-  tripBillingService.generatePurchaseOrdersForTrip(completedTrip);
-  tripRealtimePublisher.publishUpdated(completedTrip);
-  tripFeedbackService.sendFeedbackRequestsForTrip(completedTrip);
+  
+  processAfterTripCompletion(completedTrip);
   return completedTrip;
+}
+
+public void processAfterTripCompletion(Trip completedTrip) {
+  Runnable completionTask = () -> {
+    tripRealtimePublisher.publishUpdated(completedTrip);
+    tripBillingService.generatePurchaseOrdersForTrip(completedTrip);
+    tripFeedbackService.sendFeedbackRequestsForTrip(completedTrip);
+  };
+
+  if (TransactionSynchronizationManager.isActualTransactionActive()) {
+    TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+      @Override
+      public void afterCommit() {
+        completionTask.run();
+      }
+    });
+    return;
+  }
+
+  completionTask.run();
 }
 
 @Transactional(rollbackFor = Exception.class)
