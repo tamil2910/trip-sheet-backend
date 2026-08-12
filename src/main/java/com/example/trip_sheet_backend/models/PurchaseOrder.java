@@ -1,6 +1,8 @@
 package com.example.trip_sheet_backend.models;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
@@ -11,6 +13,10 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -57,9 +63,11 @@ public class PurchaseOrder extends BaseModel implements TenantScoped {
   @JoinColumn(name = "trip_summary_id")
   private TripSummary tripSummary;
 
-  @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "allocation_id")
-  private TripBillingAllocation allocation;
+  @Enumerated(EnumType.STRING)
+  private PurchaseOrderStatus status;
+
+  @OneToMany(mappedBy = "purchaseOrder", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<PurchaseOrderAllocation> allocations = new ArrayList<>();
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "tenant_id")
@@ -154,6 +162,13 @@ public class PurchaseOrder extends BaseModel implements TenantScoped {
 
   private BigDecimal totalAmount;
   private String notes;
+
+  public enum PurchaseOrderStatus {
+    GENERATED,
+    VERIFIED,
+    REJECTED,
+    INVOICED
+  }
 
   @Override
   public Tenant getTenant() {

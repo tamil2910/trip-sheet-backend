@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.dtos.PurchaseOrderDtos;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.List;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -26,7 +27,8 @@ public class PurchaseOrderUpdateRequestDTO {
   private Integer lineItemCount;
   private String lineItemsSnapshot;
   private UUID tripSummaryId;
-  private UUID allocationId;
+  private List<PurchaseOrderAllocationRequestDTO> allocations;
+  private com.example.trip_sheet_backend.models.PurchaseOrder.PurchaseOrderStatus status;
   private Long garageStartTime;
   private Long garageEndTime;
   private Long tripStartTime;

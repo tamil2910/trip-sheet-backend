@@ -8,7 +8,7 @@ import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
 
 public interface PurchaseOrderRepository extends BaseRepository<PurchaseOrder, UUID> {
-  boolean existsByAllocation_IdAndIsDeletedFalse(UUID allocationId);
+  boolean existsByTripSummary_IdAndIsDeletedFalse(UUID tripSummaryId);
 
   List<PurchaseOrder> findByTripSummary_IdAndIsDeletedFalse(UUID tripSummaryId);
 

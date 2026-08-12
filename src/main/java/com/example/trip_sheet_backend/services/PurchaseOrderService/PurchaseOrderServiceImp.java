@@ -1,18 +1,25 @@
 package com.example.trip_sheet_backend.services.PurchaseOrderService;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderUpdateRequestDTO;
+import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderAllocationRequestDTO;
+import com.example.trip_sheet_backend.models.CustomField;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
+import com.example.trip_sheet_backend.models.PurchaseOrderAllocation;
 import com.example.trip_sheet_backend.models.Tenant;
-import com.example.trip_sheet_backend.models.TripBillingAllocation;
 import com.example.trip_sheet_backend.models.TripSummary;
+import com.example.trip_sheet_backend.repositories.CustomFieldRepository;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderRepository;
-import com.example.trip_sheet_backend.repositories.TripBillingAllocationRepository;
+import com.example.trip_sheet_backend.repositories.TripPassengerCustomFieldValueRepository;
 import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
 
 @Service
@@ -20,16 +27,19 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
 
   private final PurchaseOrderRepository purchaseOrderRepository;
   private final TripSummaryRepository tripSummaryRepository;
-  private final TripBillingAllocationRepository tripBillingAllocationRepository;
+  private final CustomFieldRepository customFieldRepository;
+  private final TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository;
 
   public PurchaseOrderServiceImp(
       PurchaseOrderRepository purchaseOrderRepository,
       TripSummaryRepository tripSummaryRepository,
-      TripBillingAllocationRepository tripBillingAllocationRepository
+      CustomFieldRepository customFieldRepository,
+      TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository
   ) {
     this.purchaseOrderRepository = purchaseOrderRepository;
     this.tripSummaryRepository = tripSummaryRepository;
-    this.tripBillingAllocationRepository = tripBillingAllocationRepository;
+    this.customFieldRepository = customFieldRepository;
+    this.tripPassengerCustomFieldValueRepository = tripPassengerCustomFieldValueRepository;
   }
 
   @Override
@@ -58,11 +68,8 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
       purchaseOrder.setTripSummary(tripSummary);
     }
 
-    if (body.getAllocationId() != null) {
-      TripBillingAllocation allocation = tripBillingAllocationRepository.findByIdAndIsDeletedFalse(body.getAllocationId())
-          .orElseThrow(() -> new RuntimeException("Trip billing allocation not found"));
-      validateTenantOwnership(allocation.getTenant(), tokenTenant, "Trip billing allocation is not accessible for this tenant");
-      purchaseOrder.setAllocation(allocation);
+    if (body.getAllocations() != null) {
+      replaceAllocations(purchaseOrder, body.getAllocations(), updatedBy);
     }
 
     applyUpdateFields(purchaseOrder, body);
@@ -89,12 +96,98 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     purchaseOrderRepository.save(purchaseOrder);
   }
 
+  private void replaceAllocations(
+      PurchaseOrder purchaseOrder,
+      List<PurchaseOrderAllocationRequestDTO> requestedAllocations,
+      UUID updatedBy
+  ) {
+    if (purchaseOrder.getStatus() == PurchaseOrder.PurchaseOrderStatus.VERIFIED
+        || purchaseOrder.getStatus() == PurchaseOrder.PurchaseOrderStatus.INVOICED) {
+      throw new RuntimeException("Allocations cannot be changed after the purchase order is verified");
+    }
+    if (requestedAllocations.isEmpty()) {
+      throw new RuntimeException("At least one allocation is required");
+    }
+    if (purchaseOrder.getTripSummary() == null || purchaseOrder.getTripSummary().getTripId() == null) {
+      throw new RuntimeException("Purchase order trip is required for allocation validation");
+    }
+
+    BigDecimal totalPercent = requestedAllocations.stream()
+        .map(PurchaseOrderAllocationRequestDTO::getSharePercent)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+    if (totalPercent.compareTo(new BigDecimal("100.00")) != 0) {
+      throw new RuntimeException("Allocation percentages must total exactly 100.00");
+    }
+
+    Set<UUID> customFieldIds = new HashSet<>();
+    for (PurchaseOrderAllocationRequestDTO allocation : requestedAllocations) {
+      if (allocation.getSharePercent() == null || allocation.getSharePercent().signum() <= 0
+          || allocation.getAllocationKey() == null || allocation.getAllocationKey().isBlank()) {
+        throw new RuntimeException("Each allocation requires a key and a positive percentage");
+      }
+      if (allocation.getCustomFieldId() != null) customFieldIds.add(allocation.getCustomFieldId());
+    }
+    if (customFieldIds.size() > 1 || (customFieldIds.isEmpty() && requestedAllocations.size() > 1)) {
+      throw new RuntimeException("All split allocations must use one custom field");
+    }
+
+    CustomField customField = null;
+    Set<String> allowedKeys = Set.of();
+    if (!customFieldIds.isEmpty()) {
+      UUID customFieldId = customFieldIds.iterator().next();
+      customField = customFieldRepository.findById(customFieldId)
+          .orElseThrow(() -> new RuntimeException("Custom field not found"));
+      allowedKeys = tripPassengerCustomFieldValueRepository
+          .findByTrip_IdAndCustomField_IdAndIsDeletedFalse(purchaseOrder.getTripSummary().getTripId().getId(), customFieldId)
+          .stream()
+          .map(value -> value.getValue() == null ? "" : value.getValue().trim())
+          .filter(value -> !value.isBlank())
+          .collect(java.util.stream.Collectors.toSet());
+      if (allowedKeys.isEmpty()) {
+        throw new RuntimeException("The selected custom field has no values on this trip");
+      }
+    }
+
+    BigDecimal totalAmount = currency(purchaseOrder.getTotalAmount());
+    BigDecimal remainingAmount = totalAmount;
+    purchaseOrder.getAllocations().clear();
+    for (int index = 0; index < requestedAllocations.size(); index++) {
+      PurchaseOrderAllocationRequestDTO request = requestedAllocations.get(index);
+      String allocationKey = request.getAllocationKey().trim();
+      if (customField != null && (!customField.getId().equals(request.getCustomFieldId()) || !allowedKeys.contains(allocationKey))) {
+        throw new RuntimeException("Allocation key does not belong to the selected custom field on this trip: " + allocationKey);
+      }
+
+      BigDecimal amount = index == requestedAllocations.size() - 1
+          ? remainingAmount
+          : currency(totalAmount.multiply(request.getSharePercent()).divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP));
+      remainingAmount = remainingAmount.subtract(amount);
+
+      PurchaseOrderAllocation allocation = new PurchaseOrderAllocation();
+      allocation.setPurchaseOrder(purchaseOrder);
+      allocation.setCustomField(customField);
+      allocation.setAllocationKey(allocationKey);
+      allocation.setSharePercent(request.getSharePercent().setScale(2, RoundingMode.HALF_UP));
+      allocation.setShareAmount(amount);
+      if (updatedBy != null) {
+        allocation.setCreatedBy(updatedBy.toString());
+        allocation.setUpdatedBy(updatedBy.toString());
+      }
+      purchaseOrder.getAllocations().add(allocation);
+    }
+  }
+
+  private BigDecimal currency(BigDecimal amount) {
+    return (amount == null ? BigDecimal.ZERO : amount).setScale(2, RoundingMode.HALF_UP);
+  }
+
   private PurchaseOrder findByIdAndTenant(UUID purchaseOrderId, Tenant tokenTenant) {
     return purchaseOrderRepository.findByIdAndTenant_IdAndIsDeletedFalse(purchaseOrderId, tokenTenant.getId())
         .orElseThrow(() -> new RuntimeException("Purchase order not found"));
   }
 
   private void applyUpdateFields(PurchaseOrder purchaseOrder, PurchaseOrderUpdateRequestDTO body) {
+    if (body.getStatus() != null) purchaseOrder.setStatus(body.getStatus());
     if (body.getOrderNumber() != null) purchaseOrder.setOrderNumber(body.getOrderNumber());
     if (body.getDocumentType() != null) purchaseOrder.setDocumentType(body.getDocumentType());
     if (body.getCurrencyCode() != null) purchaseOrder.setCurrencyCode(body.getCurrencyCode());

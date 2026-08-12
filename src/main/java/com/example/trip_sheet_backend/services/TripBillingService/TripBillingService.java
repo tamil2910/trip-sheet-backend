@@ -2,29 +2,21 @@ package com.example.trip_sheet_backend.services.TripBillingService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.UUID;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.CustomTax;
-import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
 import com.example.trip_sheet_backend.models.Tax;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
-import com.example.trip_sheet_backend.models.TripBillingAllocation;
-import com.example.trip_sheet_backend.models.TripBillingRule;
 import com.example.trip_sheet_backend.models.TripCharges;
-import com.example.trip_sheet_backend.models.TripPassengerCustomFieldValue;
 import com.example.trip_sheet_backend.models.TripSummary;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.models.VendorOrganisationRateCard;
@@ -32,9 +24,6 @@ import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderRepository;
 import com.example.trip_sheet_backend.repositories.CustomTaxRepository;
-import com.example.trip_sheet_backend.repositories.TripBillingAllocationRepository;
-import com.example.trip_sheet_backend.repositories.TripBillingRuleRepository;
-import com.example.trip_sheet_backend.repositories.TripPassengerCustomFieldValueRepository;
 import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRateCardRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
@@ -47,11 +36,8 @@ public class TripBillingService {
   private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
   private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
-  private final TripBillingRuleRepository tripBillingRuleRepository;
-  private final TripBillingAllocationRepository tripBillingAllocationRepository;
   private final PurchaseOrderRepository purchaseOrderRepository;
   private final TripSummaryRepository tripSummaryRepository;
-  private final TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository;
   private final VendorOrganisationRepository vendorOrganisationRepository;
   private final VendorOrganisationRateCardRepository vendorOrganisationRateCardRepository;
   private final CustomTaxRepository customTaxRepository;
@@ -59,22 +45,16 @@ public class TripBillingService {
   private final VendorPartnerRateCardRepository vendorPartnerRateCardRepository;
 
   public TripBillingService(
-      TripBillingRuleRepository tripBillingRuleRepository,
-      TripBillingAllocationRepository tripBillingAllocationRepository,
       PurchaseOrderRepository purchaseOrderRepository,
       TripSummaryRepository tripSummaryRepository,
-      TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository,
       VendorOrganisationRepository vendorOrganisationRepository,
       VendorOrganisationRateCardRepository vendorOrganisationRateCardRepository,
       CustomTaxRepository customTaxRepository,
       VendorPartnerRepository vendorPartnerRepository,
       VendorPartnerRateCardRepository vendorPartnerRateCardRepository
   ) {
-    this.tripBillingRuleRepository = tripBillingRuleRepository;
-    this.tripBillingAllocationRepository = tripBillingAllocationRepository;
     this.purchaseOrderRepository = purchaseOrderRepository;
     this.tripSummaryRepository = tripSummaryRepository;
-    this.tripPassengerCustomFieldValueRepository = tripPassengerCustomFieldValueRepository;
     this.vendorOrganisationRepository = vendorOrganisationRepository;
     this.vendorOrganisationRateCardRepository = vendorOrganisationRateCardRepository;
     this.customTaxRepository = customTaxRepository;
@@ -91,163 +71,29 @@ public class TripBillingService {
     TripSummary tripSummary = tripSummaryRepository.findByTripId_Id(trip.getId())
         .orElseThrow(() -> new RuntimeException("Trip summary not found for billing"));
 
-    TripBillingRule billingRule = resolveBillingRule(trip);
     PricingContext pricingContext = resolvePricingContext(trip);
     ChargeSnapshot chargeSnapshot = buildChargeSnapshot(tripSummary, pricingContext);
 
-    List<TripBillingAllocation> allocations = tripBillingAllocationRepository.findByTrip_IdAndIsDeletedFalse(trip.getId());
-    if (allocations.isEmpty()) {
-      allocations = createAllocations(trip, billingRule, chargeSnapshot.totalAmount());
-    }
-
-    List<PurchaseOrder> generatedPurchaseOrders = new ArrayList<>();
-    for (TripBillingAllocation allocation : allocations) {
-      if (purchaseOrderRepository.existsByAllocation_IdAndIsDeletedFalse(allocation.getId())) {
-        continue;
-      }
-
-      PurchaseOrder purchaseOrder = buildPurchaseOrder(trip, tripSummary, allocation, pricingContext, chargeSnapshot);
-      generatedPurchaseOrders.add(purchaseOrderRepository.save(purchaseOrder));
-    }
-
-    return generatedPurchaseOrders;
-  }
-
-  private TripBillingRule resolveBillingRule(Trip trip) {
-    UUID tenantId = trip.getOrganisation() != null ? trip.getOrganisation().getId()
-        : trip.getTenant() != null ? trip.getTenant().getId() : null;
-
-    if (tenantId == null) {
-      throw new RuntimeException("Unable to resolve billing tenant for trip");
-    }
-
-    return tripBillingRuleRepository.findFirstByTenant_IdAndActiveTrueAndIsDeletedFalseOrderByUpdatedAtDesc(tenantId)
-        .orElseGet(() -> {
-          TripBillingRule defaultRule = new TripBillingRule();
-          defaultRule.setTenant(trip.getOrganisation() != null ? trip.getOrganisation() : trip.getTenant());
-          defaultRule.setBillingBasis(TripBillingRule.BillingBasis.TRIP_WISE);
-          defaultRule.setInvoiceGrouping(TripBillingRule.InvoiceGrouping.TRIP);
-          defaultRule.setActive(Boolean.TRUE);
-          return defaultRule;
-        });
-  }
-
-  private List<TripBillingAllocation> createAllocations(Trip trip, TripBillingRule billingRule, BigDecimal totalAmount) {
-    if (billingRule.getBillingBasis() == TripBillingRule.BillingBasis.CUSTOM_FIELD_WISE
-        && billingRule.getCostCenterCustomField() != null
-        && billingRule.getCostCenterCustomField().getId() != null) {
-      List<TripBillingAllocation> customFieldAllocations = createCustomFieldAllocations(
-          trip,
-          billingRule.getCostCenterCustomField().getId(),
-          totalAmount
-      );
-      if (!customFieldAllocations.isEmpty()) {
-        return tripBillingAllocationRepository.saveAll(customFieldAllocations);
-      }
-    }
-
-    TripBillingAllocation allocation = new TripBillingAllocation();
-    allocation.setTrip(trip);
-    allocation.setTenant(resolveAllocationTenant(trip));
-    allocation.setAllocationType(TripBillingAllocation.AllocationType.TRIP_WISE);
-    allocation.setAllocationKey("FULL_TRIP");
-    allocation.setSharePercent(new BigDecimal("100.00"));
-    allocation.setShareAmount(scaleCurrency(totalAmount));
-    allocation.setStatus(TripBillingAllocation.AllocationStatus.GENERATED);
-
-    return List.of(tripBillingAllocationRepository.save(allocation));
-  }
-
-  private List<TripBillingAllocation> createCustomFieldAllocations(Trip trip, UUID customFieldId, BigDecimal totalAmount) {
-    List<TripPassengerCustomFieldValue> fieldValues =
-        tripPassengerCustomFieldValueRepository.findByTrip_IdAndCustomField_IdAndIsDeletedFalse(trip.getId(), customFieldId);
-
-    Map<String, Integer> groupCounts = new LinkedHashMap<>();
-    for (TripPassengerCustomFieldValue fieldValue : fieldValues) {
-      String allocationKey = normalizeAllocationKey(fieldValue);
-      groupCounts.merge(allocationKey, 1, Integer::sum);
-    }
-
-    if (groupCounts.isEmpty()) {
+    if (purchaseOrderRepository.existsByTripSummary_IdAndIsDeletedFalse(tripSummary.getId())) {
       return List.of();
     }
 
-    int totalPassengers = groupCounts.values().stream().mapToInt(Integer::intValue).sum();
-    BigDecimal remainingAmount = scaleCurrency(totalAmount);
-    BigDecimal allocatedPercent = ZERO;
-    List<TripBillingAllocation> allocations = new ArrayList<>();
-    int index = 0;
-    int totalGroups = groupCounts.size();
-
-    for (Map.Entry<String, Integer> entry : groupCounts.entrySet()) {
-      index++;
-      BigDecimal sharePercent;
-      BigDecimal shareAmount;
-
-      if (index == totalGroups) {
-        shareAmount = remainingAmount;
-        sharePercent = scaleCurrency(new BigDecimal("100.00").subtract(allocatedPercent));
-      } else {
-        sharePercent = scaleCurrency(
-            BigDecimal.valueOf(entry.getValue())
-                .multiply(new BigDecimal("100"))
-                .divide(BigDecimal.valueOf(totalPassengers), 2, RoundingMode.HALF_UP)
-        );
-        shareAmount = scaleCurrency(
-            totalAmount.multiply(BigDecimal.valueOf(entry.getValue()))
-                .divide(BigDecimal.valueOf(totalPassengers), 2, RoundingMode.HALF_UP)
-        );
-      }
-
-      remainingAmount = remainingAmount.subtract(shareAmount);
-      allocatedPercent = allocatedPercent.add(sharePercent);
-
-      TripBillingAllocation allocation = new TripBillingAllocation();
-      allocation.setTrip(trip);
-      allocation.setTenant(resolveAllocationTenant(trip));
-      allocation.setAllocationType(TripBillingAllocation.AllocationType.CUSTOM_FIELD_WISE);
-      allocation.setAllocationKey(entry.getKey());
-      allocation.setSharePercent(sharePercent);
-      allocation.setShareAmount(shareAmount);
-      allocation.setStatus(TripBillingAllocation.AllocationStatus.GENERATED);
-      allocations.add(allocation);
-    }
-
-    return allocations;
-  }
-
-  private Tenant resolveAllocationTenant(Trip trip) {
-    return trip.getOrganisation() != null ? trip.getOrganisation() : trip.getTenant();
-  }
-
-  private String normalizeAllocationKey(TripPassengerCustomFieldValue fieldValue) {
-    if (fieldValue == null) {
-      return "UNASSIGNED";
-    }
-    String rawValue = fieldValue.getValue();
-    if (rawValue == null || rawValue.trim().isEmpty()) {
-      PeopleTenant passenger = fieldValue.getPassenger();
-      if (passenger != null && passenger.getId() != null) {
-        return "PASSENGER_" + passenger.getId();
-      }
-      return "UNASSIGNED";
-    }
-    return rawValue.trim();
+    PurchaseOrder purchaseOrder = buildPurchaseOrder(trip, tripSummary, pricingContext, chargeSnapshot);
+    return List.of(purchaseOrderRepository.save(purchaseOrder));
   }
 
   private PurchaseOrder buildPurchaseOrder(
       Trip trip,
       TripSummary tripSummary,
-      TripBillingAllocation allocation,
       PricingContext pricingContext,
       ChargeSnapshot chargeSnapshot
   ) {
     PurchaseOrder purchaseOrder = new PurchaseOrder();
     purchaseOrder.setTripSummary(tripSummary);
-    purchaseOrder.setAllocation(allocation);
-    purchaseOrder.setTenant(resolveAllocationTenant(trip));
+    purchaseOrder.setTenant(trip.getOrganisation() != null ? trip.getOrganisation() : trip.getTenant());
+    purchaseOrder.setStatus(PurchaseOrder.PurchaseOrderStatus.GENERATED);
 
-    purchaseOrder.setOrderNumber(buildOrderNumber(trip, allocation));
+    purchaseOrder.setOrderNumber(buildOrderNumber(trip));
     purchaseOrder.setDocumentType("PO");
     purchaseOrder.setCurrencyCode("INR");
 
@@ -301,27 +147,27 @@ public class TripBillingService {
 
     purchaseOrder.setBaseFareAmount(chargeSnapshot.baseFareAmount());
     purchaseOrder.setBaseFareQty(chargeSnapshot.baseFareQty());
-    purchaseOrder.setBaseFareTotal(allocateAmount(chargeSnapshot.baseFareTotal(), allocation, chargeSnapshot.totalAmount()));
+    purchaseOrder.setBaseFareTotal(chargeSnapshot.baseFareTotal());
 
     purchaseOrder.setExtraKmChargeAmount(chargeSnapshot.extraKmAmount());
     purchaseOrder.setExtraKmQty(chargeSnapshot.extraKmQty());
-    purchaseOrder.setExtraKmTotal(allocateAmount(chargeSnapshot.extraKmTotal(), allocation, chargeSnapshot.totalAmount()));
+    purchaseOrder.setExtraKmTotal(chargeSnapshot.extraKmTotal());
 
     purchaseOrder.setExtraHrChargeAmount(chargeSnapshot.extraHrAmount());
     purchaseOrder.setExtraHrQty(chargeSnapshot.extraHrQty());
-    purchaseOrder.setExtraHrTotal(allocateAmount(chargeSnapshot.extraHrTotal(), allocation, chargeSnapshot.totalAmount()));
+    purchaseOrder.setExtraHrTotal(chargeSnapshot.extraHrTotal());
 
     purchaseOrder.setTollChargeAmount(chargeSnapshot.tollAmount());
     purchaseOrder.setTollQty(chargeSnapshot.tollQty());
-    purchaseOrder.setTollTotal(allocateAmount(chargeSnapshot.tollTotal(), allocation, chargeSnapshot.totalAmount()));
+    purchaseOrder.setTollTotal(chargeSnapshot.tollTotal());
 
     purchaseOrder.setParkingChargeAmount(chargeSnapshot.parkingAmount());
     purchaseOrder.setParkingQty(chargeSnapshot.parkingQty());
-    purchaseOrder.setParkingTotal(allocateAmount(chargeSnapshot.parkingTotal(), allocation, chargeSnapshot.totalAmount()));
+    purchaseOrder.setParkingTotal(chargeSnapshot.parkingTotal());
 
     purchaseOrder.setOtherChargeAmount(chargeSnapshot.otherAmount());
     purchaseOrder.setOtherQty(chargeSnapshot.otherQty());
-    purchaseOrder.setOtherTotal(allocateAmount(chargeSnapshot.otherTotal(), allocation, chargeSnapshot.totalAmount()));
+    purchaseOrder.setOtherTotal(chargeSnapshot.otherTotal());
 
     BigDecimal taxableSubTotal = sum(
         purchaseOrder.getBaseFareTotal(),
@@ -342,20 +188,10 @@ public class TripBillingService {
     purchaseOrder.setTotalAmount(sum(purchaseOrder.getTaxableTotalWithGst(), nonTaxableTotal));
 
     purchaseOrder.setLineItemCount(buildLineItemCount(purchaseOrder));
-    purchaseOrder.setLineItemsSnapshot(buildLineItemSnapshot(purchaseOrder, allocation));
-    purchaseOrder.setNotes(pricingContext.notes() + " | Allocation: " + allocation.getAllocationKey());
+    purchaseOrder.setLineItemsSnapshot(buildLineItemSnapshot(purchaseOrder));
+    purchaseOrder.setNotes(pricingContext.notes());
 
     return purchaseOrder;
-  }
-
-  private BigDecimal allocateAmount(BigDecimal amount, TripBillingAllocation allocation, BigDecimal totalAmount) {
-    if (amount == null || allocation == null || totalAmount == null || totalAmount.signum() == 0) {
-      return scaleCurrency(amount);
-    }
-    return scaleCurrency(
-        amount.multiply(allocation.getShareAmount())
-            .divide(totalAmount, 2, RoundingMode.HALF_UP)
-    );
   }
 
   private void applyTaxes(PurchaseOrder purchaseOrder, TaxRateSummary taxRateSummary, BigDecimal taxableSubTotal) {
@@ -411,7 +247,7 @@ public class TripBillingService {
     return count;
   }
 
-  private String buildLineItemSnapshot(PurchaseOrder purchaseOrder, TripBillingAllocation allocation) {
+  private String buildLineItemSnapshot(PurchaseOrder purchaseOrder) {
     StringBuilder builder = new StringBuilder();
     builder.append("[");
     appendLineItem(builder, "baseFare", purchaseOrder.getBaseFareQty(), purchaseOrder.getBaseFareAmount(), purchaseOrder.getBaseFareTotal());
@@ -424,7 +260,7 @@ public class TripBillingService {
       builder.deleteCharAt(builder.length() - 1);
     }
     builder.append("]");
-    return "{\"allocationKey\":\"" + allocation.getAllocationKey() + "\",\"items\":" + builder + "}";
+    return "{\"items\":" + builder + "}";
   }
 
   private void appendLineItem(StringBuilder builder, String label, BigDecimal qty, BigDecimal amount, BigDecimal total) {
@@ -442,11 +278,9 @@ public class TripBillingService {
         .append("\"},");
   }
 
-  private String buildOrderNumber(Trip trip, TripBillingAllocation allocation) {
+  private String buildOrderNumber(Trip trip) {
     String tripCode = trip.getTripCode() != null && !trip.getTripCode().isBlank() ? trip.getTripCode() : trip.getId().toString();
-    String allocationSuffix = allocation.getAllocationKey() == null ? "FULL_TRIP"
-        : allocation.getAllocationKey().replaceAll("[^A-Za-z0-9]", "_").toUpperCase(Locale.ROOT);
-    return "PO-" + tripCode + "-" + allocationSuffix;
+    return "PO-" + tripCode;
   }
 
   private PricingContext resolvePricingContext(Trip trip) {

@@ -34,7 +34,7 @@ public class InvoiceLine extends BaseModel {
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "allocation_id")
-  private TripBillingAllocation allocation;
+  private PurchaseOrderAllocation allocation;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "trip_id")

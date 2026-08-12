@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.dtos.PurchaseOrderDtos;
 
 import java.math.BigDecimal;
 import java.util.UUID;
+import java.util.List;
 
 import com.example.trip_sheet_backend.models.PurchaseOrder;
 
@@ -29,8 +30,9 @@ public class PurchaseOrderResponseDTO {
   private Integer lineItemCount;
   private String lineItemsSnapshot;
   private UUID tripSummaryId;
-  private UUID allocationId;
+  private List<PurchaseOrderAllocationResponseDTO> allocations;
   private UUID tenantId;
+  private PurchaseOrder.PurchaseOrderStatus status;
   private Long garageStartTime;
   private Long garageEndTime;
   private Long tripStartTime;
@@ -115,8 +117,12 @@ public class PurchaseOrderResponseDTO {
         entity.getLineItemCount(),
         entity.getLineItemsSnapshot(),
         entity.getTripSummary() == null ? null : entity.getTripSummary().getId(),
-        entity.getAllocation() == null ? null : entity.getAllocation().getId(),
+        entity.getAllocations() == null ? List.of() : entity.getAllocations().stream()
+            .filter(allocation -> !Boolean.TRUE.equals(allocation.getIsDeleted()))
+            .map(PurchaseOrderAllocationResponseDTO::fromEntity)
+            .toList(),
         entity.getTenant() == null ? null : entity.getTenant().getId(),
+        entity.getStatus(),
         entity.getGarageStartTime(),
         entity.getGarageEndTime(),
         entity.getTripStartTime(),
