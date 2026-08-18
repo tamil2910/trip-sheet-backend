@@ -15,6 +15,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.http.HttpMethod;
 
 import com.example.trip_sheet_backend.security.JwtAuthFilter;
 
@@ -55,6 +56,8 @@ public class SecurityConfig {
       .csrf(csrf -> csrf.disable())
       .cors(cors -> cors.configurationSource(corsConfigurationSource()))
       .authorizeHttpRequests(auth -> auth
+        // Let the CORS filter answer browser preflight requests without authentication.
+        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
         .requestMatchers("/","/auth/register", "/auth/google-signup", "/auth/login", "/ping", "/api/ping", "/auth/**", "/feedback/**", "/ws/**").permitAll() // "/roles/**", "/accounts",
         .anyRequest().authenticated()
         )
