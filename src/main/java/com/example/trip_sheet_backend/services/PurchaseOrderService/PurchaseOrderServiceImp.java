@@ -2,13 +2,21 @@ package com.example.trip_sheet_backend.services.PurchaseOrderService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderUpdateRequestDTO;
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderAllocationRequestDTO;
@@ -46,7 +54,54 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
   @Transactional(readOnly = true)
   public List<PurchaseOrder> getPurchaseOrdersByTenant(Tenant tokenTenant) {
     validateTenant(tokenTenant);
-    return purchaseOrderRepository.findByTenant_IdAndIsDeletedFalseOrderByUpdatedAtDesc(tokenTenant.getId());
+
+    Specification<PurchaseOrder> spec = (root, query, cb) -> {
+      query.distinct(true);
+
+      List<Predicate> predicates = new ArrayList<>();
+      predicates.add(cb.equal(root.get("isDeleted"), false));
+
+      List<Predicate> visibilityPredicates = new ArrayList<>();
+      try {
+        visibilityPredicates.add(cb.equal(root.join("tenant", JoinType.LEFT).get("id"), tokenTenant.getId()));
+      } catch (Exception ignored) {}
+
+      try {
+        Join<Object, Object> tripSummaryJoin = root.join("tripSummary", JoinType.LEFT);
+        Join<Object, Object> tripJoin = tripSummaryJoin.join("tripId", JoinType.LEFT);
+
+        visibilityPredicates.add(cb.equal(tripJoin.join("tenant", JoinType.LEFT).get("id"), tokenTenant.getId()));
+        visibilityPredicates.add(cb.equal(tripJoin.join("organisation", JoinType.LEFT).get("id"), tokenTenant.getId()));
+        visibilityPredicates.add(cb.equal(tripJoin.join("vendor", JoinType.LEFT).get("id"), tokenTenant.getId()));
+        visibilityPredicates.add(cb.equal(tripJoin.join("assignedByVendor", JoinType.LEFT).get("id"), tokenTenant.getId()));
+        visibilityPredicates.add(cb.equal(tripJoin.join("previousVendor", JoinType.LEFT).get("id"), tokenTenant.getId()));
+      } catch (Exception ignored) {}
+
+      if (!visibilityPredicates.isEmpty()) {
+        predicates.add(cb.or(visibilityPredicates.toArray(new Predicate[0])));
+      }
+
+      return cb.and(predicates.toArray(new Predicate[0]));
+    };
+
+    List<PurchaseOrder> purchaseOrders = new ArrayList<>(purchaseOrderRepository.findAll(spec, Pageable.unpaged()).getContent());
+    purchaseOrders.sort((left, right) -> {
+      Long leftTime = left.getUpdatedAt() != null ? left.getUpdatedAt() : left.getCreatedAt();
+      Long rightTime = right.getUpdatedAt() != null ? right.getUpdatedAt() : right.getCreatedAt();
+
+      if (leftTime == null && rightTime == null) {
+        return 0;
+      }
+      if (leftTime == null) {
+        return 1;
+      }
+      if (rightTime == null) {
+        return -1;
+      }
+      return rightTime.compareTo(leftTime);
+    });
+
+    return purchaseOrders;
   }
 
   @Override
