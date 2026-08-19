@@ -58,6 +58,7 @@ import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleType;
 import com.example.trip_sheet_backend.services.TripBillingService.TripBillingService;
 import com.example.trip_sheet_backend.services.TripFeedbackService;
+import com.example.trip_sheet_backend.services.TripService.TripCompletionWorkflowService;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
 import com.example.trip_sheet_backend.repositories.DutyTypeRepository;
@@ -101,6 +102,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final VendorDelegationHistoryRepository vendorDelegationHistoryRepository;
     private final TripFeedbackService tripFeedbackService;
     private final TripBillingService tripBillingService;
+    private final TripCompletionWorkflowService tripCompletionWorkflowService;
     private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
     private final TripRealtimePublisher tripRealtimePublisher;
 
@@ -114,6 +116,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
       DriverTenantMappingRepository driverTenantMappingRepository,
       VendorDelegationHistoryRepository vendorDelegationHistoryRepository,
       TripFeedbackService tripFeedbackService, TripBillingService tripBillingService,
+      TripCompletionWorkflowService tripCompletionWorkflowService,
       UniqueCodeGeneratorService uniqueCodeGeneratorService,
       TripRealtimePublisher tripRealtimePublisher) {
     super(repository);
@@ -132,6 +135,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     this.vendorDelegationHistoryRepository = vendorDelegationHistoryRepository;
     this.tripFeedbackService = tripFeedbackService;
     this.tripBillingService = tripBillingService;
+    this.tripCompletionWorkflowService = tripCompletionWorkflowService;
     this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
     this.tripRealtimePublisher = tripRealtimePublisher;
   }
@@ -1698,25 +1702,7 @@ public void processAfterTripCompletion(Trip completedTrip) {
   }
 
   UUID tripId = completedTrip.getId();
-  Runnable completionTask = () -> {
-    try {
-      tripRealtimePublisher.publishUpdatedByTripId(tripId);
-    } catch (Exception ex) {
-      log.error("Failed to publish trip completion update for trip {}", tripId, ex);
-    }
-
-    try {
-      tripBillingService.generatePurchaseOrdersForTrip(tripId);
-    } catch (Exception ex) {
-      log.error("Failed to generate purchase orders for completed trip {}", tripId, ex);
-    }
-
-    try {
-      tripFeedbackService.sendFeedbackRequestsForTrip(tripId);
-    } catch (Exception ex) {
-      log.error("Failed to send feedback requests for completed trip {}", tripId, ex);
-    }
-  };
+  Runnable completionTask = () -> tripCompletionWorkflowService.runAfterTripCompletion(tripId);
 
   if (TransactionSynchronizationManager.isActualTransactionActive()) {
     TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
