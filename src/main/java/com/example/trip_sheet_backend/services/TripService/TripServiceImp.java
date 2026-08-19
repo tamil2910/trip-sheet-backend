@@ -79,8 +79,13 @@ import java.time.LocalTime;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 @Service
 public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripService {
+  private static final Logger log = LoggerFactory.getLogger(TripServiceImp.class);
+
   private final TripRepository repository;
   private final TenantRepository tenantRepository;
 
@@ -1688,10 +1693,29 @@ public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, U
 }
 
 public void processAfterTripCompletion(Trip completedTrip) {
+  if (completedTrip == null || completedTrip.getId() == null) {
+    return;
+  }
+
+  UUID tripId = completedTrip.getId();
   Runnable completionTask = () -> {
-    tripRealtimePublisher.publishUpdated(completedTrip);
-    tripBillingService.generatePurchaseOrdersForTrip(completedTrip);
-    tripFeedbackService.sendFeedbackRequestsForTrip(completedTrip);
+    try {
+      tripRealtimePublisher.publishUpdatedByTripId(tripId);
+    } catch (Exception ex) {
+      log.error("Failed to publish trip completion update for trip {}", tripId, ex);
+    }
+
+    try {
+      tripBillingService.generatePurchaseOrdersForTrip(tripId);
+    } catch (Exception ex) {
+      log.error("Failed to generate purchase orders for completed trip {}", tripId, ex);
+    }
+
+    try {
+      tripFeedbackService.sendFeedbackRequestsForTrip(tripId);
+    } catch (Exception ex) {
+      log.error("Failed to send feedback requests for completed trip {}", tripId, ex);
+    }
   };
 
   if (TransactionSynchronizationManager.isActualTransactionActive()) {

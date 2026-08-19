@@ -5,6 +5,8 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -15,14 +17,19 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
 import com.example.trip_sheet_backend.mappers.TripResponseMapper;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
+import com.example.trip_sheet_backend.repositories.TripRepository;
 
 @Service
 public class TripRealtimePublisher {
 
-  private final SimpMessagingTemplate messagingTemplate;
+  private static final Logger log = LoggerFactory.getLogger(TripRealtimePublisher.class);
 
-  public TripRealtimePublisher(SimpMessagingTemplate messagingTemplate) {
+  private final SimpMessagingTemplate messagingTemplate;
+  private final TripRepository tripRepository;
+
+  public TripRealtimePublisher(SimpMessagingTemplate messagingTemplate, TripRepository tripRepository) {
     this.messagingTemplate = messagingTemplate;
+    this.tripRepository = tripRepository;
   }
 
   public void publishCreated(Trip trip) {
@@ -31,6 +38,16 @@ public class TripRealtimePublisher {
 
   public void publishUpdated(Trip trip) {
     publishAfterCommit(trip, TripRealtimeEventDTO.TripRealtimeEventType.UPDATED, true);
+  }
+
+  public void publishUpdatedByTripId(UUID tripId) {
+    if (tripId == null) {
+      return;
+    }
+
+    Trip trip = tripRepository.findById(tripId)
+        .orElseThrow(() -> new RuntimeException("Trip not found for realtime publication"));
+    publishUpdated(trip);
   }
 
   public void publishDeleted(Trip trip) {

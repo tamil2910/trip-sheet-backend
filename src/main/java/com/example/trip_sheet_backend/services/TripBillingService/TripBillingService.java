@@ -6,7 +6,10 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +27,7 @@ import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderRepository;
 import com.example.trip_sheet_backend.repositories.CustomTaxRepository;
+import com.example.trip_sheet_backend.repositories.TripRepository;
 import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRateCardRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
@@ -33,11 +37,14 @@ import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
 @Service
 public class TripBillingService {
 
+  private static final Logger log = LoggerFactory.getLogger(TripBillingService.class);
+
   private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
   private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
   private final PurchaseOrderRepository purchaseOrderRepository;
   private final TripSummaryRepository tripSummaryRepository;
+  private final TripRepository tripRepository;
   private final VendorOrganisationRepository vendorOrganisationRepository;
   private final VendorOrganisationRateCardRepository vendorOrganisationRateCardRepository;
   private final CustomTaxRepository customTaxRepository;
@@ -47,6 +54,7 @@ public class TripBillingService {
   public TripBillingService(
       PurchaseOrderRepository purchaseOrderRepository,
       TripSummaryRepository tripSummaryRepository,
+      TripRepository tripRepository,
       VendorOrganisationRepository vendorOrganisationRepository,
       VendorOrganisationRateCardRepository vendorOrganisationRateCardRepository,
       CustomTaxRepository customTaxRepository,
@@ -55,6 +63,7 @@ public class TripBillingService {
   ) {
     this.purchaseOrderRepository = purchaseOrderRepository;
     this.tripSummaryRepository = tripSummaryRepository;
+    this.tripRepository = tripRepository;
     this.vendorOrganisationRepository = vendorOrganisationRepository;
     this.vendorOrganisationRateCardRepository = vendorOrganisationRateCardRepository;
     this.customTaxRepository = customTaxRepository;
@@ -63,10 +72,13 @@ public class TripBillingService {
   }
 
   @Transactional(rollbackFor = Exception.class)
-  public List<PurchaseOrder> generatePurchaseOrdersForTrip(Trip trip) {
-    if (trip == null || trip.getId() == null) {
+  public List<PurchaseOrder> generatePurchaseOrdersForTrip(UUID tripId) {
+    if (tripId == null) {
       throw new RuntimeException("Trip is required for billing");
     }
+
+    Trip trip = tripRepository.findById(tripId)
+        .orElseThrow(() -> new RuntimeException("Trip not found for billing"));
 
     TripSummary tripSummary = tripSummaryRepository.findByTripId_Id(trip.getId())
         .orElseThrow(() -> new RuntimeException("Trip summary not found for billing"));

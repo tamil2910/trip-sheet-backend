@@ -49,10 +49,14 @@ public class TripFeedbackService {
         this.feedbackLinkBaseUrl = feedbackLinkBaseUrl;
     }
 
-    public void sendFeedbackRequestsForTrip(Trip trip) {
-        if (trip == null) {
+    @Transactional(readOnly = true)
+    public void sendFeedbackRequestsForTrip(UUID tripId) {
+        if (tripId == null) {
             return;
         }
+
+        Trip trip = tripRepository.findById(tripId)
+                .orElseThrow(() -> new RuntimeException("Trip not found for feedback"));
 
         List<PeopleTenant> passengers = trip.getPassengers();
         if (passengers == null || passengers.isEmpty()) {

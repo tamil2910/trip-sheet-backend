@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS invoice_number_rules (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT,
+  updated_at BIGINT,
+  deleted_at BIGINT,
+  created_by VARCHAR(255),
+  updated_by VARCHAR(255),
+  deleted_by VARCHAR(255),
+  is_deleted BIT,
+  tenant_id BINARY(16) NOT NULL,
+  prefix VARCHAR(255) NOT NULL,
+  financial_year VARCHAR(9) NOT NULL,
+  suffix VARCHAR(255) NULL,
+  sequence_start BIGINT NOT NULL,
+  next_sequence BIGINT NOT NULL,
+  is_default BIT NOT NULL,
+  PRIMARY KEY (id),
+  INDEX idx_invoice_number_rule_tenant (tenant_id),
+  INDEX idx_invoice_number_rule_tenant_default (tenant_id, is_default),
+  CONSTRAINT fk_invoice_number_rule_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)
+);
