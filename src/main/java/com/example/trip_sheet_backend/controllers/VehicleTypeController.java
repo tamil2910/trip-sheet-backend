@@ -1,18 +1,26 @@
 package com.example.trip_sheet_backend.controllers;
 
+import java.util.List;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
+import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VehicleType;
 import com.example.trip_sheet_backend.models.VehicleType.typeVehicle;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.VehicleTypeService.VehicleTypeServiceImp;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 
 @RestController
@@ -24,6 +32,20 @@ public class VehicleTypeController extends GlobalBaseController<VehicleType, UUI
   public VehicleTypeController(VehicleTypeServiceImp service){
     super(service);
     this.service = service;
+  }
+  
+  @GetMapping
+  public ResponseEntity<ApiResponse<List<VehicleType>>> getAllVehicleTypes(HttpServletRequest request) {
+    UserAccount currentUser = request.getAttribute("user") != null ? (UserAccount) request.getAttribute("user") : null;
+
+    if (currentUser == null || currentUser.getRoleGroups() == null ||
+        currentUser.getRoleGroups().stream().noneMatch(roleGroup -> "ADMIN_FULL".equalsIgnoreCase(roleGroup.getName()))) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN)
+          .body(new ApiResponse<>(false, "Access denied. Only tenant users with ADMIN_FULL role group can access this API.", null));
+    }
+
+    Page<VehicleType> result = this.service.getAll(Pageable.unpaged());
+    return ResponseEntity.ok(new ApiResponse<>(true, "Success", result.getContent()));
   }
 
   @PostMapping("/create")

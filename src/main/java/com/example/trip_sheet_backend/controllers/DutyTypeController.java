@@ -1,23 +1,29 @@
 package com.example.trip_sheet_backend.controllers;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.http.HttpStatus;
-
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.DutyType.typeDuty;
+import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.DutyTypeService.DutyTypeServiceImp;
+
+import jakarta.servlet.http.HttpServletRequest;
 
 
 // import jakarta.validation.Valid;
@@ -29,6 +35,20 @@ public class DutyTypeController extends GlobalBaseController<DutyType, UUID>{
   public DutyTypeController(DutyTypeServiceImp service){
     super(service);
     this.service = service;
+  }
+
+  @GetMapping
+  public ResponseEntity<ApiResponse<List<DutyType>>> getAllDutyTypes(HttpServletRequest request) {
+    UserAccount currentUser = request.getAttribute("user") != null ? (UserAccount) request.getAttribute("user") : null;
+
+    if (currentUser == null || currentUser.getRoleGroups() == null ||
+        currentUser.getRoleGroups().stream().noneMatch(roleGroup -> "ADMIN_FULL".equalsIgnoreCase(roleGroup.getName()))) {
+      return ResponseEntity.status(HttpStatus.FORBIDDEN)
+          .body(new ApiResponse<>(false, "Access denied. Only tenant users with ADMIN_FULL role group can access this API.", null));
+    }
+
+    Page<DutyType> result = this.service.getAll(Pageable.unpaged());
+    return ResponseEntity.ok(new ApiResponse<>(true, "Success", result.getContent()));
   }
 
   @PostMapping("/create_duty_type")
