@@ -456,6 +456,20 @@ public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdat
 
 @Override
 @Transactional(rollbackFor = Exception.class)
+public Trip markTripAsManual(UUID tenantId, UUID tripId, UUID updatedBy) {
+  Trip trip = findTripForTenant(tenantId, tripId);
+  trip.setIsManualTrip(true);
+  if (updatedBy != null) {
+    trip.setUpdatedBy(updatedBy.toString());
+  }
+
+  Trip savedTrip = repository.save(trip);
+  tripRealtimePublisher.publishUpdated(savedTrip);
+  return savedTrip;
+}
+
+@Override
+@Transactional(rollbackFor = Exception.class)
 public Trip assignTripToPartnerVendor(
     Tenant tokenTenant,
     UUID tokenTenantId,

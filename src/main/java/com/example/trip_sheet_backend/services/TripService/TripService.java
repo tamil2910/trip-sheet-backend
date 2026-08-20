@@ -28,6 +28,8 @@ public interface TripService extends BaseService<Trip, UUID> {
 
   Trip splitChildTrip(UUID tenantId, UUID tripId);
 
+  Trip markTripAsManual(UUID tenantId, UUID tripId, UUID updatedBy);
+
   Trip dispatchTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripDispatchRequestDTO dispatchData);
 
   Trip arrivedTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripArrivedRequestDTO arrivedData);

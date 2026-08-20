@@ -255,6 +255,27 @@ public class TripController {
     return ResponseEntity.ok(new ApiResponse<>(true, "Trip updated successfully!", response));
   }
 
+  @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
+  @PutMapping("/mark-manual/{id}")
+  public ResponseEntity<ApiResponse<TripResponseDTO>> markAsManualTrip(
+      @PathVariable @NotNull UUID id,
+      HttpServletRequest request
+  ) {
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+    UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+
+    try {
+      Trip updatedTrip = tripServiceImp.markTripAsManual(tenantId, id, updatedBy);
+      return ResponseEntity.ok(new ApiResponse<>(
+          true,
+          "Trip marked as manual successfully!",
+          TripResponseMapper.toDTO(updatedTrip)
+      ));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
   @PreAuthorize("hasAuthority('CAN_DELETE_TRIP')")
   @DeleteMapping("/{id}")
   public ResponseEntity<ApiResponse<Void>> delete(@PathVariable @NotNull UUID id, HttpServletRequest request) {
