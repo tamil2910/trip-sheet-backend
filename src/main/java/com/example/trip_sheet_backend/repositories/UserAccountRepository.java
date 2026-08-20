@@ -11,7 +11,7 @@ import com.example.trip_sheet_backend.models.UserAccount;
 
 public interface UserAccountRepository extends BaseRepository<UserAccount, UUID> {
   @Override
-  @EntityGraph(attributePaths = {"roleGroups", "roleGroups.permissions"})
+  @EntityGraph(attributePaths = {"role", "tenant", "roleGroups", "roleGroups.permissions"})
   Optional<UserAccount> findById(UUID id);
 
   Optional<UserAccount> findByEmail(String email);
