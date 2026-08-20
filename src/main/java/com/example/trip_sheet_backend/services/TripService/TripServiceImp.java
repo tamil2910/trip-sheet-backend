@@ -1618,6 +1618,7 @@ public Trip dispatchTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount use
   TripSummary summary = getOrCreateTripSummary(trip);
   summary.setDispatchLat(dispatchData.getDispatchLat());
   summary.setDispatchLng(dispatchData.getDispatchLng());
+  summary.setGarageStartTime(System.currentTimeMillis());
   tripSummaryRepository.save(summary);
 
   trip.setTripStatus(Trip.TripStatus.DISPATCHED);
