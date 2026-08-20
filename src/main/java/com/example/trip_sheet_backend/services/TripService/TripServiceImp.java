@@ -1688,13 +1688,69 @@ public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, U
   summary.setGarageEndLat(dropData.getTripEndLat());
   summary.setGarageEndLng(dropData.getTripEndLng());
   summary.setGarageEndTime(System.currentTimeMillis());
+  calculateDutyExtras(trip, summary);
   tripSummaryRepository.save(summary);
+
 
   trip.setTripStatus(Trip.TripStatus.COMPLETED);
   Trip completedTrip = repository.save(trip);
   
   processAfterTripCompletion(completedTrip);
   return completedTrip;
+}
+
+/**
+ * Calculates billable extras from the odometer and elapsed trip time. Local duties
+ * include both KM and hour limits; outstation and pickup/drop duties include KM only.
+ */
+private void calculateDutyExtras(Trip trip, TripSummary summary) {
+  DutyType dutyType = trip.getDutyType();
+  if (dutyType == null || dutyType.getTypeOfDuty() == null) {
+    return;
+  }
+
+  boolean isLocalDuty = dutyType.getTypeOfDuty() == DutyType.typeDuty.LOCAL;
+  boolean hasIncludedKm = isLocalDuty
+      || dutyType.getTypeOfDuty() == DutyType.typeDuty.OUTSTATION
+      || dutyType.getTypeOfDuty() == DutyType.typeDuty.PICKUP_DROP;
+
+  if (!hasIncludedKm) {
+    return;
+  }
+
+  long tripDistance = 0L;
+  if (summary.getTripStartKmOdo() != null && summary.getTripEndKmOdo() != null) {
+    tripDistance = summary.getTripEndKmOdo() - summary.getTripStartKmOdo();
+    if (tripDistance < 0) {
+      throw new RuntimeException("Trip end odometer cannot be less than trip start odometer");
+    }
+  }
+
+  long includedKm = dutyType.getKm() == null ? 0L : dutyType.getKm().longValue();
+  long extraKm = Math.max(0L, tripDistance - includedKm);
+  summary.setTripExtraKmOdo(extraKm);
+  summary.setTripExtraKm(extraKm);
+
+  if (!isLocalDuty) {
+    return;
+  }
+
+  long tripDurationMillis = 0L;
+  if (summary.getTripStartTime() != null && summary.getTripEndTime() != null) {
+    tripDurationMillis = summary.getTripEndTime() - summary.getTripStartTime();
+    if (tripDurationMillis < 0) {
+      throw new RuntimeException("Trip end time cannot be before trip start time");
+    }
+  }
+
+  long includedDurationMillis = dutyType.getHr() == null
+      ? 0L
+      : dutyType.getHr().longValue() * 60L * 60L * 1000L;
+  long extraDurationMillis = Math.max(0L, tripDurationMillis - includedDurationMillis);
+  long extraHours = extraDurationMillis == 0L
+      ? 0L
+      : (extraDurationMillis + (60L * 60L * 1000L) - 1L) / (60L * 60L * 1000L);
+  summary.setTripExtraHr(extraHours);
 }
 
 public void processAfterTripCompletion(Trip completedTrip) {
