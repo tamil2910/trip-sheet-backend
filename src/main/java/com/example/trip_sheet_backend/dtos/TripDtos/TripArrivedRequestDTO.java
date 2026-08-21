@@ -9,4 +9,5 @@ public class TripArrivedRequestDTO {
 
     private Double arrivedLat;
     private Double arrivedLng;
+    private Long tripArrivedTime;
 }

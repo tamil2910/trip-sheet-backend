@@ -114,17 +114,13 @@ public class DutyTypeCustomNameController extends BaseController<DutyTypeCustomN
             }
 
             case AIRPORT_TRANSFER_FIXED: {
-                if (body.getAirportTransferType() == null) {
-                    return ResponseEntity.badRequest()
-                            .body(new ApiResponse<>(false, "Airport transfer type required", null));
-                }
-
-                String name = "airport_fixed_" + body.getAirportTransferType();
+                String name = "airport_fixed";
 
                 savedDutyType = dutyTypeservice
-                        .findAirportFixed(body.getAirportTransferType())
+                        .findAirportFixed(null)
                         .orElseGet(() -> {
                             payload.setName(name);
+                            payload.setAirportTransferType(null);
                             return dutyTypeservice.create(payload);
                         });
                 break;

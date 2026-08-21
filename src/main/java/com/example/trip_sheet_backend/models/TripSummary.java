@@ -36,6 +36,7 @@ public class TripSummary extends BaseModel implements TenantScoped {
   private Long garageStartTime;
   private Long garageEndTime;
   
+  private Long tripArrivedTime;
   private Long tripStartTime;
   private Long tripStartKmOdo;
   private Long tripStartKmOdoImage;

@@ -28,6 +28,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.ManualTripExecuteRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
@@ -438,6 +439,29 @@ public class TripController {
       Trip droppedTrip = tripServiceImp.dropTrip(tenantId, tokenTenant, user, id, dropData);
       TripResponseDTO response = TripResponseMapper.toDTO(droppedTrip);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip completed successfully!", response));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
+  @PutMapping("/execute-manual/{id}")
+  public ResponseEntity<ApiResponse<TripResponseDTO>> executeManualTrip(
+      @PathVariable @NotNull UUID id,
+      @RequestBody ManualTripExecuteRequestDTO executeData,
+      HttpServletRequest request
+  ) {
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UserAccount user = (UserAccount) request.getAttribute("user");
+
+    try {
+      Trip completedTrip = tripServiceImp.executeManualTrip(tenantId, tokenTenant, user, id, executeData);
+      return ResponseEntity.ok(new ApiResponse<>(
+          true,
+          "Manual trip executed and completed successfully!",
+          TripResponseMapper.toDTO(completedTrip)
+      ));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
     }

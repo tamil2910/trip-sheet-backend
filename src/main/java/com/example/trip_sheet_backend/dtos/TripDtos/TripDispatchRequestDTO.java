@@ -9,4 +9,5 @@ public class TripDispatchRequestDTO {
 
     private Double dispatchLat;
     private Double dispatchLng;
+    private Long garageStartTime;
 }

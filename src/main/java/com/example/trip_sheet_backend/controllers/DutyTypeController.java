@@ -133,14 +133,14 @@ public class DutyTypeController extends GlobalBaseController<DutyType, UUID>{
 
       case AIRPORT_TRANSFER_FIXED:
 
-        Optional<DutyType> existFixed = service.findAirportFixed(body.getAirportTransferType());
+        Optional<DutyType> existFixed = service.findAirportFixed(null);
         if (existFixed.isPresent()) {
             throw new RuntimeException("Airport FIXED duty type already exists");
         }
 
-        payload.setName("airport_fixed_" + body.getAirportTransferType());
+        payload.setName("airport_fixed");
         payload.setTypeOfDuty(typeDuty.AIRPORT_TRANSFER_FIXED);
-        payload.setAirportTransferType(body.getAirportTransferType());
+        payload.setAirportTransferType(null);
         payload.setKm(null);
         payload.setHr(null);
         payload.setMaxHrPerDay(null); 

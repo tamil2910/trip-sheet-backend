@@ -11,4 +11,5 @@ public class TripStartRequestDTO {
     private Long startOtp;
     private Double tripStartLat;
     private Double tripStartLng;
+    private Long tripStartTime;
 }

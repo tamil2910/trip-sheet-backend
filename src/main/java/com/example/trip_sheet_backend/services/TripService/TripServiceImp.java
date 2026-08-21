@@ -36,6 +36,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPassengerCustomFieldValueRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.ManualTripExecuteRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
@@ -1632,7 +1633,7 @@ public Trip dispatchTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount use
   TripSummary summary = getOrCreateTripSummary(trip);
   summary.setDispatchLat(dispatchData.getDispatchLat());
   summary.setDispatchLng(dispatchData.getDispatchLng());
-  summary.setGarageStartTime(System.currentTimeMillis());
+  summary.setGarageStartTime(resolveLifecycleTime(trip, dispatchData.getGarageStartTime(), "garageStartTime"));
   tripSummaryRepository.save(summary);
 
   trip.setTripStatus(Trip.TripStatus.DISPATCHED);
@@ -1651,6 +1652,7 @@ public Trip arrivedTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user
   TripSummary summary = getOrCreateTripSummary(trip);
   summary.setArrivedLat(arrivedData.getArrivedLat());
   summary.setArrivedLng(arrivedData.getArrivedLng());
+  summary.setTripArrivedTime(resolveLifecycleTime(trip, arrivedData.getTripArrivedTime(), "tripArrivedTime"));
   tripSummaryRepository.save(summary);
 
   trip.setTripStatus(Trip.TripStatus.ARRIVED);
@@ -1674,7 +1676,7 @@ public Trip startTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, 
   summary.setTripStartKmOdo(startData.getTripStartKmOdo());
   summary.setTripStartLat(startData.getTripStartLat());
   summary.setTripStartLng(startData.getTripStartLng());
-  summary.setTripStartTime(System.currentTimeMillis());
+  summary.setTripStartTime(resolveLifecycleTime(trip, startData.getTripStartTime(), "tripStartTime"));
   tripSummaryRepository.save(summary);
 
   trip.setTripStatus(Trip.TripStatus.STARTED);
@@ -1698,10 +1700,10 @@ public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, U
   summary.setTripEndKmOdo(dropData.getTripEndKmOdo());
   summary.setTripEndLat(dropData.getTripEndLat());
   summary.setTripEndLng(dropData.getTripEndLng());
-  summary.setTripEndTime(System.currentTimeMillis());
+  summary.setTripEndTime(resolveLifecycleTime(trip, dropData.getTripEndTime(), "tripEndTime"));
   summary.setGarageEndLat(dropData.getTripEndLat());
   summary.setGarageEndLng(dropData.getTripEndLng());
-  summary.setGarageEndTime(System.currentTimeMillis());
+  summary.setGarageEndTime(resolveLifecycleTime(trip, dropData.getGarageEndTime(), "garageEndTime"));
   calculateDutyExtras(trip, summary);
   tripSummaryRepository.save(summary);
 
@@ -1711,6 +1713,30 @@ public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, U
   
   processAfterTripCompletion(completedTrip);
   return completedTrip;
+}
+
+@Override
+@Transactional(rollbackFor = Exception.class)
+public Trip executeManualTrip(
+    UUID tokenTenantId,
+    Tenant tokenTenant,
+    UserAccount user,
+    UUID tripId,
+    ManualTripExecuteRequestDTO executeData
+) {
+  Trip trip = findTripForTenant(tokenTenantId, tripId);
+  if (!Boolean.TRUE.equals(trip.getIsManualTrip())) {
+    throw new RuntimeException("This endpoint can only execute manual trips");
+  }
+  if (executeData == null || executeData.getDispatchData() == null || executeData.getArrivedData() == null
+      || executeData.getStartData() == null || executeData.getDropData() == null) {
+    throw new RuntimeException("dispatchData, arrivedData, startData, and dropData are required");
+  }
+
+  dispatchTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getDispatchData());
+  arrivedTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getArrivedData());
+  startTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getStartData());
+  return dropTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getDropData());
 }
 
 /**
@@ -1788,11 +1814,22 @@ public void processAfterTripCompletion(Trip completedTrip) {
   completionTask.run();
 }
 
+private long resolveLifecycleTime(Trip trip, Long requestedTime, String fieldName) {
+  if (!Boolean.TRUE.equals(trip.getIsManualTrip())) {
+    return System.currentTimeMillis();
+  }
+  if (requestedTime == null || requestedTime <= 0) {
+    throw new RuntimeException(fieldName + " is required for manual trips and must be an epoch timestamp");
+  }
+  return requestedTime;
+}
+
 @Transactional(rollbackFor = Exception.class)
 public Trip dispatchTrip(UUID tokenTenantId, UUID tripID, Map<String, Object> dispatchData) {
   TripDispatchRequestDTO dto = new TripDispatchRequestDTO();
   dto.setDispatchLat(toDouble(dispatchData.get("dispatchLat")));
   dto.setDispatchLng(toDouble(dispatchData.get("dispatchLng")));
+  dto.setGarageStartTime(toLong(dispatchData.get("garageStartTime")));
   return dispatchTrip(tokenTenantId, null, null, tripID, dto);
 }
 
@@ -1942,6 +1979,20 @@ private Double toDouble(Object value) {
     return Double.parseDouble(value.toString());
   } catch (Exception ex) {
     throw new RuntimeException("Invalid coordinate value: " + value);
+  }
+}
+
+private Long toLong(Object value) {
+  if (value == null) {
+    return null;
+  }
+  if (value instanceof Number number) {
+    return number.longValue();
+  }
+  try {
+    return Long.parseLong(value.toString());
+  } catch (NumberFormatException ex) {
+    throw new RuntimeException("Invalid epoch timestamp: " + value);
   }
 }
 

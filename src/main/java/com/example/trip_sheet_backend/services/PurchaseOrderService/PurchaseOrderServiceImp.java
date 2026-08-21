@@ -3,12 +3,12 @@ package com.example.trip_sheet_backend.services.PurchaseOrderService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
@@ -52,7 +52,7 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
 
   @Override
   @Transactional(readOnly = true)
-  public List<PurchaseOrder> getPurchaseOrdersByTenant(Tenant tokenTenant) {
+  public Page<PurchaseOrder> getPurchaseOrdersByTenant(Tenant tokenTenant, Pageable pageable) {
     validateTenant(tokenTenant);
 
     Specification<PurchaseOrder> spec = (root, query, cb) -> {
@@ -84,24 +84,7 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
       return cb.and(predicates.toArray(new Predicate[0]));
     };
 
-    List<PurchaseOrder> purchaseOrders = new ArrayList<>(purchaseOrderRepository.findAll(spec, Pageable.unpaged()).getContent());
-    purchaseOrders.sort((left, right) -> {
-      Long leftTime = left.getUpdatedAt() != null ? left.getUpdatedAt() : left.getCreatedAt();
-      Long rightTime = right.getUpdatedAt() != null ? right.getUpdatedAt() : right.getCreatedAt();
-
-      if (leftTime == null && rightTime == null) {
-        return 0;
-      }
-      if (leftTime == null) {
-        return 1;
-      }
-      if (rightTime == null) {
-        return -1;
-      }
-      return rightTime.compareTo(leftTime);
-    });
-
-    return purchaseOrders;
+    return purchaseOrderRepository.findAll(spec, pageable);
   }
 
   @Override

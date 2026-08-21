@@ -19,3 +19,19 @@ CREATE TABLE IF NOT EXISTS invoice_number_rules (
   INDEX idx_invoice_number_rule_tenant_default (tenant_id, is_default),
   CONSTRAINT fk_invoice_number_rule_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)
 );
+
+SET @trip_arrived_time_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'trip_summaries'
+    AND column_name = 'trip_arrived_time'
+);
+SET @trip_arrived_time_sql := IF(
+  @trip_arrived_time_exists = 0,
+  'ALTER TABLE trip_summaries ADD COLUMN trip_arrived_time BIGINT NULL',
+  'SELECT 1'
+);
+PREPARE trip_arrived_time_statement FROM @trip_arrived_time_sql;
+EXECUTE trip_arrived_time_statement;
+DEALLOCATE PREPARE trip_arrived_time_statement;

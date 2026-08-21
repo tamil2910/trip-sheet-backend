@@ -11,4 +11,6 @@ public class TripDropRequestDTO {
     private Long endOtp;
     private Double tripEndLat;
     private Double tripEndLng;
+    private Long tripEndTime;
+    private Long garageEndTime;
 }

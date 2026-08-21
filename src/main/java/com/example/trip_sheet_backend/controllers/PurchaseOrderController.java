@@ -1,8 +1,12 @@
 package com.example.trip_sheet_backend.controllers;
 
-import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,6 +14,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderResponseDTO;
@@ -31,15 +36,60 @@ public class PurchaseOrderController {
   }
 
   @GetMapping
-  public ResponseEntity<ApiResponse<List<PurchaseOrderResponseDTO>>> getPurchaseOrders(HttpServletRequest request) {
+  public ResponseEntity<ApiResponse<Map<String, Object>>> getPurchaseOrders(
+      @RequestParam Map<String, Object> filters,
+      Pageable pageable,
+      HttpServletRequest request
+  ) {
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
 
-    List<PurchaseOrderResponseDTO> response = purchaseOrderService.getPurchaseOrdersByTenant(tokenTenant)
-        .stream()
-        .map(PurchaseOrderResponseDTO::fromEntity)
-        .toList();
+    Integer size = parseInt(filters.get("size"), null);
+    if (size == null) {
+      size = parseInt(filters.get("limit"), 10);
+    }
+
+    Integer page = parseInt(filters.get("page"), null);
+    if (page == null) {
+      Integer skip = parseInt(filters.get("skip"), 0);
+      page = size > 0 ? Math.max(skip / size, 0) : 0;
+    }
+
+    Sort sort = Sort.by(Sort.Direction.DESC, "updatedAt");
+    if (pageable != null && pageable.getSort().isSorted()) {
+      sort = pageable.getSort();
+    }
+    Pageable effectivePageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1), sort);
+
+    Page<PurchaseOrderResponseDTO> result = purchaseOrderService
+        .getPurchaseOrdersByTenant(tokenTenant, effectivePageable)
+        .map(PurchaseOrderResponseDTO::fromEntity);
+
+    Map<String, Object> response = new java.util.HashMap<>();
+    response.put("data", result.getContent());
+    response.put("currentPage", result.getNumber());
+    response.put("pageSize", result.getSize());
+    response.put("currentPageCount", result.getNumberOfElements());
+    response.put("totalItems", result.getTotalElements());
+    response.put("totalPages", result.getTotalPages());
+    response.put("isFirst", result.isFirst());
+    response.put("isLast", result.isLast());
+    response.put("hasNext", result.hasNext());
+    response.put("hasPrevious", result.hasPrevious());
+    response.put("page", page);
+    response.put("size", size);
 
     return ResponseEntity.ok(new ApiResponse<>(true, "Purchase orders fetched successfully", response));
+  }
+
+  private Integer parseInt(Object value, Integer defaultValue) {
+    if (value == null) {
+      return defaultValue;
+    }
+    try {
+      return Integer.parseInt(value.toString());
+    } catch (NumberFormatException ex) {
+      return defaultValue;
+    }
   }
 
   @PutMapping("/{id}")
