@@ -73,6 +73,18 @@ public class PurchaseOrderResponseDTO {
   private BigDecimal extraHrChargeAmount;
   private BigDecimal extraHrQty;
   private BigDecimal extraHrTotal;
+  private BigDecimal dailyAllowanceChargeAmount;
+  private BigDecimal dailyAllowanceQty;
+  private BigDecimal dailyAllowanceTotal;
+  private BigDecimal earlyAllowanceChargeAmount;
+  private BigDecimal earlyAllowanceQty;
+  private BigDecimal earlyAllowanceTotal;
+  private BigDecimal lateAllowanceChargeAmount;
+  private BigDecimal lateAllowanceQty;
+  private BigDecimal lateAllowanceTotal;
+  private BigDecimal hourlyAllowanceChargeAmount;
+  private BigDecimal hourlyAllowanceQty;
+  private BigDecimal hourlyAllowanceTotal;
   private BigDecimal tollChargeAmount;
   private BigDecimal tollQty;
   private BigDecimal tollTotal;
@@ -163,6 +175,18 @@ public class PurchaseOrderResponseDTO {
         entity.getExtraHrChargeAmount(),
         entity.getExtraHrQty(),
         entity.getExtraHrTotal(),
+        entity.getDailyAllowanceChargeAmount(),
+        entity.getDailyAllowanceQty(),
+        entity.getDailyAllowanceTotal(),
+        entity.getEarlyAllowanceChargeAmount(),
+        entity.getEarlyAllowanceQty(),
+        entity.getEarlyAllowanceTotal(),
+        entity.getLateAllowanceChargeAmount(),
+        entity.getLateAllowanceQty(),
+        entity.getLateAllowanceTotal(),
+        entity.getHourlyAllowanceChargeAmount(),
+        entity.getHourlyAllowanceQty(),
+        entity.getHourlyAllowanceTotal(),
         entity.getTollChargeAmount(),
         entity.getTollQty(),
         entity.getTollTotal(),

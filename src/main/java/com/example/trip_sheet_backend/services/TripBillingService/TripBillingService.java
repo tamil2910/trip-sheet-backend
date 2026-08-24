@@ -2,6 +2,11 @@ package com.example.trip_sheet_backend.services.TripBillingService;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.ZoneId;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -169,6 +174,19 @@ public class TripBillingService {
     purchaseOrder.setExtraHrQty(chargeSnapshot.extraHrQty());
     purchaseOrder.setExtraHrTotal(chargeSnapshot.extraHrTotal());
 
+    purchaseOrder.setDailyAllowanceChargeAmount(chargeSnapshot.dailyAllowanceAmount());
+    purchaseOrder.setDailyAllowanceQty(chargeSnapshot.dailyAllowanceQty());
+    purchaseOrder.setDailyAllowanceTotal(chargeSnapshot.dailyAllowanceTotal());
+    purchaseOrder.setEarlyAllowanceChargeAmount(chargeSnapshot.earlyAllowanceAmount());
+    purchaseOrder.setEarlyAllowanceQty(chargeSnapshot.earlyAllowanceQty());
+    purchaseOrder.setEarlyAllowanceTotal(chargeSnapshot.earlyAllowanceTotal());
+    purchaseOrder.setLateAllowanceChargeAmount(chargeSnapshot.lateAllowanceAmount());
+    purchaseOrder.setLateAllowanceQty(chargeSnapshot.lateAllowanceQty());
+    purchaseOrder.setLateAllowanceTotal(chargeSnapshot.lateAllowanceTotal());
+    purchaseOrder.setHourlyAllowanceChargeAmount(chargeSnapshot.hourlyAllowanceAmount());
+    purchaseOrder.setHourlyAllowanceQty(chargeSnapshot.hourlyAllowanceQty());
+    purchaseOrder.setHourlyAllowanceTotal(chargeSnapshot.hourlyAllowanceTotal());
+
     purchaseOrder.setTollChargeAmount(chargeSnapshot.tollAmount());
     purchaseOrder.setTollQty(chargeSnapshot.tollQty());
     purchaseOrder.setTollTotal(chargeSnapshot.tollTotal());
@@ -184,7 +202,11 @@ public class TripBillingService {
     BigDecimal taxableSubTotal = sum(
         purchaseOrder.getBaseFareTotal(),
         purchaseOrder.getExtraKmTotal(),
-        purchaseOrder.getExtraHrTotal()
+        purchaseOrder.getExtraHrTotal(),
+        purchaseOrder.getDailyAllowanceTotal(),
+        purchaseOrder.getEarlyAllowanceTotal(),
+        purchaseOrder.getLateAllowanceTotal(),
+        purchaseOrder.getHourlyAllowanceTotal()
     );
     BigDecimal nonTaxableTotal = sum(
         purchaseOrder.getTollTotal(),
@@ -247,6 +269,10 @@ public class TripBillingService {
     if (positive(purchaseOrder.getExtraHrTotal())) {
       count++;
     }
+    if (positive(purchaseOrder.getDailyAllowanceTotal())) count++;
+    if (positive(purchaseOrder.getEarlyAllowanceTotal())) count++;
+    if (positive(purchaseOrder.getLateAllowanceTotal())) count++;
+    if (positive(purchaseOrder.getHourlyAllowanceTotal())) count++;
     if (positive(purchaseOrder.getTollTotal())) {
       count++;
     }
@@ -265,6 +291,10 @@ public class TripBillingService {
     appendLineItem(builder, "baseFare", purchaseOrder.getBaseFareQty(), purchaseOrder.getBaseFareAmount(), purchaseOrder.getBaseFareTotal());
     appendLineItem(builder, "extraKm", purchaseOrder.getExtraKmQty(), purchaseOrder.getExtraKmChargeAmount(), purchaseOrder.getExtraKmTotal());
     appendLineItem(builder, "extraHr", purchaseOrder.getExtraHrQty(), purchaseOrder.getExtraHrChargeAmount(), purchaseOrder.getExtraHrTotal());
+    appendLineItem(builder, "dailyAllowance", purchaseOrder.getDailyAllowanceQty(), purchaseOrder.getDailyAllowanceChargeAmount(), purchaseOrder.getDailyAllowanceTotal());
+    appendLineItem(builder, "earlyAllowance", purchaseOrder.getEarlyAllowanceQty(), purchaseOrder.getEarlyAllowanceChargeAmount(), purchaseOrder.getEarlyAllowanceTotal());
+    appendLineItem(builder, "lateAllowance", purchaseOrder.getLateAllowanceQty(), purchaseOrder.getLateAllowanceChargeAmount(), purchaseOrder.getLateAllowanceTotal());
+    appendLineItem(builder, "hourlyAllowance", purchaseOrder.getHourlyAllowanceQty(), purchaseOrder.getHourlyAllowanceChargeAmount(), purchaseOrder.getHourlyAllowanceTotal());
     appendLineItem(builder, "toll", purchaseOrder.getTollQty(), purchaseOrder.getTollChargeAmount(), purchaseOrder.getTollTotal());
     appendLineItem(builder, "parking", purchaseOrder.getParkingQty(), purchaseOrder.getParkingChargeAmount(), purchaseOrder.getParkingTotal());
     appendLineItem(builder, "other", purchaseOrder.getOtherQty(), purchaseOrder.getOtherChargeAmount(), purchaseOrder.getOtherTotal());
@@ -337,6 +367,16 @@ public class TripBillingService {
         rateCard.getBaseFare(),
         rateCard.getExtraKmCharges(),
         rateCard.getExtraHrCharges(),
+        rateCard.getDailyAllowanceCharges(),
+        rateCard.getEarlyAllowanceCharges(),
+        rateCard.getLateAllowanceCharges(),
+        rateCard.getHourlyAllowance(),
+        Boolean.TRUE.equals(rateCard.getIsHourlyAllowance()),
+        rateCard.getEarlyAllowanceStartTime(),
+        rateCard.getLateAllowanceStartTime(),
+        rateCard.getAllowanceCutOffHrs(),
+        rateCard.getNoOfDaysHourCutoff(),
+        rateCard.getDutyType() == null ? null : rateCard.getDutyType().getTypeOfDuty(),
         buildTaxRateSummary(taxes),
         trip.getDutyType() == null ? null : trip.getDutyType().getName(),
         buildRateCardPackageName(rateCard.getCity(), trip.getVehicleType(), trip.getDutyType()),
@@ -370,6 +410,7 @@ public class TripBillingService {
         rateCard.getBaseFare(),
         rateCard.getExtraKmCharges(),
         rateCard.getExtraHrCharges(),
+        ZERO, ZERO, ZERO, ZERO, false, null, null, null, null, null,
         buildTaxRateSummary(taxes),
         trip.getDutyType() == null ? null : trip.getDutyType().getName(),
         buildRateCardPackageName(rateCard.getCity(), trip.getVehicleType(), trip.getDutyType()),
@@ -430,6 +471,8 @@ public class TripBillingService {
     BigDecimal extraHrAmount = scaleCurrency(pricingContext.extraHrCharge());
     BigDecimal extraHrTotal = scaleCurrency(extraHrAmount.multiply(extraHrQty));
 
+    AllowanceSnapshot allowances = calculateAllowances(tripSummary, pricingContext);
+
     BigDecimal tollTotal = ZERO;
     BigDecimal parkingTotal = ZERO;
     BigDecimal otherTotal = ZERO;
@@ -445,7 +488,9 @@ public class TripBillingService {
       }
     }
 
-    BigDecimal totalAmount = sum(baseFareTotal, extraKmTotal, extraHrTotal, tollTotal, parkingTotal, otherTotal);
+    BigDecimal totalAmount = sum(baseFareTotal, extraKmTotal, extraHrTotal,
+        allowances.dailyTotal(), allowances.earlyTotal(), allowances.lateTotal(), allowances.hourlyTotal(),
+        tollTotal, parkingTotal, otherTotal);
 
     return new ChargeSnapshot(
         baseFareAmount,
@@ -457,6 +502,18 @@ public class TripBillingService {
         extraHrAmount,
         extraHrQty,
         extraHrTotal,
+        allowances.dailyAmount(),
+        allowances.dailyQty(),
+        allowances.dailyTotal(),
+        allowances.earlyAmount(),
+        allowances.earlyQty(),
+        allowances.earlyTotal(),
+        allowances.lateAmount(),
+        allowances.lateQty(),
+        allowances.lateTotal(),
+        allowances.hourlyAmount(),
+        allowances.hourlyQty(),
+        allowances.hourlyTotal(),
         positive(tollTotal) ? tollTotal : ZERO,
         positive(tollTotal) ? BigDecimal.ONE.setScale(2, RoundingMode.HALF_UP) : ZERO,
         positive(parkingTotal) ? parkingTotal : ZERO,
@@ -465,6 +522,63 @@ public class TripBillingService {
         positive(otherTotal) ? BigDecimal.ONE.setScale(2, RoundingMode.HALF_UP) : ZERO,
         totalAmount
     );
+  }
+
+  private AllowanceSnapshot calculateAllowances(TripSummary tripSummary, PricingContext context) {
+    long startMillis = firstPositive(tripSummary.getTripStartTime(), tripSummary.getGarageStartTime(), tripSummary.getTripId().getStartDate());
+    long endMillis = firstPositive(tripSummary.getTripEndTime(), tripSummary.getGarageEndTime(), tripSummary.getTripId().getEndDate());
+    if (startMillis <= 0 || endMillis < startMillis) {
+      return AllowanceSnapshot.zero();
+    }
+
+    LocalDateTime start = LocalDateTime.ofInstant(Instant.ofEpochMilli(startMillis), ZoneId.systemDefault());
+    LocalDateTime end = LocalDateTime.ofInstant(Instant.ofEpochMilli(endMillis), ZoneId.systemDefault());
+    BigDecimal dailyQty = dailyAllowanceQuantity(start, end, context);
+    BigDecimal dailyAmount = scaleCurrency(context.dailyAllowanceCharge());
+
+    BigDecimal earlyQty = context.earlyAllowanceStartTime() != null
+        && start.toLocalTime().isBefore(context.earlyAllowanceStartTime()) ? BigDecimal.ONE : ZERO;
+    BigDecimal earlyAmount = scaleCurrency(context.earlyAllowanceCharge());
+
+    long lateMinutes = lateWindowOverlapMinutes(start, end, context.lateAllowanceStartTime(), context.allowanceCutOffHrs());
+    BigDecimal lateQty = !context.isHourlyAllowance() && lateMinutes > 0 ? BigDecimal.ONE : ZERO;
+    BigDecimal lateAmount = scaleCurrency(context.lateAllowanceCharge());
+    BigDecimal hourlyQty = context.isHourlyAllowance() && lateMinutes > 0
+        ? BigDecimal.valueOf((lateMinutes + 59) / 60) : ZERO;
+    BigDecimal hourlyAmount = scaleCurrency(context.hourlyAllowanceCharge());
+
+    return new AllowanceSnapshot(
+        dailyAmount, scaleCurrency(dailyQty), scaleCurrency(dailyAmount.multiply(dailyQty)),
+        earlyAmount, scaleCurrency(earlyQty), scaleCurrency(earlyAmount.multiply(earlyQty)),
+        lateAmount, scaleCurrency(lateQty), scaleCurrency(lateAmount.multiply(lateQty)),
+        hourlyAmount, scaleCurrency(hourlyQty), scaleCurrency(hourlyAmount.multiply(hourlyQty))
+    );
+  }
+
+  private BigDecimal dailyAllowanceQuantity(LocalDateTime start, LocalDateTime end, PricingContext context) {
+    if (context.dutyType() != DutyType.typeDuty.OUTSTATION) return ZERO;
+    long durationMinutes = Math.max(0, Duration.between(start, end).toMinutes());
+    int cutoffHours = context.noOfDaysHourCutoff() != null && context.noOfDaysHourCutoff() > 0
+        ? context.noOfDaysHourCutoff() : 24;
+    return BigDecimal.valueOf(Math.max(1, (durationMinutes + cutoffHours * 60L - 1) / (cutoffHours * 60L)));
+  }
+
+  private long lateWindowOverlapMinutes(LocalDateTime start, LocalDateTime end, LocalTime windowStart, Integer cutoffHours) {
+    if (windowStart == null || cutoffHours == null || cutoffHours <= 0 || !end.isAfter(start)) return 0;
+    long overlap = 0;
+    for (LocalDateTime cursor = start.toLocalDate().atTime(windowStart).minusDays(1);
+         !cursor.isAfter(end); cursor = cursor.plusDays(1)) {
+      LocalDateTime windowEnd = cursor.plusHours(cutoffHours);
+      LocalDateTime overlapStart = cursor.isAfter(start) ? cursor : start;
+      LocalDateTime overlapEnd = windowEnd.isBefore(end) ? windowEnd : end;
+      if (overlapEnd.isAfter(overlapStart)) overlap += Duration.between(overlapStart, overlapEnd).toMinutes();
+    }
+    return overlap;
+  }
+
+  private long firstPositive(Long... values) {
+    for (Long value : values) if (value != null && value > 0) return value;
+    return 0;
   }
 
   private BigDecimal scaleCurrency(BigDecimal value) {
@@ -504,6 +618,16 @@ public class TripBillingService {
       BigDecimal baseFare,
       BigDecimal extraKmCharge,
       BigDecimal extraHrCharge,
+      BigDecimal dailyAllowanceCharge,
+      BigDecimal earlyAllowanceCharge,
+      BigDecimal lateAllowanceCharge,
+      BigDecimal hourlyAllowanceCharge,
+      boolean isHourlyAllowance,
+      LocalTime earlyAllowanceStartTime,
+      LocalTime lateAllowanceStartTime,
+      Integer allowanceCutOffHrs,
+      Integer noOfDaysHourCutoff,
+      DutyType.typeDuty dutyType,
       TaxRateSummary taxRates,
       String dutyTypeName,
       String rateCardPackageName,
@@ -528,6 +652,18 @@ public class TripBillingService {
       BigDecimal extraHrAmount,
       BigDecimal extraHrQty,
       BigDecimal extraHrTotal,
+      BigDecimal dailyAllowanceAmount,
+      BigDecimal dailyAllowanceQty,
+      BigDecimal dailyAllowanceTotal,
+      BigDecimal earlyAllowanceAmount,
+      BigDecimal earlyAllowanceQty,
+      BigDecimal earlyAllowanceTotal,
+      BigDecimal lateAllowanceAmount,
+      BigDecimal lateAllowanceQty,
+      BigDecimal lateAllowanceTotal,
+      BigDecimal hourlyAllowanceAmount,
+      BigDecimal hourlyAllowanceQty,
+      BigDecimal hourlyAllowanceTotal,
       BigDecimal tollAmount,
       BigDecimal tollQty,
       BigDecimal parkingAmount,
@@ -546,6 +682,17 @@ public class TripBillingService {
 
     private BigDecimal otherTotal() {
       return otherAmount;
+    }
+  }
+
+  private record AllowanceSnapshot(
+      BigDecimal dailyAmount, BigDecimal dailyQty, BigDecimal dailyTotal,
+      BigDecimal earlyAmount, BigDecimal earlyQty, BigDecimal earlyTotal,
+      BigDecimal lateAmount, BigDecimal lateQty, BigDecimal lateTotal,
+      BigDecimal hourlyAmount, BigDecimal hourlyQty, BigDecimal hourlyTotal
+  ) {
+    private static AllowanceSnapshot zero() {
+      return new AllowanceSnapshot(ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO);
     }
   }
 }

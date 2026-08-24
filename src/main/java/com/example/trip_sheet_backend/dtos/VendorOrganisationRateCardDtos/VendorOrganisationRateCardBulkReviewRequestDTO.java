@@ -74,6 +74,8 @@ public class VendorOrganisationRateCardBulkReviewRequestDTO {
     @DecimalMin(value = "0.0", inclusive = true)
     private BigDecimal lateAllowanceCharges;
 
+    private Boolean isHourlyAllowance;
+
     private Integer switchCutOffHrs;
     private Integer switchCutOffKms;
     private UUID switchDutyTypeId;

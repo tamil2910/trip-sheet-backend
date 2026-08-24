@@ -132,6 +132,23 @@ public class PurchaseOrder extends BaseModel implements TenantScoped {
   private BigDecimal extraHrQty;
   private BigDecimal extraHrTotal;
 
+  // Taxable allowance pricing from the vendor organisation rate card
+  private BigDecimal dailyAllowanceChargeAmount;
+  private BigDecimal dailyAllowanceQty;
+  private BigDecimal dailyAllowanceTotal;
+
+  private BigDecimal earlyAllowanceChargeAmount;
+  private BigDecimal earlyAllowanceQty;
+  private BigDecimal earlyAllowanceTotal;
+
+  private BigDecimal lateAllowanceChargeAmount;
+  private BigDecimal lateAllowanceQty;
+  private BigDecimal lateAllowanceTotal;
+
+  private BigDecimal hourlyAllowanceChargeAmount;
+  private BigDecimal hourlyAllowanceQty;
+  private BigDecimal hourlyAllowanceTotal;
+
   // Non-taxable reimbursable charges
   private BigDecimal tollChargeAmount;
   private BigDecimal tollQty;

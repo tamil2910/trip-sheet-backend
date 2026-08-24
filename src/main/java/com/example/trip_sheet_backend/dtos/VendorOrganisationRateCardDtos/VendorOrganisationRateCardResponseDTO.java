@@ -132,6 +132,7 @@ public class VendorOrganisationRateCardResponseDTO {
     private BigDecimal dailyAllowanceCharges;
     private BigDecimal earlyAllowanceCharges;
     private BigDecimal lateAllowanceCharges;
+    private Boolean isHourlyAllowance;
     private Integer switchCutOffHrs;
     private Integer switchCutOffKms;
     private DutyTypeSummaryDTO switchDutyType;
@@ -166,6 +167,7 @@ public class VendorOrganisationRateCardResponseDTO {
           rateCard.getDailyAllowanceCharges(),
           rateCard.getEarlyAllowanceCharges(),
           rateCard.getLateAllowanceCharges(),
+          rateCard.getIsHourlyAllowance(),
           rateCard.getSwitchCutOffHrs(),
           rateCard.getSwitchCutOffKms(),
           DutyTypeSummaryDTO.fromEntity(rateCard.getSwitchDutyType()),

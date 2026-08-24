@@ -123,6 +123,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
         body.getDailyAllowanceCharges(),
         body.getEarlyAllowanceCharges(),
         body.getLateAllowanceCharges(),
+        body.getIsHourlyAllowance(),
         body.getSwitchCutOffHrs(),
         body.getSwitchCutOffKms(),
         switchDutyType,
@@ -190,6 +191,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
         body.getDailyAllowanceCharges(),
         body.getEarlyAllowanceCharges(),
         body.getLateAllowanceCharges(),
+        body.getIsHourlyAllowance(),
         body.getSwitchCutOffHrs(),
         body.getSwitchCutOffKms(),
         switchDutyType,
@@ -468,6 +470,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
         firstNonNull(changes.getDailyAllowanceCharges(), rateCard.getDailyAllowanceCharges()),
         firstNonNull(changes.getEarlyAllowanceCharges(), rateCard.getEarlyAllowanceCharges()),
         firstNonNull(changes.getLateAllowanceCharges(), rateCard.getLateAllowanceCharges()),
+        firstNonNull(changes.getIsHourlyAllowance(), rateCard.getIsHourlyAllowance()),
         firstNonNull(changes.getSwitchCutOffHrs(), rateCard.getSwitchCutOffHrs()),
         firstNonNull(changes.getSwitchCutOffKms(), rateCard.getSwitchCutOffKms()),
         switchDutyType,
@@ -573,6 +576,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       BigDecimal dailyAllowanceCharges,
       BigDecimal earlyAllowanceCharges,
       BigDecimal lateAllowanceCharges,
+      Boolean isHourlyAllowance,
       Integer switchCutOffHrs,
       Integer switchCutOffKms,
       DutyType switchDutyType,
@@ -592,6 +596,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
     rateCard.setDailyAllowanceCharges(dailyAllowanceCharges);
     rateCard.setEarlyAllowanceCharges(earlyAllowanceCharges);
     rateCard.setLateAllowanceCharges(lateAllowanceCharges);
+    rateCard.setIsHourlyAllowance(isHourlyAllowance);
     rateCard.setSwitchCutOffHrs(switchCutOffHrs);
     rateCard.setSwitchCutOffKms(switchCutOffKms);
     rateCard.setSwitchDutyType(switchDutyType);
