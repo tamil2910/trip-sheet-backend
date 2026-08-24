@@ -88,9 +88,13 @@ public class VendorOrganisationRateCard extends BaseModel {
   @Column(precision = 12, scale = 2)
   private BigDecimal lateAllowanceCharges; // 
 
-  @Column(precision = 12, scale = 2)
-  private BigDecimal hourlyAllowance; //
 
+  private Boolean isHourlyAllowance; // if true then hourlyAllowance will be applied for lateAllowanceStartTime to allowanceCutOffHrs, if false then lateAllowanceCharges will be applied for lateAllowanceStartTime to allowanceCutOffHrs
+
+  private Integer allowanceCutOffHrs; // it is applied for late night duties, here number of hours will be added, if lateAllowanceStartTime is 10PM and allowanceCutOffHrs is 4 means till 10PM to 02AM for these 4hrs will be consider as hourlyAllowance/lateAllowanceCharges if isHourlyAllowance true or else will be considered are lateAllowanceCharges. if isHourlyAllowance true then take number of hours from lateAllowanceStartTime * hourlyAllowance
+
+  @Column(precision = 12, scale = 2)
+  private BigDecimal hourlyAllowance; // if isHourlyAllowance true then hourlyAllowance will be applied for lateAllowanceStartTime to allowanceCutOffHrs, if false then lateAllowanceCharges will be applied for lateAllowanceStartTime to allowanceCutOffHrs 
   
   @JsonFormat(pattern = "HH:mm")
   private LocalTime earlyAllowanceStartTime;
@@ -98,8 +102,6 @@ public class VendorOrganisationRateCard extends BaseModel {
   @JsonFormat(pattern = "HH:mm")
   private LocalTime lateAllowanceStartTime;
   
-  private Integer allowanceCutOffHrs; // it is applied for late night duties, here number of hours will be added, if lateAllowanceStartTime is 10PM and allowanceCutOffHrs is 4 means till 10PM to 02AM for these 4hrs will be consider as hourlyAllowance/lateAllowanceCharges if isHourlyAllowance true or else will be considered are lateAllowanceCharges. if isHourlyAllowance true then take number of hours from lateAllowanceStartTime * hourlyAllowance
-
   private Integer noOfDaysHourCutoff; // only for outstation and monthly rental
 
   @Enumerated(EnumType.STRING)
