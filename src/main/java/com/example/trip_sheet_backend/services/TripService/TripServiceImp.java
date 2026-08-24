@@ -55,6 +55,7 @@ import com.example.trip_sheet_backend.models.TripStop;
 import com.example.trip_sheet_backend.models.TripSummary;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VendorDelegationHistory;
+import com.example.trip_sheet_backend.models.VendorOrganisation;
 // import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleType;
@@ -73,6 +74,7 @@ import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
 import com.example.trip_sheet_backend.repositories.VendorDelegationHistoryRepository;
 import com.example.trip_sheet_backend.repositories.VehicleRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeRepository;
+import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -80,6 +82,7 @@ import java.time.LocalDateTime;
 import java.time.DayOfWeek;
 import java.time.LocalTime;
 import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 
 import org.slf4j.Logger;
@@ -102,6 +105,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final TripSummaryRepository tripSummaryRepository;
     private final DriverTenantMappingRepository driverTenantMappingRepository;
     private final VendorDelegationHistoryRepository vendorDelegationHistoryRepository;
+    private final VendorOrganisationRepository vendorOrganisationRepository;
     private final TripFeedbackService tripFeedbackService;
     private final TripBillingService tripBillingService;
     private final TripCompletionWorkflowService tripCompletionWorkflowService;
@@ -116,8 +120,9 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
       VehicleRepository vehicleRepository, CustomFieldRepository customFieldRepository,
       DispatchCenterRepository dispatchCenterRepository, TripSummaryRepository tripSummaryRepository,
       DriverTenantMappingRepository driverTenantMappingRepository,
-      VendorDelegationHistoryRepository vendorDelegationHistoryRepository,
-      TripFeedbackService tripFeedbackService, TripBillingService tripBillingService,
+       VendorDelegationHistoryRepository vendorDelegationHistoryRepository,
+       VendorOrganisationRepository vendorOrganisationRepository,
+       TripFeedbackService tripFeedbackService, TripBillingService tripBillingService,
       TripCompletionWorkflowService tripCompletionWorkflowService,
       UniqueCodeGeneratorService uniqueCodeGeneratorService,
       TripRealtimePublisher tripRealtimePublisher) {
@@ -135,6 +140,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     this.tripSummaryRepository = tripSummaryRepository;
     this.driverTenantMappingRepository = driverTenantMappingRepository;
     this.vendorDelegationHistoryRepository = vendorDelegationHistoryRepository;
+    this.vendorOrganisationRepository = vendorOrganisationRepository;
     this.tripFeedbackService = tripFeedbackService;
     this.tripBillingService = tripBillingService;
     this.tripCompletionWorkflowService = tripCompletionWorkflowService;
@@ -1790,20 +1796,30 @@ private void calculateDutyExtras(Trip trip, TripSummary summary) {
     return;
   }
 
-  long tripDistance = 0L;
+  long odometerDistance = 0L;
   if (summary.getTripStartKmOdo() != null && summary.getTripEndKmOdo() != null) {
-    tripDistance = summary.getTripEndKmOdo() - summary.getTripStartKmOdo();
-    if (tripDistance < 0) {
+    odometerDistance = summary.getTripEndKmOdo() - summary.getTripStartKmOdo();
+    if (odometerDistance < 0) {
       throw new RuntimeException("Trip end odometer cannot be less than trip start odometer");
     }
   }
 
+  VendorOrganisation vendorOrganisation = findVendorOrganisation(trip);
+  long allowedGarageKm = calculateAllowedGarageKm(summary, vendorOrganisation);
+  long tripDistance = odometerDistance + allowedGarageKm;
+  summary.setTripDistance(tripDistance);
+
   long includedKm = dutyType.getKm() == null ? 0L : dutyType.getKm().longValue();
+  if (dutyType.getTypeOfDuty() == DutyType.typeDuty.OUTSTATION) {
+    includedKm *= calculateOutstationDays(summary);
+  }
   long extraKm = Math.max(0L, tripDistance - includedKm);
   summary.setTripExtraKmOdo(extraKm);
   summary.setTripExtraKm(extraKm);
 
   if (!isLocalDuty) {
+    // Outstation packages are kilometre-and-day based; they do not have extra-hour charges.
+    summary.setTripExtraHr(0L);
     return;
   }
 
@@ -1815,6 +1831,9 @@ private void calculateDutyExtras(Trip trip, TripSummary summary) {
     }
   }
 
+  tripDurationMillis += calculateAllowedGarageDurationMillis(summary, vendorOrganisation);
+  summary.setTripDuration(tripDurationMillis);
+
   long includedDurationMillis = dutyType.getHr() == null
       ? 0L
       : dutyType.getHr().longValue() * 60L * 60L * 1000L;
@@ -1823,6 +1842,76 @@ private void calculateDutyExtras(Trip trip, TripSummary summary) {
       ? 0L
       : (extraDurationMillis + (60L * 60L * 1000L) - 1L) / (60L * 60L * 1000L);
   summary.setTripExtraHr(extraHours);
+}
+
+private long calculateOutstationDays(TripSummary summary) {
+  if (summary.getTripStartTime() == null || summary.getTripEndTime() == null
+      || summary.getTripEndTime() < summary.getTripStartTime()) {
+    return 1L;
+  }
+
+  ZoneId zoneId = ZoneId.systemDefault();
+  LocalDate startDate = Instant.ofEpochMilli(summary.getTripStartTime()).atZone(zoneId).toLocalDate();
+  LocalDate endDate = Instant.ofEpochMilli(summary.getTripEndTime()).atZone(zoneId).toLocalDate();
+  return ChronoUnit.DAYS.between(startDate, endDate) + 1L;
+}
+
+private VendorOrganisation findVendorOrganisation(Trip trip) {
+  if (trip.getVendor() == null || trip.getOrganisation() == null || trip.getOrganisation().getId() == null) {
+    return null;
+  }
+  return vendorOrganisationRepository
+      .findByVendorAndOrganisation_Id(trip.getVendor(), trip.getOrganisation().getId())
+      .orElse(null);
+}
+
+private long calculateAllowedGarageKm(TripSummary summary, VendorOrganisation vendorOrganisation) {
+  if (vendorOrganisation == null || vendorOrganisation.getMaxGtgKmLimit() == null
+      || vendorOrganisation.getMaxGtgKmLimit() <= 0) {
+    return 0L;
+  }
+
+  if (!validCoordinates(summary.getDispatchLat(), summary.getDispatchLng())
+      || !validCoordinates(summary.getTripStartLat(), summary.getTripStartLng())) {
+    return 0L;
+  }
+
+  long dispatchToPickupKm = (long) Math.ceil(haversineDistanceKm(
+      summary.getDispatchLat(), summary.getDispatchLng(), summary.getTripStartLat(), summary.getTripStartLng()));
+  return Math.min(dispatchToPickupKm, vendorOrganisation.getMaxGtgKmLimit().longValue());
+}
+
+private long calculateAllowedGarageDurationMillis(TripSummary summary, VendorOrganisation vendorOrganisation) {
+  if (vendorOrganisation == null || vendorOrganisation.getMaxGtgHrLimit() == null
+      || vendorOrganisation.getMaxGtgHrLimit() <= 0 || summary.getGarageStartTime() == null) {
+    return 0L;
+  }
+
+  Long tripStartTime = summary.getTripStartTime();
+  if (tripStartTime == null || tripStartTime <= summary.getGarageStartTime()) {
+    return 0L;
+  }
+
+  long actualGarageDuration = tripStartTime - summary.getGarageStartTime();
+  long maxAllowedDuration = vendorOrganisation.getMaxGtgHrLimit().longValue() * 60L * 60L * 1000L;
+  return Math.min(actualGarageDuration, maxAllowedDuration);
+}
+
+private boolean validCoordinates(Double latitude, Double longitude) {
+  return latitude != null && longitude != null
+      && latitude >= -90D && latitude <= 90D
+      && longitude >= -180D && longitude <= 180D;
+}
+
+private double haversineDistanceKm(double fromLat, double fromLng, double toLat, double toLng) {
+  double latitudeDifference = Math.toRadians(toLat - fromLat);
+  double longitudeDifference = Math.toRadians(toLng - fromLng);
+  double latitudeStart = Math.toRadians(fromLat);
+  double latitudeEnd = Math.toRadians(toLat);
+  double haversine = Math.sin(latitudeDifference / 2D) * Math.sin(latitudeDifference / 2D)
+      + Math.cos(latitudeStart) * Math.cos(latitudeEnd)
+      * Math.sin(longitudeDifference / 2D) * Math.sin(longitudeDifference / 2D);
+  return 2D * 6371.0088D * Math.asin(Math.sqrt(haversine));
 }
 
 public void processAfterTripCompletion(Trip completedTrip) {

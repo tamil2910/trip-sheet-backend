@@ -7,6 +7,8 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -460,7 +462,9 @@ public class TripBillingService {
 
   private ChargeSnapshot buildChargeSnapshot(TripSummary tripSummary, PricingContext pricingContext) {
     BigDecimal baseFareAmount = scaleCurrency(pricingContext.baseFare());
-    BigDecimal baseFareQty = BigDecimal.ONE.setScale(2, RoundingMode.HALF_UP);
+    BigDecimal baseFareQty = pricingContext.dutyType() == DutyType.typeDuty.OUTSTATION
+        ? scaleNumber(calculateOutstationDays(tripSummary))
+        : BigDecimal.ONE.setScale(2, RoundingMode.HALF_UP);
     BigDecimal baseFareTotal = scaleCurrency(baseFareAmount.multiply(baseFareQty));
 
     BigDecimal extraKmQty = scaleNumber(tripSummary.getTripExtraKm());
@@ -536,16 +540,18 @@ public class TripBillingService {
     BigDecimal dailyQty = dailyAllowanceQuantity(start, end, context);
     BigDecimal dailyAmount = scaleCurrency(context.dailyAllowanceCharge());
 
-    BigDecimal earlyQty = context.earlyAllowanceStartTime() != null
-        && start.toLocalTime().isBefore(context.earlyAllowanceStartTime()) ? BigDecimal.ONE : ZERO;
     BigDecimal earlyAmount = scaleCurrency(context.earlyAllowanceCharge());
+    BigDecimal earlyQty = positive(earlyAmount)
+        && crossesAllowanceTime(start, end, context.earlyAllowanceStartTime()) ? BigDecimal.ONE : ZERO;
 
-    long lateMinutes = lateWindowOverlapMinutes(start, end, context.lateAllowanceStartTime(), context.allowanceCutOffHrs());
-    BigDecimal lateQty = !context.isHourlyAllowance() && lateMinutes > 0 ? BigDecimal.ONE : ZERO;
+    LateWindowOverlap lateOverlap = calculateLateWindowOverlap(
+        start, end, context.lateAllowanceStartTime(), context.earlyAllowanceStartTime());
     BigDecimal lateAmount = scaleCurrency(context.lateAllowanceCharge());
-    BigDecimal hourlyQty = context.isHourlyAllowance() && lateMinutes > 0
-        ? BigDecimal.valueOf((lateMinutes + 59) / 60) : ZERO;
     BigDecimal hourlyAmount = scaleCurrency(context.hourlyAllowanceCharge());
+    BigDecimal lateQty = !context.isHourlyAllowance() && positive(lateAmount) && lateOverlap.windowCount() > 0
+        ? BigDecimal.valueOf(lateOverlap.windowCount()) : ZERO;
+    BigDecimal hourlyQty = context.isHourlyAllowance() && positive(hourlyAmount) && lateOverlap.minutes() > 0
+        ? BigDecimal.valueOf((lateOverlap.minutes() + 59) / 60) : ZERO;
 
     return new AllowanceSnapshot(
         dailyAmount, scaleCurrency(dailyQty), scaleCurrency(dailyAmount.multiply(dailyQty)),
@@ -557,23 +563,55 @@ public class TripBillingService {
 
   private BigDecimal dailyAllowanceQuantity(LocalDateTime start, LocalDateTime end, PricingContext context) {
     if (context.dutyType() != DutyType.typeDuty.OUTSTATION) return ZERO;
-    long durationMinutes = Math.max(0, Duration.between(start, end).toMinutes());
-    int cutoffHours = context.noOfDaysHourCutoff() != null && context.noOfDaysHourCutoff() > 0
-        ? context.noOfDaysHourCutoff() : 24;
-    return BigDecimal.valueOf(Math.max(1, (durationMinutes + cutoffHours * 60L - 1) / (cutoffHours * 60L)));
+    return BigDecimal.valueOf(ChronoUnit.DAYS.between(start.toLocalDate(), end.toLocalDate()) + 1L);
   }
 
-  private long lateWindowOverlapMinutes(LocalDateTime start, LocalDateTime end, LocalTime windowStart, Integer cutoffHours) {
-    if (windowStart == null || cutoffHours == null || cutoffHours <= 0 || !end.isAfter(start)) return 0;
-    long overlap = 0;
-    for (LocalDateTime cursor = start.toLocalDate().atTime(windowStart).minusDays(1);
+  private long calculateOutstationDays(TripSummary tripSummary) {
+    Long startMillis = tripSummary.getTripStartTime();
+    Long endMillis = tripSummary.getTripEndTime();
+    if (startMillis == null || endMillis == null || endMillis < startMillis) {
+      return 1L;
+    }
+    LocalDate startDate = Instant.ofEpochMilli(startMillis).atZone(ZoneId.systemDefault()).toLocalDate();
+    LocalDate endDate = Instant.ofEpochMilli(endMillis).atZone(ZoneId.systemDefault()).toLocalDate();
+    return ChronoUnit.DAYS.between(startDate, endDate) + 1L;
+  }
+
+  private boolean crossesAllowanceTime(LocalDateTime start, LocalDateTime end, LocalTime allowanceTime) {
+    if (allowanceTime == null || end.isBefore(start)) return false;
+    for (LocalDate date = start.toLocalDate(); !date.isAfter(end.toLocalDate()); date = date.plusDays(1)) {
+      LocalDateTime allowanceDateTime = date.atTime(allowanceTime);
+      if (!allowanceDateTime.isBefore(start) && !allowanceDateTime.isAfter(end)) return true;
+    }
+    return false;
+  }
+
+  private LateWindowOverlap calculateLateWindowOverlap(
+      LocalDateTime start,
+      LocalDateTime end,
+      LocalTime lateStartTime,
+      LocalTime earlyStartTime
+  ) {
+    if (lateStartTime == null || earlyStartTime == null || !end.isAfter(start)) {
+      return LateWindowOverlap.zero();
+    }
+
+    long overlapMinutes = 0;
+    long overlappingWindows = 0;
+    for (LocalDateTime cursor = start.toLocalDate().atTime(lateStartTime).minusDays(1);
          !cursor.isAfter(end); cursor = cursor.plusDays(1)) {
-      LocalDateTime windowEnd = cursor.plusHours(cutoffHours);
+      LocalDateTime windowEnd = cursor.toLocalDate().atTime(earlyStartTime);
+      if (!windowEnd.isAfter(cursor)) {
+        windowEnd = windowEnd.plusDays(1);
+      }
       LocalDateTime overlapStart = cursor.isAfter(start) ? cursor : start;
       LocalDateTime overlapEnd = windowEnd.isBefore(end) ? windowEnd : end;
-      if (overlapEnd.isAfter(overlapStart)) overlap += Duration.between(overlapStart, overlapEnd).toMinutes();
+      if (overlapEnd.isAfter(overlapStart)) {
+        overlapMinutes += Duration.between(overlapStart, overlapEnd).toMinutes();
+        overlappingWindows++;
+      }
     }
-    return overlap;
+    return new LateWindowOverlap(overlapMinutes, overlappingWindows);
   }
 
   private long firstPositive(Long... values) {
@@ -693,6 +731,12 @@ public class TripBillingService {
   ) {
     private static AllowanceSnapshot zero() {
       return new AllowanceSnapshot(ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO, ZERO);
+    }
+  }
+
+  private record LateWindowOverlap(long minutes, long windowCount) {
+    private static LateWindowOverlap zero() {
+      return new LateWindowOverlap(0L, 0L);
     }
   }
 }
