@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.dtos.TripDtos;
 
 import java.util.List;
 
+import com.example.trip_sheet_backend.models.DutyType.TypeAirportTransfer;
 import com.example.trip_sheet_backend.models.Trip;
 
 import lombok.Getter;
@@ -24,6 +25,7 @@ public class TripUpdateRequestDTO {
     private String vehicleId;
     private String dutyTypeId;
     private String vehicleTypeId;
+    private TypeAirportTransfer airportTransferType;
 
     private List<String> passengerIds;
     private String bookerId;

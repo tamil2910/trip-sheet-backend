@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
+import com.example.trip_sheet_backend.models.DutyType.TypeAirportTransfer;
 // import com.fasterxml.jackson.annotation.JsonBackReference;
 // import com.fasterxml.jackson.annotation.JsonIgnore;
 
@@ -157,6 +158,10 @@ public class Trip extends BaseModel implements TenantScoped {
 
   @Enumerated(EnumType.STRING)
   private RecurrenceFrequency recurrenceFrequency;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "airport_transfer_type")
+  private TypeAirportTransfer airportTransferType;
 
   @Column(columnDefinition = "BIGINT")
   private Long pickupTime;

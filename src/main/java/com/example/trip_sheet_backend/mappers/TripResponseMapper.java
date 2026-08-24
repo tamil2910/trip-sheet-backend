@@ -40,6 +40,7 @@ public final class TripResponseMapper {
         dto.setRecurrenceInterval(trip.getRecurrenceInterval());
         dto.setDaysOfWeek(trip.getDaysOfWeek());
         dto.setRecurrenceFrequency(trip.getRecurrenceFrequency());
+        dto.setAirportTransferType(trip.getAirportTransferType());
 
         dto.setVendor(toTenantRelation(trip.getVendor()));
         dto.setOrganisation(toTenantRelation(trip.getOrganisation()));

@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.dtos.TripDtos;
 
 import java.util.List;
 
+import com.example.trip_sheet_backend.models.DutyType.TypeAirportTransfer;
 import com.example.trip_sheet_backend.models.Trip;
 
 import lombok.Getter;
@@ -19,6 +20,7 @@ public class TripResponseDTO {
     private Integer recurrenceInterval;
     private String daysOfWeek;
     private Trip.RecurrenceFrequency recurrenceFrequency;
+    private TypeAirportTransfer airportTransferType;
 
     private TripRelationResponseDTO vendor;
     private TripRelationResponseDTO organisation;

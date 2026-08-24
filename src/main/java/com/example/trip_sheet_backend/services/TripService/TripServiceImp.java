@@ -46,6 +46,7 @@ import com.example.trip_sheet_backend.models.CustomField;
 import com.example.trip_sheet_backend.models.DispatchCenter;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.DutyType;
+import com.example.trip_sheet_backend.models.DutyType.TypeAirportTransfer;
 import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
@@ -195,6 +196,7 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
   trip.setVehicleType(vehicleType);
   trip.setDriver(driver);
   trip.setVehicle(vehicle);
+  applyAirportTransferType(trip, dutyType, createTripDto.getAirportTransferType(), true);
 
   if (createTripDto.getParentTripId() != null && !createTripDto.getParentTripId().isBlank()) {
     Trip parentTrip = repository.findById(UUID.fromString(createTripDto.getParentTripId()))
@@ -404,6 +406,14 @@ public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdat
   }
   if (updateDto.getVehicleTypeId() != null) {
     trip.setVehicleType(resolveVehicleType(updateDto.getVehicleTypeId()));
+  }
+  if (!partnerVendorRestrictedUpdate && updateDto.getDutyTypeId() != null) {
+    applyAirportTransferType(trip, trip.getDutyType(), updateDto.getAirportTransferType(), true);
+  } else if (updateDto.getAirportTransferType() != null) {
+    if (trip.getDutyType() == null) {
+      throw new RuntimeException("dutyTypeId is required when airportTransferType is provided");
+    }
+    applyAirportTransferType(trip, trip.getDutyType(), updateDto.getAirportTransferType(), false);
   }
   if (!partnerVendorRestrictedUpdate && updateDto.getBookerId() != null) {
     trip.setBooker(resolveOptionalPeople(updateDto.getBookerId(), "Invalid booker"));
@@ -1434,6 +1444,7 @@ private void syncTripFromTemplate(Trip target, Trip template, long occurrenceEpo
   target.setDispatchCenter(template.getDispatchCenter());
   target.setDutyType(template.getDutyType());
   target.setVehicleType(template.getVehicleType());
+  target.setAirportTransferType(template.getAirportTransferType());
   target.setBooker(template.getBooker());
   target.setPassengers(template.getPassengers() == null ? new ArrayList<>() : new ArrayList<>(template.getPassengers()));
   target.setPickupTime(occurrenceEpoch);
@@ -1530,6 +1541,7 @@ private Trip cloneTripTemplate(Trip source) {
   clone.setDispatchCenter(source.getDispatchCenter());
   clone.setDutyType(source.getDutyType());
   clone.setVehicleType(source.getVehicleType());
+  clone.setAirportTransferType(source.getAirportTransferType());
   clone.setPassengers(source.getPassengers() == null ? null : new ArrayList<>(source.getPassengers()));
   clone.setPassengerCustomFieldValues(new ArrayList<>());
   if (source.getPassengerCustomFieldValues() != null) {
@@ -1568,6 +1580,26 @@ private Trip cloneTripTemplate(Trip source) {
   }
 
   return clone;
+}
+
+private void applyAirportTransferType(Trip trip, DutyType dutyType, TypeAirportTransfer airportTransferType, boolean requireWhenFixed) {
+  if (trip == null) {
+    return;
+  }
+
+  if (dutyType == null || dutyType.getTypeOfDuty() != DutyType.typeDuty.AIRPORT_TRANSFER_FIXED) {
+    trip.setAirportTransferType(null);
+    return;
+  }
+
+  if (airportTransferType == null) {
+    if (requireWhenFixed) {
+      throw new RuntimeException("airportTransferType is required for AIRPORT_TRANSFER_FIXED duty type");
+    }
+    return;
+  }
+
+  trip.setAirportTransferType(airportTransferType);
 }
 
 private long buildTripDateTimeEpoch(LocalDate date, Long pickupTime) {
