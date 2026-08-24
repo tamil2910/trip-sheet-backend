@@ -1996,8 +1996,11 @@ private boolean isPartnerVendorRestrictedUpdate(Tenant tokenTenant, Trip trip) {
   if (trip.getVendor() == null || trip.getVendor().getId() == null) {
     return false;
   }
-  // Vendor is restricted if they are the current vendor and the trip belongs to an organisation
-  return tokenTenant.getId().equals(trip.getVendor().getId()) && trip.getOrganisation() != null;
+  // Only the vendor receiving a delegated trip is a partner vendor. A vendor assigned
+  // directly by the organisation must be able to update the trip details supplied in
+  // the PUT payload.
+  return tokenTenant.getId().equals(trip.getVendor().getId())
+      && trip.getAssignedByVendor() != null;
 }
 
 private void ensureTripStatus(Trip trip, Trip.TripStatus... allowedStatuses) {
