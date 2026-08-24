@@ -48,6 +48,7 @@ public class TripBillingService {
 
   private static final BigDecimal ONE_HUNDRED = new BigDecimal("100");
   private static final BigDecimal ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
+  private static final ZoneId BUSINESS_TIME_ZONE = ZoneId.of("Asia/Kolkata");
 
   private final PurchaseOrderRepository purchaseOrderRepository;
   private final TripSummaryRepository tripSummaryRepository;
@@ -535,8 +536,11 @@ public class TripBillingService {
       return AllowanceSnapshot.zero();
     }
 
-    LocalDateTime start = LocalDateTime.ofInstant(Instant.ofEpochMilli(startMillis), ZoneId.systemDefault());
-    LocalDateTime end = LocalDateTime.ofInstant(Instant.ofEpochMilli(endMillis), ZoneId.systemDefault());
+    // Rate-card allowance times are business-local times. Railway runs in UTC, so
+    // using the host default zone causes late-night windows to be evaluated on the
+    // wrong day.
+    LocalDateTime start = LocalDateTime.ofInstant(Instant.ofEpochMilli(startMillis), BUSINESS_TIME_ZONE);
+    LocalDateTime end = LocalDateTime.ofInstant(Instant.ofEpochMilli(endMillis), BUSINESS_TIME_ZONE);
     BigDecimal dailyQty = dailyAllowanceQuantity(start, end, context);
     BigDecimal dailyAmount = scaleCurrency(context.dailyAllowanceCharge());
 
@@ -545,7 +549,11 @@ public class TripBillingService {
         && crossesAllowanceTime(start, end, context.earlyAllowanceStartTime()) ? BigDecimal.ONE : ZERO;
 
     LateWindowOverlap lateOverlap = calculateLateWindowOverlap(
-        start, end, context.lateAllowanceStartTime(), context.earlyAllowanceStartTime());
+        start,
+        end,
+        context.lateAllowanceStartTime(),
+        context.allowanceCutOffHrs(),
+        context.earlyAllowanceStartTime());
     // A rate card configured for hourly late allowance still belongs to the late
     // allowance line on the PO. Store the hourly rate and calculated hours there
     // so lateAllowanceTotal is the billed amount rather than leaving it at zero.
@@ -582,8 +590,8 @@ public class TripBillingService {
     if (startMillis == null || endMillis == null || endMillis < startMillis) {
       return 1L;
     }
-    LocalDate startDate = Instant.ofEpochMilli(startMillis).atZone(ZoneId.systemDefault()).toLocalDate();
-    LocalDate endDate = Instant.ofEpochMilli(endMillis).atZone(ZoneId.systemDefault()).toLocalDate();
+    LocalDate startDate = Instant.ofEpochMilli(startMillis).atZone(BUSINESS_TIME_ZONE).toLocalDate();
+    LocalDate endDate = Instant.ofEpochMilli(endMillis).atZone(BUSINESS_TIME_ZONE).toLocalDate();
     return ChronoUnit.DAYS.between(startDate, endDate) + 1L;
   }
 
@@ -600,9 +608,10 @@ public class TripBillingService {
       LocalDateTime start,
       LocalDateTime end,
       LocalTime lateStartTime,
+      Integer allowanceCutOffHrs,
       LocalTime earlyStartTime
   ) {
-    if (lateStartTime == null || earlyStartTime == null || !end.isAfter(start)) {
+    if (lateStartTime == null || !end.isAfter(start)) {
       return LateWindowOverlap.zero();
     }
 
@@ -610,9 +619,18 @@ public class TripBillingService {
     long overlappingWindows = 0;
     for (LocalDateTime cursor = start.toLocalDate().atTime(lateStartTime).minusDays(1);
          !cursor.isAfter(end); cursor = cursor.plusDays(1)) {
-      LocalDateTime windowEnd = cursor.toLocalDate().atTime(earlyStartTime);
-      if (!windowEnd.isAfter(cursor)) {
-        windowEnd = windowEnd.plusDays(1);
+      LocalDateTime windowEnd;
+      if (allowanceCutOffHrs != null && allowanceCutOffHrs > 0) {
+        windowEnd = cursor.plusHours(allowanceCutOffHrs.longValue());
+      } else if (earlyStartTime != null) {
+        // Backward-compatible fallback for existing rate cards that do not yet
+        // provide an explicit allowance cutoff.
+        windowEnd = cursor.toLocalDate().atTime(earlyStartTime);
+        if (!windowEnd.isAfter(cursor)) {
+          windowEnd = windowEnd.plusDays(1);
+        }
+      } else {
+        continue;
       }
       LocalDateTime overlapStart = cursor.isAfter(start) ? cursor : start;
       LocalDateTime overlapEnd = windowEnd.isBefore(end) ? windowEnd : end;
