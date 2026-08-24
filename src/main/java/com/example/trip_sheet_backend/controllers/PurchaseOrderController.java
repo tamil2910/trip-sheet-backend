@@ -1,5 +1,6 @@
 package com.example.trip_sheet_backend.controllers;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -8,9 +9,11 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,6 +25,7 @@ import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderUpdate
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.PurchaseOrderService.PurchaseOrderService;
+import com.example.trip_sheet_backend.services.TripBillingService.TripBillingService;
 
 import jakarta.servlet.http.HttpServletRequest;
 
@@ -30,9 +34,28 @@ import jakarta.servlet.http.HttpServletRequest;
 public class PurchaseOrderController {
 
   private final PurchaseOrderService purchaseOrderService;
+  private final TripBillingService tripBillingService;
 
-  public PurchaseOrderController(PurchaseOrderService purchaseOrderService) {
+  public PurchaseOrderController(PurchaseOrderService purchaseOrderService, TripBillingService tripBillingService) {
     this.purchaseOrderService = purchaseOrderService;
+    this.tripBillingService = tripBillingService;
+  }
+
+  @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
+  @PostMapping("/generate/{tripId}")
+  public ResponseEntity<ApiResponse<List<PurchaseOrderResponseDTO>>> generatePurchaseOrder(
+      @PathVariable UUID tripId,
+      HttpServletRequest request
+  ) {
+    List<PurchaseOrderResponseDTO> purchaseOrders = tripBillingService
+        .generatePurchaseOrdersForTrip(tripId)
+        .stream()
+        .map(PurchaseOrderResponseDTO::fromEntity)
+        .toList();
+    String message = purchaseOrders.isEmpty()
+        ? "Purchase order already exists for this trip"
+        : "Purchase order generated successfully";
+    return ResponseEntity.ok(new ApiResponse<>(true, message, purchaseOrders));
   }
 
   @GetMapping

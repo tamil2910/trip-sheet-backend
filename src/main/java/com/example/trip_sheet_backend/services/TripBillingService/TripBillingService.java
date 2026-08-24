@@ -546,18 +546,28 @@ public class TripBillingService {
 
     LateWindowOverlap lateOverlap = calculateLateWindowOverlap(
         start, end, context.lateAllowanceStartTime(), context.earlyAllowanceStartTime());
-    BigDecimal lateAmount = scaleCurrency(context.lateAllowanceCharge());
+    // A rate card configured for hourly late allowance still belongs to the late
+    // allowance line on the PO. Store the hourly rate and calculated hours there
+    // so lateAllowanceTotal is the billed amount rather than leaving it at zero.
+    BigDecimal lateAmount = context.isHourlyAllowance()
+        ? scaleCurrency(context.hourlyAllowanceCharge())
+        : scaleCurrency(context.lateAllowanceCharge());
     BigDecimal hourlyAmount = scaleCurrency(context.hourlyAllowanceCharge());
-    BigDecimal lateQty = !context.isHourlyAllowance() && positive(lateAmount) && lateOverlap.windowCount() > 0
-        ? BigDecimal.valueOf(lateOverlap.windowCount()) : ZERO;
-    BigDecimal hourlyQty = context.isHourlyAllowance() && positive(hourlyAmount) && lateOverlap.minutes() > 0
+    BigDecimal lateQty = context.isHourlyAllowance() && positive(lateAmount) && lateOverlap.minutes() > 0
         ? BigDecimal.valueOf((lateOverlap.minutes() + 59) / 60) : ZERO;
+    if (!context.isHourlyAllowance() && positive(lateAmount) && lateOverlap.windowCount() > 0) {
+      lateQty = BigDecimal.valueOf(lateOverlap.windowCount());
+    }
+
+    // The hourly allowance is represented by the late-allowance PO fields above.
+    // Keeping this separate line at zero prevents the charge from being counted twice.
+    BigDecimal hourlyQty = ZERO;
 
     return new AllowanceSnapshot(
         dailyAmount, scaleCurrency(dailyQty), scaleCurrency(dailyAmount.multiply(dailyQty)),
         earlyAmount, scaleCurrency(earlyQty), scaleCurrency(earlyAmount.multiply(earlyQty)),
         lateAmount, scaleCurrency(lateQty), scaleCurrency(lateAmount.multiply(lateQty)),
-        hourlyAmount, scaleCurrency(hourlyQty), scaleCurrency(hourlyAmount.multiply(hourlyQty))
+        hourlyAmount, hourlyQty, ZERO
     );
   }
 
