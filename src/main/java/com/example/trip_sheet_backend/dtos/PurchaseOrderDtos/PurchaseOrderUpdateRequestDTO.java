@@ -78,9 +78,9 @@ public class PurchaseOrderUpdateRequestDTO {
   private BigDecimal lateAllowanceChargeAmount;
   private BigDecimal lateAllowanceQty;
   private BigDecimal lateAllowanceTotal;
-  private BigDecimal hourlyAllowanceChargeAmount;
+  private BigDecimal hourlyAllowanceCharge;
   private BigDecimal hourlyAllowanceQty;
-  private BigDecimal hourlyAllowanceTotal;
+  private BigDecimal hourlyAllowanceAmount;
   private BigDecimal tollChargeAmount;
   private BigDecimal tollQty;
   private BigDecimal tollTotal;

@@ -130,7 +130,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
         body.getHourlyAllowance(),
         noShowDutyType,
         body.getNoOfDaysHourCutoff(),
-        body.getEarlyAllowanceStartTime(),
+        body.getEarlyAllowanceEndTime(),
         body.getLateAllowanceStartTime(),
         body.getAllowanceCutOffHrs()
     );
@@ -198,7 +198,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
         body.getHourlyAllowance(),
         noShowDutyType,
         body.getNoOfDaysHourCutoff(),
-        body.getEarlyAllowanceStartTime(),
+        body.getEarlyAllowanceEndTime(),
         body.getLateAllowanceStartTime(),
         body.getAllowanceCutOffHrs()
     );
@@ -477,7 +477,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
         firstNonNull(changes.getHourlyAllowance(), rateCard.getHourlyAllowance()),
         noShowDutyType,
         firstNonNull(changes.getNoOfDaysHourCutoff(), rateCard.getNoOfDaysHourCutoff()),
-        firstNonNull(changes.getEarlyAllowanceStartTime(), rateCard.getEarlyAllowanceStartTime()),
+        firstNonNull(changes.getEarlyAllowanceEndTime(), rateCard.getEarlyAllowanceEndTime()),
         firstNonNull(changes.getLateAllowanceStartTime(), rateCard.getLateAllowanceStartTime()),
         firstNonNull(changes.getAllowanceCutOffHrs(), rateCard.getAllowanceCutOffHrs())
     );
@@ -583,7 +583,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       BigDecimal hourlyAllowance,
       DutyType noShowDutyType,
       Integer noOfDaysHourCutoff,
-      LocalTime earlyAllowanceStartTime,
+      LocalTime earlyAllowanceEndTime,
       LocalTime lateAllowanceStartTime,
       Integer allowanceCutOffHrs
   ) {
@@ -603,7 +603,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
     rateCard.setHourlyAllowance(hourlyAllowance);
     rateCard.setNoShowDutyType(noShowDutyType);
     rateCard.setNoOfDaysHourCutoff(noOfDaysHourCutoff);
-    rateCard.setEarlyAllowanceStartTime(earlyAllowanceStartTime);
+    rateCard.setEarlyAllowanceEndTime(earlyAllowanceEndTime);
     rateCard.setLateAllowanceStartTime(lateAllowanceStartTime);
     rateCard.setAllowanceCutOffHrs(allowanceCutOffHrs);
   }

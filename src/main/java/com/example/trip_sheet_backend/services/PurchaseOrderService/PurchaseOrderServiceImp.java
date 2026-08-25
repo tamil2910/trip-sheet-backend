@@ -291,9 +291,9 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     if (body.getLateAllowanceChargeAmount() != null) purchaseOrder.setLateAllowanceChargeAmount(body.getLateAllowanceChargeAmount());
     if (body.getLateAllowanceQty() != null) purchaseOrder.setLateAllowanceQty(body.getLateAllowanceQty());
     if (body.getLateAllowanceTotal() != null) purchaseOrder.setLateAllowanceTotal(body.getLateAllowanceTotal());
-    if (body.getHourlyAllowanceChargeAmount() != null) purchaseOrder.setHourlyAllowanceChargeAmount(body.getHourlyAllowanceChargeAmount());
+    if (body.getHourlyAllowanceCharge() != null) purchaseOrder.setHourlyAllowanceCharge(body.getHourlyAllowanceCharge());
     if (body.getHourlyAllowanceQty() != null) purchaseOrder.setHourlyAllowanceQty(body.getHourlyAllowanceQty());
-    if (body.getHourlyAllowanceTotal() != null) purchaseOrder.setHourlyAllowanceTotal(body.getHourlyAllowanceTotal());
+    if (body.getHourlyAllowanceAmount() != null) purchaseOrder.setHourlyAllowanceAmount(body.getHourlyAllowanceAmount());
     if (body.getTollChargeAmount() != null) purchaseOrder.setTollChargeAmount(body.getTollChargeAmount());
     if (body.getTollQty() != null) purchaseOrder.setTollQty(body.getTollQty());
     if (body.getTollTotal() != null) purchaseOrder.setTollTotal(body.getTollTotal());

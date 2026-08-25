@@ -87,7 +87,7 @@ public class VendorOrganisationRateCardBulkReviewRequestDTO {
     private Integer noOfDaysHourCutoff;
 
     @JsonFormat(pattern = "HH:mm")
-    private LocalTime earlyAllowanceStartTime;
+    private LocalTime earlyAllowanceEndTime;
 
     @JsonFormat(pattern = "HH:mm")
     private LocalTime lateAllowanceStartTime;

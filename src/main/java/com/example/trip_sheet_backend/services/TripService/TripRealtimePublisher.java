@@ -9,6 +9,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -40,6 +41,7 @@ public class TripRealtimePublisher {
     publishAfterCommit(trip, TripRealtimeEventDTO.TripRealtimeEventType.UPDATED, true);
   }
 
+  @Transactional(readOnly = true)
   public void publishUpdatedByTripId(UUID tripId) {
     if (tripId == null) {
       return;
@@ -47,7 +49,9 @@ public class TripRealtimePublisher {
 
     Trip trip = tripRepository.findById(tripId)
         .orElseThrow(() -> new RuntimeException("Trip not found for realtime publication"));
-    publishUpdated(trip);
+    // This method owns the read-only transaction, so publish while the lazy
+    // trip relations are still attached to the persistence context.
+    publishNow(trip, TripRealtimeEventDTO.TripRealtimeEventType.UPDATED, true);
   }
 
   public void publishDeleted(Trip trip) {

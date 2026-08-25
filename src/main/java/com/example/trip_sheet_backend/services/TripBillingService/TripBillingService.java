@@ -186,9 +186,9 @@ public class TripBillingService {
     purchaseOrder.setLateAllowanceChargeAmount(chargeSnapshot.lateAllowanceAmount());
     purchaseOrder.setLateAllowanceQty(chargeSnapshot.lateAllowanceQty());
     purchaseOrder.setLateAllowanceTotal(chargeSnapshot.lateAllowanceTotal());
-    purchaseOrder.setHourlyAllowanceChargeAmount(chargeSnapshot.hourlyAllowanceAmount());
+    purchaseOrder.setHourlyAllowanceCharge(chargeSnapshot.hourlyAllowanceCharge());
     purchaseOrder.setHourlyAllowanceQty(chargeSnapshot.hourlyAllowanceQty());
-    purchaseOrder.setHourlyAllowanceTotal(chargeSnapshot.hourlyAllowanceTotal());
+    purchaseOrder.setHourlyAllowanceAmount(chargeSnapshot.hourlyAllowanceAmount());
 
     purchaseOrder.setTollChargeAmount(chargeSnapshot.tollAmount());
     purchaseOrder.setTollQty(chargeSnapshot.tollQty());
@@ -209,7 +209,7 @@ public class TripBillingService {
         purchaseOrder.getDailyAllowanceTotal(),
         purchaseOrder.getEarlyAllowanceTotal(),
         purchaseOrder.getLateAllowanceTotal(),
-        purchaseOrder.getHourlyAllowanceTotal()
+        purchaseOrder.getHourlyAllowanceAmount()
     );
     BigDecimal nonTaxableTotal = sum(
         purchaseOrder.getTollTotal(),
@@ -275,7 +275,7 @@ public class TripBillingService {
     if (positive(purchaseOrder.getDailyAllowanceTotal())) count++;
     if (positive(purchaseOrder.getEarlyAllowanceTotal())) count++;
     if (positive(purchaseOrder.getLateAllowanceTotal())) count++;
-    if (positive(purchaseOrder.getHourlyAllowanceTotal())) count++;
+    if (positive(purchaseOrder.getHourlyAllowanceAmount())) count++;
     if (positive(purchaseOrder.getTollTotal())) {
       count++;
     }
@@ -297,7 +297,7 @@ public class TripBillingService {
     appendLineItem(builder, "dailyAllowance", purchaseOrder.getDailyAllowanceQty(), purchaseOrder.getDailyAllowanceChargeAmount(), purchaseOrder.getDailyAllowanceTotal());
     appendLineItem(builder, "earlyAllowance", purchaseOrder.getEarlyAllowanceQty(), purchaseOrder.getEarlyAllowanceChargeAmount(), purchaseOrder.getEarlyAllowanceTotal());
     appendLineItem(builder, "lateAllowance", purchaseOrder.getLateAllowanceQty(), purchaseOrder.getLateAllowanceChargeAmount(), purchaseOrder.getLateAllowanceTotal());
-    appendLineItem(builder, "hourlyAllowance", purchaseOrder.getHourlyAllowanceQty(), purchaseOrder.getHourlyAllowanceChargeAmount(), purchaseOrder.getHourlyAllowanceTotal());
+    appendLineItem(builder, "hourlyAllowance", purchaseOrder.getHourlyAllowanceQty(), purchaseOrder.getHourlyAllowanceCharge(), purchaseOrder.getHourlyAllowanceAmount());
     appendLineItem(builder, "toll", purchaseOrder.getTollQty(), purchaseOrder.getTollChargeAmount(), purchaseOrder.getTollTotal());
     appendLineItem(builder, "parking", purchaseOrder.getParkingQty(), purchaseOrder.getParkingChargeAmount(), purchaseOrder.getParkingTotal());
     appendLineItem(builder, "other", purchaseOrder.getOtherQty(), purchaseOrder.getOtherChargeAmount(), purchaseOrder.getOtherTotal());
@@ -375,7 +375,7 @@ public class TripBillingService {
         rateCard.getLateAllowanceCharges(),
         rateCard.getHourlyAllowance(),
         Boolean.TRUE.equals(rateCard.getIsHourlyAllowance()),
-        rateCard.getEarlyAllowanceStartTime(),
+        rateCard.getEarlyAllowanceEndTime(),
         rateCard.getLateAllowanceStartTime(),
         rateCard.getAllowanceCutOffHrs(),
         rateCard.getNoOfDaysHourCutoff(),
@@ -546,36 +546,26 @@ public class TripBillingService {
 
     BigDecimal earlyAmount = scaleCurrency(context.earlyAllowanceCharge());
     BigDecimal earlyQty = positive(earlyAmount)
-        && crossesAllowanceTime(start, end, context.earlyAllowanceStartTime()) ? BigDecimal.ONE : ZERO;
+        && startsBeforeAllowanceEndTime(start, context.earlyAllowanceEndTime()) ? BigDecimal.ONE : ZERO;
 
     LateWindowOverlap lateOverlap = calculateLateWindowOverlap(
         start,
         end,
         context.lateAllowanceStartTime(),
         context.allowanceCutOffHrs(),
-        context.earlyAllowanceStartTime());
-    // A rate card configured for hourly late allowance still belongs to the late
-    // allowance line on the PO. Store the hourly rate and calculated hours there
-    // so lateAllowanceTotal is the billed amount rather than leaving it at zero.
-    BigDecimal lateAmount = context.isHourlyAllowance()
-        ? scaleCurrency(context.hourlyAllowanceCharge())
-        : scaleCurrency(context.lateAllowanceCharge());
+        context.earlyAllowanceEndTime());
+    BigDecimal lateAmount = scaleCurrency(context.lateAllowanceCharge());
     BigDecimal hourlyAmount = scaleCurrency(context.hourlyAllowanceCharge());
-    BigDecimal lateQty = context.isHourlyAllowance() && positive(lateAmount) && lateOverlap.minutes() > 0
+    BigDecimal lateQty = !context.isHourlyAllowance() && positive(lateAmount) && lateOverlap.windowCount() > 0
+        ? BigDecimal.valueOf(lateOverlap.windowCount()) : ZERO;
+    BigDecimal hourlyQty = context.isHourlyAllowance() && positive(hourlyAmount) && lateOverlap.minutes() > 0
         ? BigDecimal.valueOf((lateOverlap.minutes() + 59) / 60) : ZERO;
-    if (!context.isHourlyAllowance() && positive(lateAmount) && lateOverlap.windowCount() > 0) {
-      lateQty = BigDecimal.valueOf(lateOverlap.windowCount());
-    }
-
-    // The hourly allowance is represented by the late-allowance PO fields above.
-    // Keeping this separate line at zero prevents the charge from being counted twice.
-    BigDecimal hourlyQty = ZERO;
 
     return new AllowanceSnapshot(
         dailyAmount, scaleCurrency(dailyQty), scaleCurrency(dailyAmount.multiply(dailyQty)),
         earlyAmount, scaleCurrency(earlyQty), scaleCurrency(earlyAmount.multiply(earlyQty)),
         lateAmount, scaleCurrency(lateQty), scaleCurrency(lateAmount.multiply(lateQty)),
-        hourlyAmount, hourlyQty, ZERO
+        hourlyAmount, scaleCurrency(hourlyQty), scaleCurrency(hourlyAmount.multiply(hourlyQty))
     );
   }
 
@@ -595,13 +585,8 @@ public class TripBillingService {
     return ChronoUnit.DAYS.between(startDate, endDate) + 1L;
   }
 
-  private boolean crossesAllowanceTime(LocalDateTime start, LocalDateTime end, LocalTime allowanceTime) {
-    if (allowanceTime == null || end.isBefore(start)) return false;
-    for (LocalDate date = start.toLocalDate(); !date.isAfter(end.toLocalDate()); date = date.plusDays(1)) {
-      LocalDateTime allowanceDateTime = date.atTime(allowanceTime);
-      if (!allowanceDateTime.isBefore(start) && !allowanceDateTime.isAfter(end)) return true;
-    }
-    return false;
+  private boolean startsBeforeAllowanceEndTime(LocalDateTime start, LocalTime allowanceEndTime) {
+    return allowanceEndTime != null && start.toLocalTime().isBefore(allowanceEndTime);
   }
 
   private LateWindowOverlap calculateLateWindowOverlap(
@@ -689,7 +674,7 @@ public class TripBillingService {
       BigDecimal lateAllowanceCharge,
       BigDecimal hourlyAllowanceCharge,
       boolean isHourlyAllowance,
-      LocalTime earlyAllowanceStartTime,
+      LocalTime earlyAllowanceEndTime,
       LocalTime lateAllowanceStartTime,
       Integer allowanceCutOffHrs,
       Integer noOfDaysHourCutoff,
@@ -727,9 +712,9 @@ public class TripBillingService {
       BigDecimal lateAllowanceAmount,
       BigDecimal lateAllowanceQty,
       BigDecimal lateAllowanceTotal,
-      BigDecimal hourlyAllowanceAmount,
+      BigDecimal hourlyAllowanceCharge,
       BigDecimal hourlyAllowanceQty,
-      BigDecimal hourlyAllowanceTotal,
+      BigDecimal hourlyAllowanceAmount,
       BigDecimal tollAmount,
       BigDecimal tollQty,
       BigDecimal parkingAmount,

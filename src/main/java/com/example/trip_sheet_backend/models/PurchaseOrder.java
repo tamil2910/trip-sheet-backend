@@ -145,9 +145,9 @@ public class PurchaseOrder extends BaseModel implements TenantScoped {
   private BigDecimal lateAllowanceQty;
   private BigDecimal lateAllowanceTotal;
 
-  private BigDecimal hourlyAllowanceChargeAmount;
+  private BigDecimal hourlyAllowanceCharge;
   private BigDecimal hourlyAllowanceQty;
-  private BigDecimal hourlyAllowanceTotal;
+  private BigDecimal hourlyAllowanceAmount;
 
   // Non-taxable reimbursable charges
   private BigDecimal tollChargeAmount;

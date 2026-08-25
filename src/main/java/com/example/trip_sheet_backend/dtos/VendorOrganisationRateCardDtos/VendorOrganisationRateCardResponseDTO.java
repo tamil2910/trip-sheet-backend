@@ -141,7 +141,7 @@ public class VendorOrganisationRateCardResponseDTO {
     private Integer noOfDaysHourCutoff;
 
     @JsonFormat(pattern = "HH:mm")
-    private LocalTime earlyAllowanceStartTime;
+    private LocalTime earlyAllowanceEndTime;
 
     @JsonFormat(pattern = "HH:mm")
     private LocalTime lateAllowanceStartTime;
@@ -174,7 +174,7 @@ public class VendorOrganisationRateCardResponseDTO {
           rateCard.getHourlyAllowance(),
           DutyTypeSummaryDTO.fromEntity(rateCard.getNoShowDutyType()),
           rateCard.getNoOfDaysHourCutoff(),
-          rateCard.getEarlyAllowanceStartTime(),
+          rateCard.getEarlyAllowanceEndTime(),
           rateCard.getLateAllowanceStartTime(),
           rateCard.getAllowanceCutOffHrs(),
           rateCard.getApprovalStatus(),

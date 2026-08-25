@@ -82,9 +82,9 @@ public class PurchaseOrderResponseDTO {
   private BigDecimal lateAllowanceChargeAmount;
   private BigDecimal lateAllowanceQty;
   private BigDecimal lateAllowanceTotal;
-  private BigDecimal hourlyAllowanceChargeAmount;
+  private BigDecimal hourlyAllowanceCharge;
   private BigDecimal hourlyAllowanceQty;
-  private BigDecimal hourlyAllowanceTotal;
+  private BigDecimal hourlyAllowanceAmount;
   private BigDecimal tollChargeAmount;
   private BigDecimal tollQty;
   private BigDecimal tollTotal;
@@ -184,9 +184,9 @@ public class PurchaseOrderResponseDTO {
         entity.getLateAllowanceChargeAmount(),
         entity.getLateAllowanceQty(),
         entity.getLateAllowanceTotal(),
-        entity.getHourlyAllowanceChargeAmount(),
+        entity.getHourlyAllowanceCharge(),
         entity.getHourlyAllowanceQty(),
-        entity.getHourlyAllowanceTotal(),
+        entity.getHourlyAllowanceAmount(),
         entity.getTollChargeAmount(),
         entity.getTollQty(),
         entity.getTollTotal(),

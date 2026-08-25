@@ -80,7 +80,7 @@ PO total = taxable subtotal + GST + non-taxable total
 
 - Base fare, extra-kilometre rate, extra-hour rate, and allowances come from the matched approved rate card.
 - For outstation trips, base fare and daily allowance quantities equal the inclusive calendar-day count from `tripStartTime` through `tripEndTime`. Included kilometres equal the package kilometre limit multiplied by that day count; outstation trips never incur extra-hour charges.
-- Early allowance applies once when the trip starts before `earlyAllowanceStartTime`.
+- Early allowance applies once when the trip starts before `earlyAllowanceEndTime`.
 - The late allowance window begins at `lateAllowanceStartTime` and lasts `allowanceCutOffHrs`. When `isHourlyAllowance` is `true`, each started hour of the trip inside this window uses `hourlyAllowance`; otherwise, `lateAllowanceCharges` applies once when the trip overlaps the window.
 - Toll, parking, and other charges come from `TripSummary.tripCharges`.
 - Currency is currently set to `INR`.

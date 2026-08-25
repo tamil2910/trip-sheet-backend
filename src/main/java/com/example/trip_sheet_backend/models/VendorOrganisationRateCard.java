@@ -97,7 +97,7 @@ public class VendorOrganisationRateCard extends BaseModel {
   private BigDecimal hourlyAllowance; // if isHourlyAllowance true then hourlyAllowance will be applied for lateAllowanceStartTime to allowanceCutOffHrs, if false then lateAllowanceCharges will be applied for lateAllowanceStartTime to allowanceCutOffHrs 
   
   @JsonFormat(pattern = "HH:mm")
-  private LocalTime earlyAllowanceStartTime;
+  private LocalTime earlyAllowanceEndTime;
   
   @JsonFormat(pattern = "HH:mm")
   private LocalTime lateAllowanceStartTime;
