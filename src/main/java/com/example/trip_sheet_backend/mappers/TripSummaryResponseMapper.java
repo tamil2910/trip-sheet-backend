@@ -11,6 +11,7 @@ public final class TripSummaryResponseMapper {
     TripSummaryResponseDTO dto = new TripSummaryResponseDTO();
     if (summary.getId() != null) dto.setId(summary.getId().toString());
     if (summary.getTripId() != null && summary.getTripId().getId() != null) dto.setTripId(summary.getTripId().getId().toString());
+    if (summary.getTripId() != null) dto.setTrip(TripResponseMapper.toDTO(summary.getTripId()));
     dto.setGarageStartTime(summary.getGarageStartTime());
     dto.setGarageEndTime(summary.getGarageEndTime());
     dto.setTripArrivedTime(summary.getTripArrivedTime());

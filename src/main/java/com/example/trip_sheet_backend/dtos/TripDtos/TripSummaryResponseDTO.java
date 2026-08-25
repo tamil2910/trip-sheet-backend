@@ -8,6 +8,7 @@ import lombok.Setter;
 public class TripSummaryResponseDTO {
   private String id;
   private String tripId;
+  private TripResponseDTO trip;
   private Long garageStartTime;
   private Long garageEndTime;
   private Long tripArrivedTime;
