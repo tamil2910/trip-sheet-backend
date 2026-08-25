@@ -23,6 +23,7 @@ import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.TripChargesRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
+import com.example.trip_sheet_backend.services.TripBillingService.TripBillingService;
 
 
 @Service
@@ -31,11 +32,18 @@ public class TripChargeService {
   private final TripChargesRepository tripChargesRepository;
   private final TripRepository tripRepository;
   private final DriverRepository driverRepository;
+  private final TripBillingService tripBillingService;
 
-  public TripChargeService(TripChargesRepository tripChargesRepository, TripRepository tripRepository, DriverRepository driverRepository) {
+  public TripChargeService(
+      TripChargesRepository tripChargesRepository,
+      TripRepository tripRepository,
+      DriverRepository driverRepository,
+      TripBillingService tripBillingService
+  ) {
     this.tripChargesRepository = tripChargesRepository;
     this.tripRepository = tripRepository;
     this.driverRepository = driverRepository;
+    this.tripBillingService = tripBillingService;
 
   }
 
@@ -91,7 +99,9 @@ public class TripChargeService {
       chargesToSave.add(tripCharge);
     }
 
-    return tripChargesRepository.saveAll(chargesToSave).iterator().next();
+    TripCharges savedCharge = tripChargesRepository.saveAll(chargesToSave).iterator().next();
+    tripBillingService.refreshTripChargesOnPurchaseOrder(tripId);
+    return savedCharge;
   }
 
   public TripCharges.chargeType parseChargeType(String chargeItemType) {
@@ -142,7 +152,11 @@ public class TripChargeService {
 
     // existingTripCharge.setTrip(trip);
 
-    return tripChargesRepository.saveAndFlush(existingTripCharge);
+    TripCharges updatedTripCharge = tripChargesRepository.saveAndFlush(existingTripCharge);
+    if (updatedTripCharge.getTrip() != null) {
+      tripBillingService.refreshTripChargesOnPurchaseOrder(updatedTripCharge.getTrip().getId());
+    }
+    return updatedTripCharge;
   }
 
   @Transactional(rollbackFor = Exception.class)

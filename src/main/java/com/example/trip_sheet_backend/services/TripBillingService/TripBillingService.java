@@ -35,6 +35,7 @@ import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderRepository;
 import com.example.trip_sheet_backend.repositories.CustomTaxRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
+import com.example.trip_sheet_backend.repositories.TripChargesRepository;
 import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRateCardRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
@@ -53,6 +54,7 @@ public class TripBillingService {
   private final PurchaseOrderRepository purchaseOrderRepository;
   private final TripSummaryRepository tripSummaryRepository;
   private final TripRepository tripRepository;
+  private final TripChargesRepository tripChargesRepository;
   private final VendorOrganisationRepository vendorOrganisationRepository;
   private final VendorOrganisationRateCardRepository vendorOrganisationRateCardRepository;
   private final CustomTaxRepository customTaxRepository;
@@ -63,6 +65,7 @@ public class TripBillingService {
       PurchaseOrderRepository purchaseOrderRepository,
       TripSummaryRepository tripSummaryRepository,
       TripRepository tripRepository,
+      TripChargesRepository tripChargesRepository,
       VendorOrganisationRepository vendorOrganisationRepository,
       VendorOrganisationRateCardRepository vendorOrganisationRateCardRepository,
       CustomTaxRepository customTaxRepository,
@@ -72,6 +75,7 @@ public class TripBillingService {
     this.purchaseOrderRepository = purchaseOrderRepository;
     this.tripSummaryRepository = tripSummaryRepository;
     this.tripRepository = tripRepository;
+    this.tripChargesRepository = tripChargesRepository;
     this.vendorOrganisationRepository = vendorOrganisationRepository;
     this.vendorOrganisationRateCardRepository = vendorOrganisationRateCardRepository;
     this.customTaxRepository = customTaxRepository;
@@ -100,6 +104,72 @@ public class TripBillingService {
 
     PurchaseOrder purchaseOrder = buildPurchaseOrder(trip, tripSummary, pricingContext, chargeSnapshot);
     return List.of(purchaseOrderRepository.save(purchaseOrder));
+  }
+
+  /** Refreshes reimbursable trip charges on all active, non-invoiced POs for a trip. */
+  @Transactional(rollbackFor = Exception.class)
+  public void refreshTripChargesOnPurchaseOrder(UUID tripId) {
+    if (tripId == null) {
+      return;
+    }
+
+    TripSummary tripSummary = tripSummaryRepository.findByTripId_Id(tripId).orElse(null);
+    if (tripSummary == null) {
+      return;
+    }
+
+    List<PurchaseOrder> purchaseOrders = purchaseOrderRepository
+        .findByTripSummary_IdAndIsDeletedFalse(tripSummary.getId());
+    if (purchaseOrders.isEmpty()) {
+      return;
+    }
+
+    List<TripCharges> tripCharges = tripChargesRepository.findByTrip_IdAndIsDeletedFalse(tripId);
+    BigDecimal tollTotal = ZERO;
+    BigDecimal parkingTotal = ZERO;
+    BigDecimal otherTotal = ZERO;
+    for (TripCharges charge : tripCharges) {
+      if (charge == null || charge.getAmount() == null || charge.getType() == null) {
+        continue;
+      }
+      BigDecimal amount = scaleCurrency(BigDecimal.valueOf(charge.getAmount()));
+      switch (charge.getType()) {
+        case Toll -> tollTotal = tollTotal.add(amount);
+        case Parking -> parkingTotal = parkingTotal.add(amount);
+        case Other -> otherTotal = otherTotal.add(amount);
+      }
+    }
+
+    for (PurchaseOrder purchaseOrder : purchaseOrders) {
+      if (purchaseOrder.getStatus() == PurchaseOrder.PurchaseOrderStatus.INVOICED) {
+        continue;
+      }
+      applyReimbursableCharges(purchaseOrder, tollTotal, parkingTotal, otherTotal);
+      purchaseOrderRepository.save(purchaseOrder);
+    }
+  }
+
+  private void applyReimbursableCharges(
+      PurchaseOrder purchaseOrder,
+      BigDecimal tollTotal,
+      BigDecimal parkingTotal,
+      BigDecimal otherTotal
+  ) {
+    purchaseOrder.setTollChargeAmount(positive(tollTotal) ? tollTotal : ZERO);
+    purchaseOrder.setTollQty(positive(tollTotal) ? BigDecimal.ONE.setScale(2, RoundingMode.HALF_UP) : ZERO);
+    purchaseOrder.setTollTotal(positive(tollTotal) ? tollTotal : ZERO);
+    purchaseOrder.setParkingChargeAmount(positive(parkingTotal) ? parkingTotal : ZERO);
+    purchaseOrder.setParkingQty(positive(parkingTotal) ? BigDecimal.ONE.setScale(2, RoundingMode.HALF_UP) : ZERO);
+    purchaseOrder.setParkingTotal(positive(parkingTotal) ? parkingTotal : ZERO);
+    purchaseOrder.setOtherChargeAmount(positive(otherTotal) ? otherTotal : ZERO);
+    purchaseOrder.setOtherQty(positive(otherTotal) ? BigDecimal.ONE.setScale(2, RoundingMode.HALF_UP) : ZERO);
+    purchaseOrder.setOtherTotal(positive(otherTotal) ? otherTotal : ZERO);
+
+    BigDecimal nonTaxableTotal = sum(purchaseOrder.getTollTotal(), purchaseOrder.getParkingTotal(), purchaseOrder.getOtherTotal());
+    purchaseOrder.setNonTaxableTotal(nonTaxableTotal);
+    purchaseOrder.setTotalAmount(sum(purchaseOrder.getTaxableTotalWithGst(), nonTaxableTotal));
+    purchaseOrder.setLineItemCount(buildLineItemCount(purchaseOrder));
+    purchaseOrder.setLineItemsSnapshot(buildLineItemSnapshot(purchaseOrder));
   }
 
   private PurchaseOrder buildPurchaseOrder(

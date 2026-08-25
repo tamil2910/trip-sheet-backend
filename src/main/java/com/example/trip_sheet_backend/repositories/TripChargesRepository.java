@@ -8,5 +8,6 @@ import com.example.trip_sheet_backend.models.TripCharges;
 
 public interface TripChargesRepository extends BaseRepository<TripCharges, UUID> {
   List<TripCharges> findByTrip_Id(UUID tripId);
+  List<TripCharges> findByTrip_IdAndIsDeletedFalse(UUID tripId);
   List<TripCharges> findByTrip_IdAndTenant_Id(UUID tripId, UUID tenantId);
 }
