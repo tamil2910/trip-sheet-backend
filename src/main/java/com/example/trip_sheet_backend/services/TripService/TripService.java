@@ -18,6 +18,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssign
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
+import com.example.trip_sheet_backend.models.TripSummary;
 import com.example.trip_sheet_backend.models.UserAccount;
 
 public interface TripService extends BaseService<Trip, UUID> {
@@ -30,6 +31,8 @@ public interface TripService extends BaseService<Trip, UUID> {
   Trip splitChildTrip(UUID tenantId, UUID tripId);
 
   Trip markTripAsManual(UUID tenantId, UUID tripId, UUID updatedBy);
+
+  TripSummary findTripSummaryByIdResource(UUID tenantId, UUID tripSummaryId);
 
   Trip dispatchTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripDispatchRequestDTO dispatchData);
 

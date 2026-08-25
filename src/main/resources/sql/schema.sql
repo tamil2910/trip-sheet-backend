@@ -51,3 +51,24 @@ SET @trip_airport_transfer_type_sql := IF(
 PREPARE trip_airport_transfer_type_statement FROM @trip_airport_transfer_type_sql;
 EXECUTE trip_airport_transfer_type_statement;
 DEALLOCATE PREPARE trip_airport_transfer_type_statement;
+
+SET @trip_summary_id_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'trips'
+    AND column_name = 'trip_summary_id'
+);
+SET @trip_summary_id_sql := IF(
+  @trip_summary_id_exists = 0,
+  'ALTER TABLE trips ADD COLUMN trip_summary_id BINARY(16) NULL',
+  'SELECT 1'
+);
+PREPARE trip_summary_id_statement FROM @trip_summary_id_sql;
+EXECUTE trip_summary_id_statement;
+DEALLOCATE PREPARE trip_summary_id_statement;
+
+UPDATE trips trip
+JOIN trip_summaries summary ON summary.trip_id = trip.id
+SET trip.trip_summary_id = summary.id
+WHERE trip.trip_summary_id IS NULL;

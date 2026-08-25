@@ -160,7 +160,7 @@ public class DriverTripController {
     UserAccount user = (UserAccount) request.getAttribute("user");
 
     Trip dispatched = tripServiceImp.dispatchTrip(tenantId, tokenTenant, user, id, dto);
-    return new ApiResponse<>(true, "Trip dispatched successfully", dispatched);
+    return new ApiResponse<>(true, "Trip dispatched successfully", TripResponseMapper.toDTO(dispatched));
   }
 
   @PreAuthorize("hasAuthority('DRIVER_DISPATCH_TRIP')")

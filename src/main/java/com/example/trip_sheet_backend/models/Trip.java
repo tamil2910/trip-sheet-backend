@@ -21,6 +21,7 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 // import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -133,6 +134,10 @@ public class Trip extends BaseModel implements TenantScoped {
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "booker_id")
   private PeopleTenant booker;
+
+  @OneToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "trip_summary_id", unique = true)
+  private TripSummary tripSummary;
 
   public enum TripStatus {
       CREATED, REQUESTING, CONFIRMED, ALLOTTED,

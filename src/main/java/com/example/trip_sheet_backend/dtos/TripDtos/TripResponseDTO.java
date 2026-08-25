@@ -13,6 +13,7 @@ public class TripResponseDTO {
 
     private String id;
     private String parentTripId;
+    private String tripSummaryId;
     private String tripCode;
 
     private Trip.TripStatus tripStatus;

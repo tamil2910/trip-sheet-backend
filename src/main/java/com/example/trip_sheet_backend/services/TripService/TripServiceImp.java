@@ -1681,6 +1681,22 @@ public Trip dispatchTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount use
 }
 
 @Override
+@Transactional(readOnly = true)
+public TripSummary findTripSummaryByIdResource(UUID tenantId, UUID tripSummaryId) {
+  TripSummary summary = tripSummaryRepository.findById(tripSummaryId)
+      .filter(item -> !Boolean.TRUE.equals(item.getIsDeleted()))
+      .orElse(null);
+  if (summary == null) {
+    return null;
+  }
+
+  if (summary.getTripId() == null || !isTripVisibleToTenant(summary.getTripId(), tenantId)) {
+    throw new RuntimeException("ACCESS DENIED: Trip summary is not accessible for this tenant");
+  }
+  return summary;
+}
+
+@Override
 @Transactional(rollbackFor = Exception.class)
 public Trip arrivedTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripArrivedRequestDTO arrivedData) {
   Trip trip = findTripForTenant(tokenTenantId, tripID);
@@ -2077,7 +2093,12 @@ private String generateTripCode() {
 }
 
 private TripSummary getOrCreateTripSummary(Trip trip) {
-  return tripSummaryRepository.findByTripId_Id(trip.getId())
+  TripSummary linkedSummary = trip.getTripSummary();
+  if (linkedSummary != null) {
+    return linkedSummary;
+  }
+
+  TripSummary summary = tripSummaryRepository.findByTripId_Id(trip.getId())
       .map(existing -> {
         if (existing.getTenant() == null) {
           existing.setTenant(trip.getTenant());
@@ -2085,11 +2106,13 @@ private TripSummary getOrCreateTripSummary(Trip trip) {
         return existing;
       })
       .orElseGet(() -> {
-        TripSummary summary = new TripSummary();
-        summary.setTripId(trip);
-        summary.setTenant(trip.getTenant());
-        return summary;
+        TripSummary newsummary = new TripSummary();
+        newsummary.setTripId(trip);
+        newsummary.setTenant(trip.getTenant());
+        return newsummary;
       });
+  trip.setTripSummary(summary);
+  return summary;
 }
 
 private Double toDouble(Object value) {

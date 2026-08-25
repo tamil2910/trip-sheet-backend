@@ -33,10 +33,13 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignReque
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripSummaryResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
 import com.example.trip_sheet_backend.mappers.TripResponseMapper;
+import com.example.trip_sheet_backend.mappers.TripSummaryResponseMapper;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
+import com.example.trip_sheet_backend.models.TripSummary;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
@@ -102,6 +105,21 @@ public class TripController {
     return ResponseEntity.ok(
         new ApiResponse<>(true, "Bulk trips created successfully!", response)
     );
+  }
+
+  @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
+  @GetMapping("/summary/{tripSummaryId}")
+  @Transactional(readOnly = true)
+  public ResponseEntity<ApiResponse<TripSummaryResponseDTO>> getSummaryById(
+      @PathVariable @NotNull UUID tripSummaryId,
+      HttpServletRequest request
+  ) {
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+    TripSummary summary = tripServiceImp.findTripSummaryByIdResource(tenantId, tripSummaryId);
+    if (summary == null) {
+      return ResponseEntity.ok(new ApiResponse<>(false, "Trip summary not found", null));
+    }
+    return ResponseEntity.ok(new ApiResponse<>(true, "Trip summary fetched successfully!", TripSummaryResponseMapper.toDTO(summary)));
   }
 
   @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
