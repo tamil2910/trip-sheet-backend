@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.controllers;
 
 import java.util.UUID;
+import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.VendorOrganisationDtos.VendorOrganisationResponseDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationDtos.VendorOrganisationUpdateRequestDTO;
+import com.example.trip_sheet_backend.dtos.VendorOrganisationDtos.VendorOrganisationTaxUpdateRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -40,5 +42,19 @@ public class VendorOrganisationController {
 
     return ResponseEntity.ok(new ApiResponse<>(true,
         "Vendor organisation updated successfully", VendorOrganisationResponseDTO.fromEntity(updated)));
+  }
+
+  @PutMapping("/{vendorOrganisationId}/taxes")
+  public ResponseEntity<ApiResponse<VendorOrganisationResponseDTO>> updateTaxes(
+      @PathVariable UUID vendorOrganisationId,
+      @Valid @RequestBody VendorOrganisationTaxUpdateRequestDTO body,
+      HttpServletRequest request) {
+    Tenant loggedInTenant = (Tenant) request.getAttribute("tenant");
+    UUID updatedBy = (UUID) request.getAttribute("createdBy");
+    VendorOrganisation updated = vendorOrganisationService.updateTaxes(
+        vendorOrganisationId, body.getTaxIds(), loggedInTenant, updatedBy);
+
+    return ResponseEntity.ok(new ApiResponse<>(true,
+        "Vendor organisation taxes updated successfully", VendorOrganisationResponseDTO.fromEntity(updated)));
   }
 }

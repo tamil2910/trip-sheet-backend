@@ -1,5 +1,8 @@
 package com.example.trip_sheet_backend.services.VendorOrganisationService;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.stereotype.Service;
@@ -7,15 +10,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.dtos.VendorOrganisationDtos.VendorOrganisationUpdateRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.Tax;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
+import com.example.trip_sheet_backend.repositories.TaxRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 
 @Service
 public class VendorOrganisationServiceImp implements VendorOrganisationService {
   private final VendorOrganisationRepository vendorOrganisationRepository;
+  private final TaxRepository taxRepository;
 
-  public VendorOrganisationServiceImp(VendorOrganisationRepository vendorOrganisationRepository) {
+  public VendorOrganisationServiceImp(VendorOrganisationRepository vendorOrganisationRepository,
+      TaxRepository taxRepository) {
     this.vendorOrganisationRepository = vendorOrganisationRepository;
+    this.taxRepository = taxRepository;
   }
 
   @Override
@@ -32,6 +40,22 @@ public class VendorOrganisationServiceImp implements VendorOrganisationService {
       vendorOrganisation.setUpdatedBy(updatedBy.toString());
     }
 
+    return vendorOrganisationRepository.save(vendorOrganisation);
+  }
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public VendorOrganisation updateTaxes(UUID vendorOrganisationId, List<UUID> taxIds,
+      Tenant loggedInTenant, UUID updatedBy) {
+    VendorOrganisation vendorOrganisation = vendorOrganisationRepository.findById(vendorOrganisationId)
+        .filter(entity -> !Boolean.TRUE.equals(entity.getIsDeleted()))
+        .orElseThrow(() -> new RuntimeException("Vendor organisation relationship not found"));
+
+    validateLinkedTenant(loggedInTenant, vendorOrganisation);
+    vendorOrganisation.setTaxList(resolveTaxes(taxIds));
+    if (updatedBy != null) {
+      vendorOrganisation.setUpdatedBy(updatedBy.toString());
+    }
     return vendorOrganisationRepository.save(vendorOrganisation);
   }
 
@@ -59,5 +83,24 @@ public class VendorOrganisationServiceImp implements VendorOrganisationService {
     if (body.getContractStatus() != null) target.setContractStatus(body.getContractStatus());
     if (body.getContractStartDate() != null) target.setContractStartDate(body.getContractStartDate());
     if (body.getContractEndDate() != null) target.setContractEndDate(body.getContractEndDate());
+    if (body.getTaxIds() != null) target.setTaxList(resolveTaxes(body.getTaxIds()));
+  }
+
+  private List<Tax> resolveTaxes(List<UUID> taxIds) {
+    if (taxIds == null) {
+      return new ArrayList<>();
+    }
+
+    List<UUID> distinctTaxIds = new ArrayList<>(new LinkedHashSet<>(taxIds));
+    if (distinctTaxIds.size() != taxIds.size()) {
+      throw new RuntimeException("Duplicate tax ids are not allowed");
+    }
+
+    List<Tax> taxes = taxRepository.findAllById(distinctTaxIds);
+    if (taxes.size() != distinctTaxIds.size()
+        || taxes.stream().anyMatch(tax -> Boolean.TRUE.equals(tax.getIsDeleted()))) {
+      throw new RuntimeException("One or more tax ids are invalid");
+    }
+    return taxes;
   }
 }

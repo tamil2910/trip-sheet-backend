@@ -3,6 +3,9 @@ package com.example.trip_sheet_backend.services.TenantService;
 import java.time.Instant;
 import java.security.SecureRandom;
 import java.util.Optional;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -15,12 +18,14 @@ import com.example.trip_sheet_backend.dtos.TenantDtos.TenantLinkResponseDto;
 import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.Tax;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
+import com.example.trip_sheet_backend.repositories.TaxRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
@@ -31,6 +36,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
   private final TenantRepository tenantRepository;
   private final VendorPartnerRepository vendorPartnerRepository;
   private final VendorOrganisationRepository vendorOrganisationRepository;
+  private final TaxRepository taxRepository;
         private final UserAccountRepository userAccountRepository;
         private final RoleRepository roleRepository;
         private final RoleGroupRepository roleGroupRepository;
@@ -47,6 +53,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
 
   public TenantServiceImp(TenantRepository repository, VendorPartnerRepository vendorPartnerRepository, 
                 VendorOrganisationRepository vendorOrganisationRepository,
+                TaxRepository taxRepository,
                 UserAccountRepository userAccountRepository,
                 RoleRepository roleRepository,
                 RoleGroupRepository roleGroupRepository,
@@ -57,6 +64,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
     this.tenantRepository = repository;
     this.vendorPartnerRepository = vendorPartnerRepository;
     this.vendorOrganisationRepository = vendorOrganisationRepository;
+    this.taxRepository = taxRepository;
                 this.userAccountRepository = userAccountRepository;
                 this.roleRepository = roleRepository;
                 this.roleGroupRepository = roleGroupRepository;
@@ -85,7 +93,8 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
 
   @Override
   @Transactional(rollbackFor = Exception.class)
-  public TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode, UUID createdBy) {
+  public TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode,
+          List<UUID> taxIds, UUID createdBy) {
           validateVendorTenant(loggedInTenant);
 
           Tenant targetTenant = findByUniqueCode(tenantUniqueCode);
@@ -117,6 +126,12 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
                   .findByVendorAndOrganisation_Id(loggedInTenant, targetTenant.getId());
 
           if (existingOrganisation.isPresent()) {
+                   if (taxIds != null) {
+                          VendorOrganisation organisation = existingOrganisation.get();
+                          organisation.setTaxList(resolveTaxes(taxIds));
+                          organisation.setUpdatedBy(createdBy != null ? createdBy.toString() : null);
+                          vendorOrganisationRepository.save(organisation);
+                   }
                    return new TenantLinkResponseDto("VENDOR_ORGANISATION", existingOrganisation.get().getId(), targetTenant, true);
           }
 
@@ -126,6 +141,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
           organisation.setContractStatus(null);
           organisation.setActive(true);
           organisation.setOnboardedAt(Instant.now().getEpochSecond());
+          organisation.setTaxList(resolveTaxes(taxIds));
           organisation.setCreatedBy(createdBy != null ? createdBy.toString() : null);
 
            VendorOrganisation savedOrganisation = vendorOrganisationRepository.save(organisation);
@@ -208,7 +224,8 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
   public TenantOnboardingResult createOrGetCorporateTenant(
           Tenant requestTenant,
           Tenant primaryVendor,
-          UUID createdBy
+          UUID createdBy,
+          List<UUID> taxIds
   ) {
 
           boolean newlyCreated = false;
@@ -248,6 +265,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
           organisation.setOrganisation(organisationTenant);
           organisation.setContractStatus(null);
           organisation.setOnboardedAt(Instant.now().getEpochSecond());
+          organisation.setTaxList(resolveTaxes(taxIds));
           organisation.setCreatedBy(createdBy.toString());
 
            vendorOrganisationRepository.save(organisation);
@@ -272,6 +290,24 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
       assignTenantUniqueCodeIfMissing(requestTenant);
 
       return tenantRepository.save(requestTenant);
+  }
+
+  private List<Tax> resolveTaxes(List<UUID> taxIds) {
+      if (taxIds == null) {
+          return new ArrayList<>();
+      }
+
+      List<UUID> distinctTaxIds = new ArrayList<>(new LinkedHashSet<>(taxIds));
+      if (distinctTaxIds.size() != taxIds.size()) {
+          throw new RuntimeException("Duplicate tax ids are not allowed");
+      }
+
+      List<Tax> taxes = taxRepository.findAllById(distinctTaxIds);
+      if (taxes.size() != distinctTaxIds.size()
+              || taxes.stream().anyMatch(tax -> Boolean.TRUE.equals(tax.getIsDeleted()))) {
+          throw new RuntimeException("One or more tax ids are invalid");
+      }
+      return taxes;
   }
 
   private void assignTenantUniqueCodeIfMissing(Tenant tenant) {

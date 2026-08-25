@@ -1,7 +1,11 @@
 package com.example.trip_sheet_backend.dtos.VendorOrganisationDtos;
 
+import java.util.List;
+import java.util.UUID;
+
 import com.example.trip_sheet_backend.models.VendorOrganisation;
 
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import lombok.Getter;
 import lombok.Setter;
@@ -24,4 +28,6 @@ public class VendorOrganisationUpdateRequestDTO {
   private VendorOrganisation.ContractStatus contractStatus;
   private Long contractStartDate;
   private Long contractEndDate;
+
+  private List<@NotNull(message = "Tax id cannot be null") UUID> taxIds;
 }

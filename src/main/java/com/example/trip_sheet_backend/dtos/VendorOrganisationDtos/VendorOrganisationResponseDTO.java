@@ -1,5 +1,6 @@
 package com.example.trip_sheet_backend.dtos.VendorOrganisationDtos;
 
+import java.util.List;
 import java.util.UUID;
 
 import com.example.trip_sheet_backend.models.VendorOrganisation;
@@ -24,6 +25,7 @@ public class VendorOrganisationResponseDTO {
   private VendorOrganisation.ContractStatus contractStatus;
   private Long contractStartDate;
   private Long contractEndDate;
+  private List<UUID> taxIds;
 
   public static VendorOrganisationResponseDTO fromEntity(VendorOrganisation entity) {
     return new VendorOrganisationResponseDTO(
@@ -31,6 +33,7 @@ public class VendorOrganisationResponseDTO {
         entity.getActive(), entity.getOnboardedAt(), entity.getPaymentTimelineInDays(),
         entity.getLocalBillingStructure(), entity.getMinGtgKmLimit(), entity.getMinGtgHrLimit(),
         entity.getMaxGtgKmLimit(), entity.getMaxGtgHrLimit(), entity.getContractStatus(),
-        entity.getContractStartDate(), entity.getContractEndDate());
+        entity.getContractStartDate(), entity.getContractEndDate(),
+        entity.getTaxList() == null ? List.of() : entity.getTaxList().stream().map(tax -> tax.getId()).toList());
   }
 }

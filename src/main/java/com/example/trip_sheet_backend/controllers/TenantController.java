@@ -279,7 +279,8 @@ public ResponseEntity<ApiResponse<Tenant>> createClientTenant(
     TenantOnboardingResult clientResult = service.createOrGetCorporateTenant(
             mapTenantRequest(body),
             loggedInTenant,
-            createdBy
+            createdBy,
+            body.getTaxIds()
     );
 
     String message;
@@ -322,6 +323,7 @@ public ResponseEntity<ApiResponse<TenantLinkResponseDto>> addTenantByUniqueCode(
     TenantLinkResponseDto result = service.linkExistingTenantByUniqueCode(
             loggedInTenant,
             body.getTenantUniqueCode(),
+            body.getTaxIds(),
             createdBy
     );
 
