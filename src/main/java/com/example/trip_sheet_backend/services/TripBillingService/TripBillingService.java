@@ -361,8 +361,9 @@ public class TripBillingService {
         .max(Comparator.comparing(card -> card.getApprovedAt() == null ? 0L : card.getApprovedAt()))
         .orElseThrow(() -> new RuntimeException("No approved vendor organisation rate card found for trip"));
 
-    List<CustomTax> taxes = customTaxRepository
-        .findByTenant_IdAndIsDeletedFalseOrderByUpdatedAtDesc(trip.getVendor().getId());
+    // Taxes are contract-specific. Do not apply every tax configured for the
+    // vendor; apply only the taxes selected on this vendor-organisation link.
+    List<Tax> taxes = vendorOrganisation.getTaxList();
 
     return new PricingContext(
         trip.getOrganisation(),
@@ -380,7 +381,7 @@ public class TripBillingService {
         rateCard.getAllowanceCutOffHrs(),
         rateCard.getNoOfDaysHourCutoff(),
         rateCard.getDutyType() == null ? null : rateCard.getDutyType().getTypeOfDuty(),
-        buildTaxRateSummary(taxes),
+        buildTaxRateSummaryForTaxes(taxes),
         trip.getDutyType() == null ? null : trip.getDutyType().getName(),
         buildRateCardPackageName(rateCard.getCity(), trip.getVehicleType(), trip.getDutyType()),
         "Vendor to organisation billing"
@@ -445,6 +446,20 @@ public class TripBillingService {
         continue;
       }
       summary = addTax(summary, customTax.getTax());
+    }
+    return summary;
+  }
+
+  private TaxRateSummary buildTaxRateSummaryForTaxes(List<Tax> taxes) {
+    TaxRateSummary summary = new TaxRateSummary(ZERO, ZERO, ZERO);
+    if (taxes == null) {
+      return summary;
+    }
+    for (Tax tax : taxes) {
+      if (tax == null || Boolean.FALSE.equals(tax.getIsActive())) {
+        continue;
+      }
+      summary = addTax(summary, tax);
     }
     return summary;
   }
