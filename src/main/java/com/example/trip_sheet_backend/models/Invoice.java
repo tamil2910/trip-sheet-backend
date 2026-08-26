@@ -1,18 +1,14 @@
 package com.example.trip_sheet_backend.models;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
-import jakarta.persistence.CascadeType;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Index;
 import lombok.AllArgsConstructor;
@@ -35,25 +31,30 @@ public class Invoice extends BaseModel implements TenantScoped {
   private Tenant tenant;
 
   @Enumerated(EnumType.STRING)
-  private InvoiceMode invoiceMode;
-
-  @Enumerated(EnumType.STRING)
   private InvoiceStatus status;
 
-  @OneToMany(mappedBy = "invoice", cascade = CascadeType.ALL, orphanRemoval = true)
-  private List<InvoiceLine> lines = new ArrayList<>();
+  @OneToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "purchase_order_id", unique = true, nullable = false)
+  private PurchaseOrder purchaseOrder;
 
-  public enum InvoiceMode {
-    TRIP,
-    PO,
-    CONSOLIDATED
-  }
+  @Enumerated(EnumType.STRING)
+  private ApprovalSide approvedBySide;
+
+  private String approvedByUserId;
+  private Long approvedAt;
+
+  private Boolean isPrintedInvoice = false;
+  private Boolean isDownloadedInvoice = false;
 
   public enum InvoiceStatus {
-    DRAFT,
-    VERIFIED,
-    APPROVED,
-    ISSUED
+    GENERATED,
+    PAYMENT_RECEIVED,
+    CANCELLED
+  }
+
+  public enum ApprovalSide {
+    VENDOR,
+    ORGANISATION
   }
 
   @Override

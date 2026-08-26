@@ -24,11 +24,13 @@ import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderUpdate
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.CombinePurchaseOrdersRequestDTO;
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderAllocationRequestDTO;
 import com.example.trip_sheet_backend.models.CustomField;
+import com.example.trip_sheet_backend.models.Invoice;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
 import com.example.trip_sheet_backend.models.PurchaseOrderAllocation;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.TripSummary;
 import com.example.trip_sheet_backend.repositories.CustomFieldRepository;
+import com.example.trip_sheet_backend.repositories.InvoiceRepository;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderRepository;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderNumberRuleRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
@@ -39,6 +41,7 @@ import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
 public class PurchaseOrderServiceImp implements PurchaseOrderService {
 
   private final PurchaseOrderRepository purchaseOrderRepository;
+  private final InvoiceRepository invoiceRepository;
   private final PurchaseOrderNumberRuleRepository purchaseOrderNumberRuleRepository;
   private final TenantRepository tenantRepository;
   private final TripSummaryRepository tripSummaryRepository;
@@ -47,6 +50,7 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
 
   public PurchaseOrderServiceImp(
       PurchaseOrderRepository purchaseOrderRepository,
+      InvoiceRepository invoiceRepository,
       PurchaseOrderNumberRuleRepository purchaseOrderNumberRuleRepository,
       TenantRepository tenantRepository,
       TripSummaryRepository tripSummaryRepository,
@@ -54,6 +58,7 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
       TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository
   ) {
     this.purchaseOrderRepository = purchaseOrderRepository;
+    this.invoiceRepository = invoiceRepository;
     this.purchaseOrderNumberRuleRepository = purchaseOrderNumberRuleRepository;
     this.tenantRepository = tenantRepository;
     this.tripSummaryRepository = tripSummaryRepository;
@@ -143,6 +148,48 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     }
 
     purchaseOrderRepository.save(purchaseOrder);
+  }
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public Invoice approvePurchaseOrder(UUID purchaseOrderId, Tenant approvingTenant, UUID approvingUserId) {
+    validateTenant(approvingTenant);
+
+    Invoice existingInvoice = invoiceRepository.findByPurchaseOrder_IdAndIsDeletedFalse(purchaseOrderId).orElse(null);
+    if (existingInvoice != null) {
+      return existingInvoice;
+    }
+
+    PurchaseOrder purchaseOrder = purchaseOrderRepository.findById(purchaseOrderId)
+        .filter(order -> !Boolean.TRUE.equals(order.getIsDeleted()))
+        .orElseThrow(() -> new RuntimeException("Purchase order not found"));
+    if (purchaseOrder.getStatus() == PurchaseOrder.PurchaseOrderStatus.REJECTED) {
+      throw new RuntimeException("Rejected purchase orders cannot be approved");
+    }
+
+    Invoice.ApprovalSide approvalSide = resolveApprovalSide(purchaseOrder, approvingTenant);
+    Invoice invoice = new Invoice();
+    invoice.setPurchaseOrder(purchaseOrder);
+    invoice.setTenant(resolveInvoiceTenant(purchaseOrder, approvingTenant));
+    invoice.setInvoiceNumber("INV-" + purchaseOrder.getOrderNumber());
+    invoice.setStatus(Invoice.InvoiceStatus.GENERATED);
+    invoice.setApprovedBySide(approvalSide);
+    invoice.setApprovedByUserId(approvingUserId == null ? null : approvingUserId.toString());
+    invoice.setApprovedAt(System.currentTimeMillis());
+    invoice.setIsPrintedInvoice(false);
+    invoice.setIsDownloadedInvoice(false);
+    if (approvingUserId != null) {
+      invoice.setCreatedBy(approvingUserId.toString());
+      invoice.setUpdatedBy(approvingUserId.toString());
+    }
+
+    Invoice savedInvoice = invoiceRepository.save(invoice);
+    purchaseOrder.setStatus(PurchaseOrder.PurchaseOrderStatus.INVOICED);
+    if (approvingUserId != null) {
+      purchaseOrder.setUpdatedBy(approvingUserId.toString());
+    }
+    purchaseOrderRepository.save(purchaseOrder);
+    return savedInvoice;
   }
 
   @Override
@@ -382,6 +429,36 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
   private PurchaseOrder findByIdAndTenant(UUID purchaseOrderId, Tenant tokenTenant) {
     return purchaseOrderRepository.findByIdAndTenant_IdAndIsDeletedFalse(purchaseOrderId, tokenTenant.getId())
         .orElseThrow(() -> new RuntimeException("Purchase order not found"));
+  }
+
+  private Invoice.ApprovalSide resolveApprovalSide(PurchaseOrder purchaseOrder, Tenant approvingTenant) {
+    if (purchaseOrder.getTripSummary() != null && purchaseOrder.getTripSummary().getTripId() != null) {
+      var trip = purchaseOrder.getTripSummary().getTripId();
+      if (sameTenant(approvingTenant, trip.getVendor())) {
+        return Invoice.ApprovalSide.VENDOR;
+      }
+      if (sameTenant(approvingTenant, trip.getOrganisation())) {
+        return Invoice.ApprovalSide.ORGANISATION;
+      }
+    }
+    if (sameTenant(approvingTenant, purchaseOrder.getTenant())) {
+      return approvingTenant.getTenantType() == Tenant.TenantType.VENDOR
+          ? Invoice.ApprovalSide.VENDOR
+          : Invoice.ApprovalSide.ORGANISATION;
+    }
+    throw new RuntimeException("Only the purchase order vendor or organisation can approve it");
+  }
+
+  private Tenant resolveInvoiceTenant(PurchaseOrder purchaseOrder, Tenant approvingTenant) {
+    if (purchaseOrder.getTripSummary() != null && purchaseOrder.getTripSummary().getTripId() != null
+        && purchaseOrder.getTripSummary().getTripId().getVendor() != null) {
+      return purchaseOrder.getTripSummary().getTripId().getVendor();
+    }
+    return approvingTenant;
+  }
+
+  private boolean sameTenant(Tenant first, Tenant second) {
+    return first != null && first.getId() != null && second != null && first.getId().equals(second.getId());
   }
 
   private void applyUpdateFields(PurchaseOrder purchaseOrder, PurchaseOrderUpdateRequestDTO body) {

@@ -7,6 +7,7 @@ import org.springframework.data.domain.Pageable;
 
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderUpdateRequestDTO;
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.CombinePurchaseOrdersRequestDTO;
+import com.example.trip_sheet_backend.models.Invoice;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
 import com.example.trip_sheet_backend.models.Tenant;
 
@@ -20,4 +21,6 @@ public interface PurchaseOrderService {
   PurchaseOrder combinePurchaseOrders(CombinePurchaseOrdersRequestDTO body, Tenant vendor, UUID createdBy);
 
   void splitCombinedPurchaseOrder(UUID combinedPurchaseOrderId, Tenant vendor, UUID updatedBy);
+
+  Invoice approvePurchaseOrder(UUID purchaseOrderId, Tenant approvingTenant, UUID approvingUserId);
 }

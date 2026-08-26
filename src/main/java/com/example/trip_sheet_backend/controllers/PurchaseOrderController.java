@@ -23,6 +23,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderResponseDTO;
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderUpdateRequestDTO;
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.CombinePurchaseOrdersRequestDTO;
+import com.example.trip_sheet_backend.dtos.InvoiceDtos.InvoiceResponseDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.PurchaseOrderService.PurchaseOrderService;
@@ -74,6 +75,20 @@ public class PurchaseOrderController {
     Tenant vendor = (Tenant) request.getAttribute("tenant");
     purchaseOrderService.splitCombinedPurchaseOrder(id, vendor, actorId(request));
     return ResponseEntity.ok(new ApiResponse<>(true, "Combined purchase order split successfully", null));
+  }
+
+  @PutMapping("/{id}/approve")
+  public ResponseEntity<ApiResponse<InvoiceResponseDTO>> approvePurchaseOrder(
+      @PathVariable UUID id,
+      HttpServletRequest request
+  ) {
+    Tenant approvingTenant = (Tenant) request.getAttribute("tenant");
+    UUID approvingUserId = actorId(request);
+    return ResponseEntity.ok(new ApiResponse<>(
+        true,
+        "Purchase order approved and invoice generated successfully",
+        InvoiceResponseDTO.fromEntity(purchaseOrderService.approvePurchaseOrder(id, approvingTenant, approvingUserId))
+    ));
   }
 
   @GetMapping
@@ -135,7 +150,10 @@ public class PurchaseOrderController {
 
   private UUID actorId(HttpServletRequest request) {
     UUID actorId = (UUID) request.getAttribute("updatedBy");
-    return actorId != null ? actorId : (UUID) request.getAttribute("createdBy");
+    if (actorId == null) {
+      actorId = (UUID) request.getAttribute("createdBy");
+    }
+    return actorId != null ? actorId : (UUID) request.getAttribute("userId");
   }
 
   @PutMapping("/{id}")
