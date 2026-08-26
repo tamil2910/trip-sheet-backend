@@ -48,6 +48,12 @@ public class PurchaseOrderNumberRule extends BaseModel {
   @Column(nullable = false)
   private Long nextSequence;
 
+  /** Separate counter for COMBINED_PO numbers. */
+  @NotNull
+  @Positive
+  @Column(nullable = false)
+  private Long nextCombinedSequence;
+
   @Column(name = "is_default", nullable = false)
   private Boolean isDefault = false;
 
@@ -56,12 +62,20 @@ public class PurchaseOrderNumberRule extends BaseModel {
   private Tenant vendor;
 
   public String formatPurchaseOrderNumber(long sequence) {
+    return formatNumber("PO", sequence);
+  }
+
+  public String formatCombinedPurchaseOrderNumber(long sequence) {
+    return formatNumber("COMBINED_PO", sequence);
+  }
+
+  private String formatNumber(String prefix, long sequence) {
     // The standard series starts as 01, while higher configured starts (such as
     // 125) retain their natural width.
     int width = Math.max(2, String.valueOf(sequenceStart).length());
     String serial = String.format("%0" + width + "d", sequence);
     return suffix == null || suffix.isBlank()
-        ? "PO-" + period + "-" + serial
-        : "PO-" + period + "-" + suffix + "-" + serial;
+        ? prefix + "-" + period + "-" + serial
+        : prefix + "-" + period + "-" + suffix + "-" + serial;
   }
 }

@@ -63,6 +63,11 @@ public class PurchaseOrder extends BaseModel implements TenantScoped {
   @JoinColumn(name = "trip_summary_id")
   private TripSummary tripSummary;
 
+  /** Set on source POs when they are included in a reversible combined PO. */
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "combined_purchase_order_id")
+  private PurchaseOrder combinedPurchaseOrder;
+
   @Enumerated(EnumType.STRING)
   private PurchaseOrderStatus status;
 
@@ -149,7 +154,7 @@ public class PurchaseOrder extends BaseModel implements TenantScoped {
   private BigDecimal hourlyAllowanceQty;
   private BigDecimal hourlyAllowanceAmount;
 
-  // Non-taxable reimbursable charges
+  // Taxable reimbursable trip charges
   private BigDecimal tollChargeAmount;
   private BigDecimal tollQty;
   private BigDecimal tollTotal;

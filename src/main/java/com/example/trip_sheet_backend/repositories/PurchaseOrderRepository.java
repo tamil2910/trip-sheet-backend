@@ -15,4 +15,6 @@ public interface PurchaseOrderRepository extends BaseRepository<PurchaseOrder, U
   List<PurchaseOrder> findByTenant_IdAndIsDeletedFalseOrderByUpdatedAtDesc(UUID tenantId);
 
   Optional<PurchaseOrder> findByIdAndTenant_IdAndIsDeletedFalse(UUID id, UUID tenantId);
+
+  List<PurchaseOrder> findByCombinedPurchaseOrder_IdAndIsDeletedFalse(UUID combinedPurchaseOrderId);
 }

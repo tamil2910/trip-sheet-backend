@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS purchase_order_number_rules (
   suffix VARCHAR(255) NULL,
   sequence_start BIGINT NOT NULL,
   next_sequence BIGINT NOT NULL,
+  next_combined_sequence BIGINT NOT NULL,
   is_default BIT NOT NULL,
   PRIMARY KEY (id),
   INDEX idx_po_number_rule_vendor (vendor_id),

@@ -174,9 +174,16 @@ public class TripBillingService {
     purchaseOrder.setOtherQty(positive(otherTotal) ? BigDecimal.ONE.setScale(2, RoundingMode.HALF_UP) : ZERO);
     purchaseOrder.setOtherTotal(positive(otherTotal) ? otherTotal : ZERO);
 
-    BigDecimal nonTaxableTotal = sum(purchaseOrder.getTollTotal(), purchaseOrder.getParkingTotal(), purchaseOrder.getOtherTotal());
-    purchaseOrder.setNonTaxableTotal(nonTaxableTotal);
-    purchaseOrder.setTotalAmount(sum(purchaseOrder.getTaxableTotalWithGst(), nonTaxableTotal));
+    BigDecimal taxableSubTotal = calculateTaxableSubTotal(purchaseOrder);
+    purchaseOrder.setTaxableSubTotal(taxableSubTotal);
+    applyTaxes(purchaseOrder, new TaxRateSummary(
+        purchaseOrder.getCgstPercentage(),
+        purchaseOrder.getSgstPercentage(),
+        purchaseOrder.getIgstPercentage()
+    ), taxableSubTotal);
+    purchaseOrder.setTaxableTotalWithGst(sum(taxableSubTotal, purchaseOrder.getGstAmount()));
+    purchaseOrder.setNonTaxableTotal(ZERO);
+    purchaseOrder.setTotalAmount(purchaseOrder.getTaxableTotalWithGst());
     purchaseOrder.setLineItemCount(buildLineItemCount(purchaseOrder));
     purchaseOrder.setLineItemsSnapshot(buildLineItemSnapshot(purchaseOrder));
   }
@@ -281,27 +288,14 @@ public class TripBillingService {
     purchaseOrder.setOtherQty(chargeSnapshot.otherQty());
     purchaseOrder.setOtherTotal(chargeSnapshot.otherTotal());
 
-    BigDecimal taxableSubTotal = sum(
-        purchaseOrder.getBaseFareTotal(),
-        purchaseOrder.getExtraKmTotal(),
-        purchaseOrder.getExtraHrTotal(),
-        purchaseOrder.getDailyAllowanceTotal(),
-        purchaseOrder.getEarlyAllowanceTotal(),
-        purchaseOrder.getLateAllowanceTotal(),
-        purchaseOrder.getHourlyAllowanceAmount()
-    );
-    BigDecimal nonTaxableTotal = sum(
-        purchaseOrder.getTollTotal(),
-        purchaseOrder.getParkingTotal(),
-        purchaseOrder.getOtherTotal()
-    );
+    BigDecimal taxableSubTotal = calculateTaxableSubTotal(purchaseOrder);
 
     purchaseOrder.setTaxableSubTotal(taxableSubTotal);
     applyTaxes(purchaseOrder, pricingContext.taxRates(), taxableSubTotal);
     purchaseOrder.setTaxableTotalWithGst(sum(taxableSubTotal, purchaseOrder.getGstAmount()));
-    purchaseOrder.setNonTaxableTotal(nonTaxableTotal);
+    purchaseOrder.setNonTaxableTotal(ZERO);
     purchaseOrder.setRoundOffAmount(ZERO);
-    purchaseOrder.setTotalAmount(sum(purchaseOrder.getTaxableTotalWithGst(), nonTaxableTotal));
+    purchaseOrder.setTotalAmount(purchaseOrder.getTaxableTotalWithGst());
 
     purchaseOrder.setLineItemCount(buildLineItemCount(purchaseOrder));
     purchaseOrder.setLineItemsSnapshot(buildLineItemSnapshot(purchaseOrder));
@@ -331,6 +325,21 @@ public class TripBillingService {
 
     purchaseOrder.setGstPercentage(gstPercentage);
     purchaseOrder.setGstAmount(gstAmount);
+  }
+
+  private BigDecimal calculateTaxableSubTotal(PurchaseOrder purchaseOrder) {
+    return sum(
+        purchaseOrder.getBaseFareTotal(),
+        purchaseOrder.getExtraKmTotal(),
+        purchaseOrder.getExtraHrTotal(),
+        purchaseOrder.getDailyAllowanceTotal(),
+        purchaseOrder.getEarlyAllowanceTotal(),
+        purchaseOrder.getLateAllowanceTotal(),
+        purchaseOrder.getHourlyAllowanceAmount(),
+        purchaseOrder.getTollTotal(),
+        purchaseOrder.getParkingTotal(),
+        purchaseOrder.getOtherTotal()
+    );
   }
 
   private BigDecimal calculateTaxAmount(BigDecimal taxableSubTotal, BigDecimal percentage) {
@@ -427,6 +436,7 @@ public class TripBillingService {
     rule.setPeriod(currentFinancialYear());
     rule.setSequenceStart(1L);
     rule.setNextSequence(1L);
+    rule.setNextCombinedSequence(1L);
     rule.setIsDefault(true);
     return purchaseOrderNumberRuleRepository.saveAndFlush(rule);
   }

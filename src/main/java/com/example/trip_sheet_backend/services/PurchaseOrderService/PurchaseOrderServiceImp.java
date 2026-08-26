@@ -7,6 +7,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,6 +21,7 @@ import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.Predicate;
 
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderUpdateRequestDTO;
+import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.CombinePurchaseOrdersRequestDTO;
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderAllocationRequestDTO;
 import com.example.trip_sheet_backend.models.CustomField;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
@@ -27,6 +30,8 @@ import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.TripSummary;
 import com.example.trip_sheet_backend.repositories.CustomFieldRepository;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderRepository;
+import com.example.trip_sheet_backend.repositories.PurchaseOrderNumberRuleRepository;
+import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.TripPassengerCustomFieldValueRepository;
 import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
 
@@ -34,17 +39,23 @@ import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
 public class PurchaseOrderServiceImp implements PurchaseOrderService {
 
   private final PurchaseOrderRepository purchaseOrderRepository;
+  private final PurchaseOrderNumberRuleRepository purchaseOrderNumberRuleRepository;
+  private final TenantRepository tenantRepository;
   private final TripSummaryRepository tripSummaryRepository;
   private final CustomFieldRepository customFieldRepository;
   private final TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository;
 
   public PurchaseOrderServiceImp(
       PurchaseOrderRepository purchaseOrderRepository,
+      PurchaseOrderNumberRuleRepository purchaseOrderNumberRuleRepository,
+      TenantRepository tenantRepository,
       TripSummaryRepository tripSummaryRepository,
       CustomFieldRepository customFieldRepository,
       TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository
   ) {
     this.purchaseOrderRepository = purchaseOrderRepository;
+    this.purchaseOrderNumberRuleRepository = purchaseOrderNumberRuleRepository;
+    this.tenantRepository = tenantRepository;
     this.tripSummaryRepository = tripSummaryRepository;
     this.customFieldRepository = customFieldRepository;
     this.tripPassengerCustomFieldValueRepository = tripPassengerCustomFieldValueRepository;
@@ -132,6 +143,155 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     }
 
     purchaseOrderRepository.save(purchaseOrder);
+  }
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public PurchaseOrder combinePurchaseOrders(CombinePurchaseOrdersRequestDTO body, Tenant vendor, UUID createdBy) {
+    validateVendor(vendor);
+    Set<UUID> requestedIds = new HashSet<>(body.getPurchaseOrderIds());
+    if (requestedIds.size() < 2) throw new RuntimeException("At least two different purchase orders are required");
+
+    List<PurchaseOrder> sourceOrders = purchaseOrderRepository.findAllById(requestedIds);
+    if (sourceOrders.size() != requestedIds.size()) throw new RuntimeException("One or more purchase orders were not found");
+    PurchaseOrder first = sourceOrders.get(0);
+    for (PurchaseOrder source : sourceOrders) validateCombinable(source, first, vendor);
+
+    PurchaseOrder combined = new PurchaseOrder();
+    combined.setOrderNumber(nextCombinedOrderNumber(vendor));
+    combined.setDocumentType("COMBINED_PO");
+    combined.setCurrencyCode(first.getCurrencyCode());
+    combined.setTenant(vendor);
+    combined.setStatus(PurchaseOrder.PurchaseOrderStatus.GENERATED);
+    combined.setDocumentDate(System.currentTimeMillis());
+    combined.setDueDate(combined.getDocumentDate());
+    combined.setBillingPeriodStart(sourceOrders.stream().map(PurchaseOrder::getBillingPeriodStart).filter(java.util.Objects::nonNull)
+        .min(Long::compareTo).orElse(null));
+    combined.setBillingPeriodEnd(sourceOrders.stream().map(PurchaseOrder::getBillingPeriodEnd).filter(java.util.Objects::nonNull)
+        .max(Long::compareTo).orElse(null));
+    copyPartyDetails(first, combined);
+    combined.setLineItemCount(sourceOrders.stream().map(PurchaseOrder::getLineItemCount).filter(java.util.Objects::nonNull)
+        .mapToInt(Integer::intValue).sum());
+    combined.setTaxableSubTotal(sum(sourceOrders, PurchaseOrder::getTaxableSubTotal));
+    combined.setGstAmount(sum(sourceOrders, PurchaseOrder::getGstAmount));
+    combined.setCgstAmount(sum(sourceOrders, PurchaseOrder::getCgstAmount));
+    combined.setSgstAmount(sum(sourceOrders, PurchaseOrder::getSgstAmount));
+    combined.setIgstAmount(sum(sourceOrders, PurchaseOrder::getIgstAmount));
+    combined.setTaxableTotalWithGst(sum(sourceOrders, PurchaseOrder::getTaxableTotalWithGst));
+    combined.setNonTaxableTotal(sum(sourceOrders, PurchaseOrder::getNonTaxableTotal));
+    combined.setRoundOffAmount(sum(sourceOrders, PurchaseOrder::getRoundOffAmount));
+    combined.setTotalAmount(sum(sourceOrders, PurchaseOrder::getTotalAmount));
+    combined.setLineItemsSnapshot("{\"combinedPurchaseOrders\":[" + sourceOrders.stream()
+        .map(order -> "\"" + order.getOrderNumber().replace("\"", "\\\"") + "\"")
+        .collect(java.util.stream.Collectors.joining(",")) + "]}");
+    combined.setNotes("Combined purchase orders: " + sourceOrders.stream().map(PurchaseOrder::getOrderNumber)
+        .collect(java.util.stream.Collectors.joining(", ")));
+    if (createdBy != null) {
+      combined.setCreatedBy(createdBy.toString());
+      combined.setUpdatedBy(createdBy.toString());
+    }
+    purchaseOrderRepository.save(combined);
+
+    for (PurchaseOrder source : sourceOrders) {
+      source.setCombinedPurchaseOrder(combined);
+      if (createdBy != null) source.setUpdatedBy(createdBy.toString());
+    }
+    purchaseOrderRepository.saveAll(sourceOrders);
+    return combined;
+  }
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public void splitCombinedPurchaseOrder(UUID combinedPurchaseOrderId, Tenant vendor, UUID updatedBy) {
+    validateVendor(vendor);
+    PurchaseOrder combined = purchaseOrderRepository.findByIdAndTenant_IdAndIsDeletedFalse(combinedPurchaseOrderId, vendor.getId())
+        .orElseThrow(() -> new RuntimeException("Combined purchase order not found"));
+    if (!"COMBINED_PO".equals(combined.getDocumentType())) throw new RuntimeException("Purchase order is not a combined PO");
+    if (combined.getStatus() != PurchaseOrder.PurchaseOrderStatus.GENERATED) {
+      throw new RuntimeException("Only generated combined POs can be split");
+    }
+    List<PurchaseOrder> sourceOrders = purchaseOrderRepository.findByCombinedPurchaseOrder_IdAndIsDeletedFalse(combined.getId());
+    if (sourceOrders.isEmpty()) throw new RuntimeException("Combined purchase order has no source POs");
+    for (PurchaseOrder source : sourceOrders) {
+      if (source.getStatus() != PurchaseOrder.PurchaseOrderStatus.GENERATED) {
+        throw new RuntimeException("A combined PO cannot be split after a source PO is processed");
+      }
+      source.setCombinedPurchaseOrder(null);
+      if (updatedBy != null) source.setUpdatedBy(updatedBy.toString());
+    }
+    combined.setIsDeleted(true);
+    combined.setDeletedAt(System.currentTimeMillis());
+    if (updatedBy != null) {
+      combined.setDeletedBy(updatedBy.toString());
+      combined.setUpdatedBy(updatedBy.toString());
+    }
+    purchaseOrderRepository.saveAll(sourceOrders);
+    purchaseOrderRepository.save(combined);
+  }
+
+  private void validateCombinable(PurchaseOrder source, PurchaseOrder first, Tenant vendor) {
+    if (Boolean.TRUE.equals(source.getIsDeleted()) || source.getCombinedPurchaseOrder() != null) {
+      throw new RuntimeException("Purchase order is already combined or deleted: " + source.getId());
+    }
+    if (source.getStatus() != PurchaseOrder.PurchaseOrderStatus.GENERATED) {
+      throw new RuntimeException("Only generated purchase orders can be combined");
+    }
+    if (source.getTripSummary() == null || source.getTripSummary().getTripId() == null
+        || source.getTripSummary().getTripId().getVendor() == null
+        || !vendor.getId().equals(source.getTripSummary().getTripId().getVendor().getId())) {
+      throw new RuntimeException("Purchase orders can only be combined by their supplier vendor");
+    }
+    if (first.getTenant() == null || source.getTenant() == null
+        || !first.getTenant().getId().equals(source.getTenant().getId())) {
+      throw new RuntimeException("Only purchase orders with the same bill-to tenant can be combined");
+    }
+    if (!java.util.Objects.equals(first.getCurrencyCode(), source.getCurrencyCode())) {
+      throw new RuntimeException("Only purchase orders with the same currency can be combined");
+    }
+  }
+
+  private String nextCombinedOrderNumber(Tenant vendor) {
+    Tenant lockedVendor = tenantRepository.findByIdForUpdate(vendor.getId())
+        .orElseThrow(() -> new RuntimeException("Vendor not found"));
+    com.example.trip_sheet_backend.models.PurchaseOrderNumberRule rule = purchaseOrderNumberRuleRepository
+        .findWithLockByVendor_IdAndIsDefaultTrueAndIsDeletedFalse(lockedVendor.getId())
+        .orElseGet(() -> createDefaultNumberRule(lockedVendor));
+    long sequence = rule.getNextCombinedSequence() == null ? rule.getSequenceStart() : rule.getNextCombinedSequence();
+    String number = rule.formatCombinedPurchaseOrderNumber(sequence);
+    rule.setNextCombinedSequence(sequence + 1);
+    purchaseOrderNumberRuleRepository.save(rule);
+    return number;
+  }
+
+  private com.example.trip_sheet_backend.models.PurchaseOrderNumberRule createDefaultNumberRule(Tenant vendor) {
+    LocalDate today = LocalDate.now(ZoneId.of("Asia/Kolkata"));
+    int startYear = today.getMonthValue() >= 4 ? today.getYear() : today.getYear() - 1;
+    com.example.trip_sheet_backend.models.PurchaseOrderNumberRule rule = new com.example.trip_sheet_backend.models.PurchaseOrderNumberRule();
+    rule.setVendor(vendor);
+    rule.setPeriod(startYear + "_" + (startYear + 1));
+    rule.setSequenceStart(1L);
+    rule.setNextSequence(1L);
+    rule.setNextCombinedSequence(1L);
+    rule.setIsDefault(true);
+    return purchaseOrderNumberRuleRepository.saveAndFlush(rule);
+  }
+
+  private void copyPartyDetails(PurchaseOrder source, PurchaseOrder target) {
+    target.setBillToName(source.getBillToName()); target.setBillToCode(source.getBillToCode());
+    target.setBillToGstin(source.getBillToGstin()); target.setBillToAddress(source.getBillToAddress());
+    target.setSupplierName(source.getSupplierName()); target.setSupplierPhone(source.getSupplierPhone());
+    target.setSupplierAddress(source.getSupplierAddress());
+  }
+
+  private BigDecimal sum(List<PurchaseOrder> orders, java.util.function.Function<PurchaseOrder, BigDecimal> field) {
+    return orders.stream().map(field).filter(java.util.Objects::nonNull).reduce(BigDecimal.ZERO, BigDecimal::add)
+        .setScale(2, RoundingMode.HALF_UP);
+  }
+
+  private void validateVendor(Tenant vendor) {
+    if (vendor == null || vendor.getId() == null || vendor.getTenantType() != Tenant.TenantType.VENDOR) {
+      throw new RuntimeException("Only vendor tenants can combine or split purchase orders");
+    }
   }
 
   private void replaceAllocations(

@@ -22,12 +22,14 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderResponseDTO;
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderUpdateRequestDTO;
+import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.CombinePurchaseOrdersRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.PurchaseOrderService.PurchaseOrderService;
 import com.example.trip_sheet_backend.services.TripBillingService.TripBillingService;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/purchase-orders")
@@ -56,6 +58,22 @@ public class PurchaseOrderController {
         ? "Purchase order already exists for this trip"
         : "Purchase order generated successfully";
     return ResponseEntity.ok(new ApiResponse<>(true, message, purchaseOrders));
+  }
+
+  @PostMapping("/combine")
+  public ResponseEntity<ApiResponse<PurchaseOrderResponseDTO>> combinePurchaseOrders(
+      @Valid @RequestBody CombinePurchaseOrdersRequestDTO body, HttpServletRequest request) {
+    Tenant vendor = (Tenant) request.getAttribute("tenant");
+    UUID actorId = actorId(request);
+    return ResponseEntity.ok(new ApiResponse<>(true, "Purchase orders combined successfully",
+        PurchaseOrderResponseDTO.fromEntity(purchaseOrderService.combinePurchaseOrders(body, vendor, actorId))));
+  }
+
+  @PostMapping("/{id}/split")
+  public ResponseEntity<ApiResponse<Void>> splitCombinedPurchaseOrder(@PathVariable UUID id, HttpServletRequest request) {
+    Tenant vendor = (Tenant) request.getAttribute("tenant");
+    purchaseOrderService.splitCombinedPurchaseOrder(id, vendor, actorId(request));
+    return ResponseEntity.ok(new ApiResponse<>(true, "Combined purchase order split successfully", null));
   }
 
   @GetMapping
@@ -113,6 +131,11 @@ public class PurchaseOrderController {
     } catch (NumberFormatException ex) {
       return defaultValue;
     }
+  }
+
+  private UUID actorId(HttpServletRequest request) {
+    UUID actorId = (UUID) request.getAttribute("updatedBy");
+    return actorId != null ? actorId : (UUID) request.getAttribute("createdBy");
   }
 
   @PutMapping("/{id}")

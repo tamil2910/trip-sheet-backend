@@ -80,6 +80,7 @@ public class PurchaseOrderNumberRuleServiceImp implements PurchaseOrderNumberRul
     if (creating) {
       rule.setSequenceStart(body.getSequenceStart());
       rule.setNextSequence(body.getSequenceStart());
+      rule.setNextCombinedSequence(body.getSequenceStart());
     }
   }
 
