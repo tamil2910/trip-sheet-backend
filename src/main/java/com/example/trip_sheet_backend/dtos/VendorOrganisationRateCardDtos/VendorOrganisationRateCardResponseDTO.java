@@ -7,6 +7,7 @@ import java.util.UUID;
 
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.Tax;
 import com.example.trip_sheet_backend.models.VehicleType;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.models.VendorOrganisationRateCard;
@@ -94,6 +95,7 @@ public class VendorOrganisationRateCardResponseDTO {
     private Integer maxGtgHrLimit;
     private Long contractStartDate;
     private Long contractEndDate;
+    private List<TaxSummaryDTO> taxes;
 
     public static VendorOrganisationSummaryDTO fromEntity(VendorOrganisation vendorOrganisation) {
       if (vendorOrganisation == null) {
@@ -112,8 +114,25 @@ public class VendorOrganisationRateCardResponseDTO {
           vendorOrganisation.getMaxGtgKmLimit(),
           vendorOrganisation.getMaxGtgHrLimit(),
           vendorOrganisation.getContractStartDate(),
-          vendorOrganisation.getContractEndDate()
+          vendorOrganisation.getContractEndDate(),
+          vendorOrganisation.getTaxList() == null ? List.of() : vendorOrganisation.getTaxList().stream()
+              .filter(tax -> tax != null && !Boolean.TRUE.equals(tax.getIsDeleted()))
+              .map(TaxSummaryDTO::fromEntity)
+              .toList()
       );
+    }
+  }
+
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class TaxSummaryDTO {
+    private UUID id;
+    private String name;
+
+    public static TaxSummaryDTO fromEntity(Tax tax) {
+      return tax == null ? null : new TaxSummaryDTO(tax.getId(), tax.getTaxName());
     }
   }
 
