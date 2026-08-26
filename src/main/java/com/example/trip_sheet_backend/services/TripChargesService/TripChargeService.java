@@ -3,6 +3,7 @@ package com.example.trip_sheet_backend.services.TripChargesService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -70,14 +71,14 @@ public class TripChargeService {
 
       UUID driverId = driver.map(Driver::getId).orElseThrow(() -> new RuntimeException("Driver not found"));
 
-      if (driverId != trip.getDriver().getId()) {
+      if (trip.getDriver() == null || !Objects.equals(driverId, trip.getDriver().getId())) {
         throw new RuntimeException("Unauthorized Driver to create charges for this trip");
       }
 
       tenant.setId(trip.getTenant().getId());
     } else {
 
-      if (tenantId != trip.getTenant().getId()) {
+      if (!isTripTenant(tenantId, trip)) {
         throw new RuntimeException("Unauthorized Vendor/Organisation to create charges for this trip");
       }
 
@@ -112,6 +113,12 @@ public class TripChargeService {
     String normalizedType = chargeItemType.trim().toLowerCase();
     String enumName = Character.toUpperCase(normalizedType.charAt(0)) + normalizedType.substring(1);
     return TripCharges.chargeType.valueOf(enumName);
+  }
+
+  private boolean isTripTenant(UUID tenantId, Trip trip) {
+    return Objects.equals(tenantId, trip.getTenant() == null ? null : trip.getTenant().getId())
+        || Objects.equals(tenantId, trip.getVendor() == null ? null : trip.getVendor().getId())
+        || Objects.equals(tenantId, trip.getOrganisation() == null ? null : trip.getOrganisation().getId());
   }
 
   public List<TripCharges> getTripChargesByTripId(UUID tenantId, UUID tripId) {
