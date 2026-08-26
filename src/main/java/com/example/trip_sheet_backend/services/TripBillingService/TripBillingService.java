@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.CustomTax;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
+import com.example.trip_sheet_backend.models.PurchaseOrderNumberRule;
 import com.example.trip_sheet_backend.models.Tax;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
@@ -33,10 +34,12 @@ import com.example.trip_sheet_backend.models.VendorOrganisationRateCard;
 import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderRepository;
+import com.example.trip_sheet_backend.repositories.PurchaseOrderNumberRuleRepository;
 import com.example.trip_sheet_backend.repositories.CustomTaxRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
 import com.example.trip_sheet_backend.repositories.TripChargesRepository;
 import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
+import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRateCardRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRateCardRepository;
@@ -52,7 +55,9 @@ public class TripBillingService {
   private static final ZoneId BUSINESS_TIME_ZONE = ZoneId.of("Asia/Kolkata");
 
   private final PurchaseOrderRepository purchaseOrderRepository;
+  private final PurchaseOrderNumberRuleRepository purchaseOrderNumberRuleRepository;
   private final TripSummaryRepository tripSummaryRepository;
+  private final TenantRepository tenantRepository;
   private final TripRepository tripRepository;
   private final TripChargesRepository tripChargesRepository;
   private final VendorOrganisationRepository vendorOrganisationRepository;
@@ -63,7 +68,9 @@ public class TripBillingService {
 
   public TripBillingService(
       PurchaseOrderRepository purchaseOrderRepository,
+      PurchaseOrderNumberRuleRepository purchaseOrderNumberRuleRepository,
       TripSummaryRepository tripSummaryRepository,
+      TenantRepository tenantRepository,
       TripRepository tripRepository,
       TripChargesRepository tripChargesRepository,
       VendorOrganisationRepository vendorOrganisationRepository,
@@ -73,7 +80,9 @@ public class TripBillingService {
       VendorPartnerRateCardRepository vendorPartnerRateCardRepository
   ) {
     this.purchaseOrderRepository = purchaseOrderRepository;
+    this.purchaseOrderNumberRuleRepository = purchaseOrderNumberRuleRepository;
     this.tripSummaryRepository = tripSummaryRepository;
+    this.tenantRepository = tenantRepository;
     this.tripRepository = tripRepository;
     this.tripChargesRepository = tripChargesRepository;
     this.vendorOrganisationRepository = vendorOrganisationRepository;
@@ -183,7 +192,7 @@ public class TripBillingService {
     purchaseOrder.setTenant(trip.getOrganisation() != null ? trip.getOrganisation() : trip.getTenant());
     purchaseOrder.setStatus(PurchaseOrder.PurchaseOrderStatus.GENERATED);
 
-    purchaseOrder.setOrderNumber(buildOrderNumber(trip));
+    purchaseOrder.setOrderNumber(buildOrderNumber(pricingContext.supplier()));
     purchaseOrder.setDocumentType("PO");
     purchaseOrder.setCurrencyCode("INR");
 
@@ -393,9 +402,39 @@ public class TripBillingService {
         .append("\"},");
   }
 
-  private String buildOrderNumber(Trip trip) {
-    String tripCode = trip.getTripCode() != null && !trip.getTripCode().isBlank() ? trip.getTripCode() : trip.getId().toString();
-    return "PO-" + tripCode;
+  private String buildOrderNumber(Tenant vendor) {
+    if (vendor == null || vendor.getId() == null) {
+      throw new RuntimeException("PO number cannot be generated because the supplier vendor is missing");
+    }
+    // Locking the vendor row also serializes the first PO for a vendor, when no
+    // rule row exists yet and therefore cannot itself be locked.
+    Tenant lockedVendor = tenantRepository.findByIdForUpdate(vendor.getId())
+        .orElseThrow(() -> new RuntimeException("Supplier vendor not found for PO number generation"));
+    PurchaseOrderNumberRule rule = purchaseOrderNumberRuleRepository
+        .findWithLockByVendor_IdAndIsDefaultTrueAndIsDeletedFalse(lockedVendor.getId())
+        .orElseGet(() -> createDefaultPurchaseOrderNumberRule(lockedVendor));
+
+    long sequence = rule.getNextSequence();
+    String orderNumber = rule.formatPurchaseOrderNumber(sequence);
+    rule.setNextSequence(sequence + 1);
+    purchaseOrderNumberRuleRepository.save(rule);
+    return orderNumber;
+  }
+
+  private PurchaseOrderNumberRule createDefaultPurchaseOrderNumberRule(Tenant vendor) {
+    PurchaseOrderNumberRule rule = new PurchaseOrderNumberRule();
+    rule.setVendor(vendor);
+    rule.setPeriod(currentFinancialYear());
+    rule.setSequenceStart(1L);
+    rule.setNextSequence(1L);
+    rule.setIsDefault(true);
+    return purchaseOrderNumberRuleRepository.saveAndFlush(rule);
+  }
+
+  private String currentFinancialYear() {
+    LocalDate today = LocalDate.now(BUSINESS_TIME_ZONE);
+    int startYear = today.getMonthValue() >= 4 ? today.getYear() : today.getYear() - 1;
+    return startYear + "_" + (startYear + 1);
   }
 
   private PricingContext resolvePricingContext(Trip trip) {

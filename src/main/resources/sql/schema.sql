@@ -20,6 +20,27 @@ CREATE TABLE IF NOT EXISTS invoice_number_rules (
   CONSTRAINT fk_invoice_number_rule_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)
 );
 
+CREATE TABLE IF NOT EXISTS purchase_order_number_rules (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT,
+  updated_at BIGINT,
+  deleted_at BIGINT,
+  created_by VARCHAR(255),
+  updated_by VARCHAR(255),
+  deleted_by VARCHAR(255),
+  is_deleted BIT,
+  vendor_id BINARY(16) NOT NULL,
+  period VARCHAR(9) NOT NULL,
+  suffix VARCHAR(255) NULL,
+  sequence_start BIGINT NOT NULL,
+  next_sequence BIGINT NOT NULL,
+  is_default BIT NOT NULL,
+  PRIMARY KEY (id),
+  INDEX idx_po_number_rule_vendor (vendor_id),
+  INDEX idx_po_number_rule_vendor_default (vendor_id, is_default),
+  CONSTRAINT fk_po_number_rule_vendor FOREIGN KEY (vendor_id) REFERENCES tenants (id)
+);
+
 SET @trip_arrived_time_exists := (
   SELECT COUNT(*)
   FROM information_schema.columns
