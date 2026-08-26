@@ -165,9 +165,14 @@ public class TripChargeService {
        throw new RuntimeException("No Tenant Found for this user");
     }
 
-    tripChargesRepository.findById(id).orElseThrow(() -> new RuntimeException("TripCharge resource can not be found!"));
+    TripCharges tripCharge = tripChargesRepository.findById(id)
+        .orElseThrow(() -> new RuntimeException("TripCharge resource can not be found!"));
 
-    tripChargesRepository.deleteById(id);
+    UUID tripId = tripCharge.getTrip() == null ? null : tripCharge.getTrip().getId();
+    tripChargesRepository.delete(tripCharge);
+    if (tripId != null) {
+      tripBillingService.refreshTripChargesOnPurchaseOrder(tripId);
+    }
   }
 
 }
