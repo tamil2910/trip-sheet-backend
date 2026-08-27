@@ -42,6 +42,12 @@ public class TripCompletionWorkflowService {
     }
 
     try {
+      tripBillingService.generatePurchaseInvoicesForTrip(tripId);
+    } catch (Exception ex) {
+      log.error("Failed to generate purchase invoices for completed trip {}", tripId, ex);
+    }
+
+    try {
       tripFeedbackService.sendFeedbackRequestsForTrip(tripId);
     } catch (Exception ex) {
       log.error("Failed to send feedback requests for completed trip {}", tripId, ex);

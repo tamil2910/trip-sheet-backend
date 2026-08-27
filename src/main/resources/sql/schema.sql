@@ -42,6 +42,41 @@ CREATE TABLE IF NOT EXISTS purchase_order_number_rules (
   CONSTRAINT fk_po_number_rule_vendor FOREIGN KEY (vendor_id) REFERENCES tenants (id)
 );
 
+-- Private payable raised for each adjacent vendor delegation hop.
+CREATE TABLE IF NOT EXISTS purchase_invoices (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT,
+  updated_at BIGINT,
+  deleted_at BIGINT,
+  created_by VARCHAR(255),
+  updated_by VARCHAR(255),
+  deleted_by VARCHAR(255),
+  is_deleted BIT,
+  invoice_number VARCHAR(255) NULL,
+  delegation_history_id BINARY(16) NOT NULL,
+  trip_summary_id BINARY(16) NOT NULL,
+  payer_vendor_id BINARY(16) NOT NULL,
+  payee_vendor_id BINARY(16) NOT NULL,
+  amount_payable DECIMAL(12,2) NOT NULL,
+  amount_receivable DECIMAL(12,2) NOT NULL,
+  earning DECIMAL(12,2) NOT NULL,
+  currency_code VARCHAR(255),
+  rate_card_package_name VARCHAR(255),
+  notes VARCHAR(255),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_purchase_invoice_delegation (delegation_history_id),
+  INDEX idx_purchase_invoice_payer (payer_vendor_id),
+  INDEX idx_purchase_invoice_payee (payee_vendor_id),
+  CONSTRAINT fk_purchase_invoice_delegation FOREIGN KEY (delegation_history_id)
+    REFERENCES trip_vendor_delegation_history (id),
+  CONSTRAINT fk_purchase_invoice_summary FOREIGN KEY (trip_summary_id)
+    REFERENCES trip_summaries (id),
+  CONSTRAINT fk_purchase_invoice_payer FOREIGN KEY (payer_vendor_id)
+    REFERENCES tenants (id),
+  CONSTRAINT fk_purchase_invoice_payee FOREIGN KEY (payee_vendor_id)
+    REFERENCES tenants (id)
+);
+
 SET @trip_arrived_time_exists := (
   SELECT COUNT(*)
   FROM information_schema.columns
