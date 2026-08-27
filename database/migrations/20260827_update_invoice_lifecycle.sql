@@ -23,6 +23,6 @@ ALTER TABLE invoices
   ADD COLUMN IF NOT EXISTS is_downloaded_invoice BIT NOT NULL DEFAULT b'0';
 
 ALTER TABLE invoices
-  ADD UNIQUE INDEX IF NOT EXISTS uk_invoices_purchase_order (purchase_order_id),
+  ADD INDEX IF NOT EXISTS idx_invoices_purchase_order (purchase_order_id),
   ADD CONSTRAINT fk_invoices_purchase_order
     FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders (id);

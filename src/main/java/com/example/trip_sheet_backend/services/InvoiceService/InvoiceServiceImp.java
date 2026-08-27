@@ -18,6 +18,18 @@ public class InvoiceServiceImp implements InvoiceService {
   }
 
   @Override
+  @Transactional(readOnly = true)
+  public Invoice getByPurchaseOrderId(UUID purchaseOrderId, Tenant tokenTenant) {
+    if (tokenTenant == null || tokenTenant.getId() == null) {
+      throw new RuntimeException("Tenant not found in token");
+    }
+    Invoice invoice = invoiceRepository.findLatestByPurchaseOrderId(purchaseOrderId)
+        .orElseThrow(() -> new RuntimeException("Invoice not found for this purchase order"));
+    validateInvoiceAccess(invoice, tokenTenant);
+    return invoice;
+  }
+
+  @Override
   @Transactional(rollbackFor = Exception.class)
   public Invoice markPrinted(UUID invoiceId, Tenant tokenTenant, UUID actorId) {
     Invoice invoice = findAccessibleInvoice(invoiceId, tokenTenant);
@@ -47,6 +59,15 @@ public class InvoiceServiceImp implements InvoiceService {
     return invoiceRepository.save(invoice);
   }
 
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public Invoice cancel(UUID invoiceId, Tenant tokenTenant, UUID actorId) {
+    Invoice invoice = findAccessibleInvoice(invoiceId, tokenTenant);
+    invoice.setStatus(Invoice.InvoiceStatus.CANCELLED);
+    setUpdatedBy(invoice, actorId);
+    return invoiceRepository.save(invoice);
+  }
+
   private Invoice findAccessibleInvoice(UUID invoiceId, Tenant tokenTenant) {
     if (tokenTenant == null || tokenTenant.getId() == null) {
       throw new RuntimeException("Tenant not found in token");
@@ -54,13 +75,18 @@ public class InvoiceServiceImp implements InvoiceService {
     Invoice invoice = invoiceRepository.findById(invoiceId)
         .filter(value -> !Boolean.TRUE.equals(value.getIsDeleted()))
         .orElseThrow(() -> new RuntimeException("Invoice not found"));
+    validateInvoiceAccess(invoice, tokenTenant);
+    return invoice;
+  }
+
+  private void validateInvoiceAccess(Invoice invoice, Tenant tokenTenant) {
     if (sameTenant(tokenTenant, invoice.getTenant())) {
-      return invoice;
+      return;
     }
     if (invoice.getPurchaseOrder() != null && invoice.getPurchaseOrder().getTripSummary() != null
         && invoice.getPurchaseOrder().getTripSummary().getTripId() != null
         && sameTenant(tokenTenant, invoice.getPurchaseOrder().getTripSummary().getTripId().getOrganisation())) {
-      return invoice;
+      return;
     }
     throw new RuntimeException("Invoice is not accessible for this tenant");
   }

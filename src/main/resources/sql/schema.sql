@@ -94,3 +94,41 @@ UPDATE trips trip
 JOIN trip_summaries summary ON summary.trip_id = trip.id
 SET trip.trip_summary_id = summary.id
 WHERE trip.trip_summary_id IS NULL;
+
+-- Keep legacy invoice databases compatible with the current invoice lifecycle.
+ALTER TABLE invoices
+  MODIFY COLUMN status ENUM(
+    'DRAFT', 'VERIFIED', 'APPROVED', 'ISSUED',
+    'GENERATED', 'PAYMENT_RECEIVED', 'CANCELLED'
+  ) NULL;
+
+UPDATE invoices
+SET status = 'GENERATED'
+WHERE status IN ('DRAFT', 'VERIFIED', 'APPROVED', 'ISSUED') OR status IS NULL;
+
+ALTER TABLE invoices
+  MODIFY COLUMN status ENUM('GENERATED', 'PAYMENT_RECEIVED', 'CANCELLED') NOT NULL;
+  -- ADD COLUMN IF NOT EXISTS purchase_order_id BINARY(16) NULL,
+  -- ADD COLUMN IF NOT EXISTS approved_by_side ENUM('VENDOR', 'ORGANISATION') NULL,
+  -- ADD COLUMN IF NOT EXISTS approved_by_user_id VARCHAR(255) NULL,
+  -- ADD COLUMN IF NOT EXISTS approved_at BIGINT NULL,
+  -- ADD COLUMN IF NOT EXISTS is_printed_invoice BIT NOT NULL DEFAULT b'0',
+  -- ADD COLUMN IF NOT EXISTS is_downloaded_invoice BIT NOT NULL DEFAULT b'0';
+
+-- CREATE INDEX IF NOT EXISTS idx_invoices_purchase_order ON invoices (purchase_order_id);
+
+SET @legacy_invoice_po_index_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.statistics
+  WHERE table_schema = DATABASE()
+    AND table_name = 'invoices'
+    AND index_name = 'uk_invoices_purchase_order'
+);
+SET @legacy_invoice_po_index_sql := IF(
+  @legacy_invoice_po_index_exists = 1,
+  'ALTER TABLE invoices DROP INDEX uk_invoices_purchase_order',
+  'SELECT 1'
+);
+PREPARE legacy_invoice_po_index_statement FROM @legacy_invoice_po_index_sql;
+EXECUTE legacy_invoice_po_index_statement;
+DEALLOCATE PREPARE legacy_invoice_po_index_statement;

@@ -155,8 +155,10 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
   public Invoice approvePurchaseOrder(UUID purchaseOrderId, Tenant approvingTenant, UUID approvingUserId) {
     validateTenant(approvingTenant);
 
-    Invoice existingInvoice = invoiceRepository.findByPurchaseOrder_IdAndIsDeletedFalse(purchaseOrderId).orElse(null);
-    if (existingInvoice != null) {
+    List<Invoice> existingInvoices = invoiceRepository
+        .findByPurchaseOrder_IdAndIsDeletedFalseOrderByCreatedAtDesc(purchaseOrderId);
+    Invoice existingInvoice = existingInvoices.isEmpty() ? null : existingInvoices.get(0);
+    if (existingInvoice != null && existingInvoice.getStatus() != Invoice.InvoiceStatus.CANCELLED) {
       return existingInvoice;
     }
 
@@ -171,7 +173,7 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     Invoice invoice = new Invoice();
     invoice.setPurchaseOrder(purchaseOrder);
     invoice.setTenant(resolveInvoiceTenant(purchaseOrder, approvingTenant));
-    invoice.setInvoiceNumber("INV-" + purchaseOrder.getOrderNumber());
+    invoice.setInvoiceNumber(buildInvoiceNumber(purchaseOrder, existingInvoices.size()));
     invoice.setStatus(Invoice.InvoiceStatus.GENERATED);
     invoice.setApprovedBySide(approvalSide);
     invoice.setApprovedByUserId(approvingUserId == null ? null : approvingUserId.toString());
@@ -455,6 +457,11 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
       return purchaseOrder.getTripSummary().getTripId().getVendor();
     }
     return approvingTenant;
+  }
+
+  private String buildInvoiceNumber(PurchaseOrder purchaseOrder, int previousInvoiceCount) {
+    String invoiceNumber = "INV-" + purchaseOrder.getOrderNumber().replaceFirst("^PO-", "");
+    return previousInvoiceCount == 0 ? invoiceNumber : invoiceNumber + "-R" + previousInvoiceCount;
   }
 
   private boolean sameTenant(Tenant first, Tenant second) {

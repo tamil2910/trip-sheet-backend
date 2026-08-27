@@ -3,6 +3,7 @@ package com.example.trip_sheet_backend.controllers;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -25,6 +26,15 @@ public class InvoiceController {
     this.invoiceService = invoiceService;
   }
 
+  @GetMapping("/{purchaseOrderId}")
+  public ResponseEntity<ApiResponse<InvoiceResponseDTO>> getByPurchaseOrderId(
+      @PathVariable UUID purchaseOrderId,
+      HttpServletRequest request
+  ) {
+    return ResponseEntity.ok(new ApiResponse<>(true, "Invoice fetched successfully",
+        InvoiceResponseDTO.fromEntity(invoiceService.getByPurchaseOrderId(purchaseOrderId, tenant(request)))));
+  }
+
   @PutMapping("/{id}/print")
   public ResponseEntity<ApiResponse<InvoiceResponseDTO>> markPrinted(@PathVariable UUID id, HttpServletRequest request) {
     return ResponseEntity.ok(new ApiResponse<>(true, "Invoice marked as printed",
@@ -35,6 +45,12 @@ public class InvoiceController {
   public ResponseEntity<ApiResponse<InvoiceResponseDTO>> markDownloaded(@PathVariable UUID id, HttpServletRequest request) {
     return ResponseEntity.ok(new ApiResponse<>(true, "Invoice marked as downloaded",
         InvoiceResponseDTO.fromEntity(invoiceService.markDownloaded(id, tenant(request), actorId(request)))));
+  }
+
+  @PutMapping("/{id}/cancel")
+  public ResponseEntity<ApiResponse<InvoiceResponseDTO>> cancel(@PathVariable UUID id, HttpServletRequest request) {
+    return ResponseEntity.ok(new ApiResponse<>(true, "Invoice cancelled successfully",
+        InvoiceResponseDTO.fromEntity(invoiceService.cancel(id, tenant(request), actorId(request)))));
   }
 
   @PutMapping("/{id}/status/{status}")

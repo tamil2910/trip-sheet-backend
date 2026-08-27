@@ -8,7 +8,6 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.Index;
 import lombok.AllArgsConstructor;
@@ -33,8 +32,8 @@ public class Invoice extends BaseModel implements TenantScoped {
   @Enumerated(EnumType.STRING)
   private InvoiceStatus status;
 
-  @OneToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "purchase_order_id", unique = true, nullable = false)
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "purchase_order_id", nullable = false)
   private PurchaseOrder purchaseOrder;
 
   @Enumerated(EnumType.STRING)
