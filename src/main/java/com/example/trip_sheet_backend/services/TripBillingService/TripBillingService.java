@@ -19,6 +19,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.BeanUtils;
 
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.CustomTax;
@@ -162,10 +163,12 @@ public class TripBillingService {
       try {
         PricingContext context = resolvePartnerPricingContext(trip, delegation.getFromVendor(), delegation.getToVendor());
         ChargeSnapshot charges = buildChargeSnapshot(tripSummary, context);
-        BigDecimal payable = scaleCurrency(charges.totalAmount());
+        PurchaseOrder pricingSnapshot = buildPurchaseOrder(trip, tripSummary, context, charges);
+        BigDecimal payable = scaleCurrency(pricingSnapshot.getTotalAmount());
         BigDecimal receivable = receivableByVendor.getOrDefault(delegation.getFromVendor().getId(), originatingRevenue);
 
         PurchaseInvoice invoice = new PurchaseInvoice();
+        copyPurchaseOrderSnapshot(pricingSnapshot, invoice);
         invoice.setDelegationHistory(delegation);
         invoice.setTripSummary(tripSummary);
         invoice.setPayerVendor(delegation.getFromVendor());
@@ -173,6 +176,7 @@ public class TripBillingService {
         invoice.setAmountPayable(payable);
         invoice.setAmountReceivable(scaleCurrency(receivable));
         invoice.setEarning(scaleCurrency(receivable.subtract(payable)));
+        invoice.setStatus(PurchaseInvoice.PurchaseInvoiceStatus.GENERATED);
         invoice.setCurrencyCode("INR");
         invoice.setRateCardPackageName(context.rateCardPackageName());
         invoice.setNotes("Private delegated-trip payable");
@@ -185,6 +189,14 @@ public class TripBillingService {
       }
     }
     return generated;
+  }
+
+  /** Copies every PO calculation/header field without copying its identity or organisation tenant. */
+  private void copyPurchaseOrderSnapshot(PurchaseOrder source, PurchaseInvoice target) {
+    BeanUtils.copyProperties(source, target,
+        "id", "createdAt", "updatedAt", "deletedAt", "createdBy", "updatedBy", "deletedBy",
+        "isDeleted", "tenant", "status", "allocations", "combinedPurchaseOrder", "orderNumber");
+    target.setOrderNumber(null);
   }
 
   /** Refreshes reimbursable trip charges on all active, non-invoiced POs for a trip. */

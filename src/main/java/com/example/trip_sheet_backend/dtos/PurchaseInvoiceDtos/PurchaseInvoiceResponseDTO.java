@@ -22,6 +22,7 @@ public class PurchaseInvoiceResponseDTO {
   private String currencyCode;
   private String rateCardPackageName;
   private String notes;
+  private PurchaseInvoice.PurchaseInvoiceStatus status;
 
   public static PurchaseInvoiceResponseDTO fromEntity(PurchaseInvoice value) {
     return new PurchaseInvoiceResponseDTO(value.getId(), value.getInvoiceNumber(),
@@ -29,6 +30,6 @@ public class PurchaseInvoiceResponseDTO {
         value.getPayerVendor() == null ? null : value.getPayerVendor().getId(),
         value.getPayeeVendor() == null ? null : value.getPayeeVendor().getId(),
         value.getAmountPayable(), value.getAmountReceivable(), value.getEarning(),
-        value.getCurrencyCode(), value.getRateCardPackageName(), value.getNotes());
+        value.getCurrencyCode(), value.getRateCardPackageName(), value.getNotes(), value.getStatus());
   }
 }
