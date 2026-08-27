@@ -354,12 +354,13 @@ public ResponseEntity<ApiResponse<?>> getPartnerTenants(
   }
 
   Page<VendorPartner> result =
-      vendorPartnerRepository.findByPrimaryVendor(tenant, pageable);
+      vendorPartnerRepository.findByPrimaryVendorOrPartnerVendor(tenant, tenant, pageable);
 
-  // Extract partner vendors only
+  // A vendor can be on either side of a partnership. Return the vendor on the
+  // opposite side of each relationship as the connected partner.
   List<VendorPartnerSummaryDTO> partnerVendors = result.getContent()
       .stream()
-      .map(VendorPartnerSummaryDTO::fromEntity)
+      .map(vendorPartner -> VendorPartnerSummaryDTO.fromEntity(vendorPartner, tenant))
       .toList();
 
   Map<String, Object> response = new HashMap<>();

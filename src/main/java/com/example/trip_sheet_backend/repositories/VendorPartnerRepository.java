@@ -23,5 +23,15 @@ public interface VendorPartnerRepository extends BaseRepository<VendorPartner, U
   List<VendorPartner> findByPrimaryVendor(Tenant primaryVendor);
 
   Page<VendorPartner> findByPrimaryVendor(Tenant primaryVendor, Pageable pageable);
+
+  /**
+   * Returns every partnership that involves the vendor, irrespective of which
+   * vendor originally created the relationship.
+   */
+  Page<VendorPartner> findByPrimaryVendorOrPartnerVendor(
+          Tenant primaryVendor,
+          Tenant partnerVendor,
+          Pageable pageable
+  );
   
 }

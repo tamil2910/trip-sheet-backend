@@ -19,11 +19,15 @@ public class VendorPartnerSummaryDTO {
   private VendorPartner.ContractStatus contractStatus;
   private Tenant partnerVendor;
 
-  public static VendorPartnerSummaryDTO fromEntity(VendorPartner vendorPartner) {
+  public static VendorPartnerSummaryDTO fromEntity(VendorPartner vendorPartner, Tenant currentVendor) {
+    Tenant connectedVendor = vendorPartner.getPrimaryVendor().getId().equals(currentVendor.getId())
+        ? vendorPartner.getPartnerVendor()
+        : vendorPartner.getPrimaryVendor();
+
     return new VendorPartnerSummaryDTO(
         vendorPartner.getId(),
         vendorPartner.getContractStatus(),
-        vendorPartner.getPartnerVendor()
+        connectedVendor
     );
   }
 }
