@@ -115,15 +115,44 @@ public class TripBillingService {
     TripSummary tripSummary = tripSummaryRepository.findByTripId_Id(trip.getId())
         .orElseThrow(() -> new RuntimeException("Trip summary not found for billing"));
 
-    PricingContext pricingContext = resolvePricingContext(trip);
+    // The organisation PO belongs to the vendor that accepted the booking,
+    // never to the final executing/delegated vendor.
+    Tenant purchaseOrderVendor = resolveOriginalBookingVendor(trip);
+    PricingContext pricingContext = resolveOrganisationPricingContext(trip, purchaseOrderVendor);
     ChargeSnapshot chargeSnapshot = buildChargeSnapshot(tripSummary, pricingContext);
 
     if (purchaseOrderRepository.existsByTripSummary_IdAndIsDeletedFalse(tripSummary.getId())) {
-      return List.of();
+      // Keep an already-correct PO idempotent, but repair legacy POs that were
+      // generated against the executing partner before this vendor/original
+      // organisation distinction was introduced.
+      PurchaseOrder existing = purchaseOrderRepository.findByTripSummary_IdAndIsDeletedFalse(tripSummary.getId())
+          .stream().findFirst().orElse(null);
+      if (existing == null || Objects.equals(existing.getSupplierName(), pricingContext.supplier().getTenantName())) {
+        return List.of();
+      }
+      PurchaseOrder corrected = buildPurchaseOrder(trip, tripSummary, pricingContext, chargeSnapshot);
+      BeanUtils.copyProperties(corrected, existing,
+          "id", "createdAt", "updatedAt", "deletedAt", "createdBy", "updatedBy", "deletedBy",
+          "isDeleted", "allocations", "combinedPurchaseOrder", "tenant", "tripSummary");
+      existing.setTripSummary(tripSummary);
+      existing.setStatus(PurchaseOrder.PurchaseOrderStatus.GENERATED);
+      return List.of(purchaseOrderRepository.save(existing));
     }
 
     PurchaseOrder purchaseOrder = buildPurchaseOrder(trip, tripSummary, pricingContext, chargeSnapshot);
     return List.of(purchaseOrderRepository.save(purchaseOrder));
+  }
+
+  private Tenant resolveOriginalBookingVendor(Trip trip) {
+    List<VendorDelegationHistory> history = vendorDelegationHistoryRepository
+        .findByTrip_IdAndIsDeletedFalseOrderByDelegatedAtAscCreatedAtAsc(trip.getId());
+    if (!history.isEmpty() && history.get(0).getFromVendor() != null) {
+      return history.get(0).getFromVendor();
+    }
+    if (trip.getAssignedByVendor() != null && trip.getAssignedByVendor().getId() != null) {
+      return trip.getAssignedByVendor();
+    }
+    return trip.getVendor();
   }
 
   /**
@@ -535,12 +564,19 @@ public class TripBillingService {
   }
 
   private PricingContext resolveOrganisationPricingContext(Trip trip) {
+    return resolveOrganisationPricingContext(trip, trip.getVendor());
+  }
+
+  private PricingContext resolveOrganisationPricingContext(Trip trip, Tenant billingVendor) {
+    if (billingVendor == null || billingVendor.getId() == null) {
+      throw new RuntimeException("Trip vendor is required for billing");
+    }
     if (trip.getOrganisation() == null || trip.getOrganisation().getId() == null) {
       throw new RuntimeException("Trip organisation is required for vendor to organisation billing");
     }
 
     VendorOrganisation vendorOrganisation = vendorOrganisationRepository
-        .findByVendorAndOrganisation_Id(trip.getVendor(), trip.getOrganisation().getId())
+        .findByVendorAndOrganisation_Id(billingVendor, trip.getOrganisation().getId())
         .orElseThrow(() -> new RuntimeException("Vendor organisation relationship not found for trip"));
 
     if (vendorOrganisation.getContractStatus() != VendorOrganisation.ContractStatus.ACTIVE) {
@@ -561,7 +597,7 @@ public class TripBillingService {
 
     return new PricingContext(
         trip.getOrganisation(),
-        trip.getVendor(),
+        billingVendor,
         rateCard.getBaseFare(),
         rateCard.getExtraKmCharges(),
         rateCard.getExtraHrCharges(),
