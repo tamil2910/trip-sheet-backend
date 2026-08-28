@@ -321,6 +321,7 @@ public class TripBillingService {
     purchaseOrder.setBillToAddress(pricingContext.billTo().getAddress());
 
     purchaseOrder.setSupplierName(pricingContext.supplier().getTenantName());
+    purchaseOrder.setSupplierVendor(pricingContext.supplier());
     purchaseOrder.setSupplierPhone(pricingContext.supplier().getContactEmail());
     purchaseOrder.setSupplierAddress(pricingContext.supplier().getAddress());
 

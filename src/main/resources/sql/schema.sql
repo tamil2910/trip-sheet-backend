@@ -78,6 +78,12 @@ CREATE TABLE IF NOT EXISTS purchase_invoices (
     REFERENCES tenants (id)
 );
 
+-- ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_vendor_id BINARY(16) NULL;
+UPDATE purchase_orders po
+JOIN tenants t ON t.tenant_name = po.supplier_name AND t.tenant_type = 'VENDOR'
+SET po.supplier_vendor_id = t.id
+WHERE po.supplier_vendor_id IS NULL;
+
 -- Add the PO-equivalent snapshot fields to databases created by the first
 -- PurchaseInvoice version (safe to run repeatedly on MySQL 8).
 -- ALTER TABLE purchase_invoices

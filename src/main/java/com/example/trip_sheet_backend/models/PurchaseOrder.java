@@ -52,6 +52,9 @@ public class PurchaseOrder extends BaseModel implements TenantScoped {
   private String supplierName;
   private String supplierPhone;
   private String supplierAddress;
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "supplier_vendor_id")
+  private Tenant supplierVendor;
 
   private Integer lineItemCount;
 

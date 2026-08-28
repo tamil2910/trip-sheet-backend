@@ -77,24 +77,12 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
       List<Predicate> predicates = new ArrayList<>();
       predicates.add(cb.equal(root.get("isDeleted"), false));
 
-      List<Predicate> visibilityPredicates = new ArrayList<>();
-      try {
-        visibilityPredicates.add(cb.equal(root.join("tenant", JoinType.LEFT).get("id"), tokenTenant.getId()));
-      } catch (Exception ignored) {}
-
-      try {
-        Join<Object, Object> tripSummaryJoin = root.join("tripSummary", JoinType.LEFT);
-        Join<Object, Object> tripJoin = tripSummaryJoin.join("tripId", JoinType.LEFT);
-
-        visibilityPredicates.add(cb.equal(tripJoin.join("tenant", JoinType.LEFT).get("id"), tokenTenant.getId()));
-        visibilityPredicates.add(cb.equal(tripJoin.join("organisation", JoinType.LEFT).get("id"), tokenTenant.getId()));
-        visibilityPredicates.add(cb.equal(tripJoin.join("vendor", JoinType.LEFT).get("id"), tokenTenant.getId()));
-        visibilityPredicates.add(cb.equal(tripJoin.join("assignedByVendor", JoinType.LEFT).get("id"), tokenTenant.getId()));
-        visibilityPredicates.add(cb.equal(tripJoin.join("previousVendor", JoinType.LEFT).get("id"), tokenTenant.getId()));
-      } catch (Exception ignored) {}
-
-      if (!visibilityPredicates.isEmpty()) {
-        predicates.add(cb.or(visibilityPredicates.toArray(new Predicate[0])));
+      if (tokenTenant.getTenantType() == Tenant.TenantType.ORGANISATION) {
+        predicates.add(cb.equal(root.join("tenant", JoinType.LEFT).get("id"), tokenTenant.getId()));
+      } else {
+        Predicate supplierId = cb.equal(root.join("supplierVendor", JoinType.LEFT).get("id"), tokenTenant.getId());
+        Predicate legacySupplierName = cb.equal(root.get("supplierName"), tokenTenant.getTenantName());
+        predicates.add(cb.or(supplierId, legacySupplierName));
       }
 
       return cb.and(predicates.toArray(new Predicate[0]));
@@ -429,8 +417,18 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
   }
 
   private PurchaseOrder findByIdAndTenant(UUID purchaseOrderId, Tenant tokenTenant) {
-    return purchaseOrderRepository.findByIdAndTenant_IdAndIsDeletedFalse(purchaseOrderId, tokenTenant.getId())
+    PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId)
+        .filter(value -> !Boolean.TRUE.equals(value.getIsDeleted()))
         .orElseThrow(() -> new RuntimeException("Purchase order not found"));
+    boolean organisationAccess = tokenTenant.getTenantType() == Tenant.TenantType.ORGANISATION
+        && sameTenant(order.getTenant(), tokenTenant);
+    boolean vendorAccess = tokenTenant.getTenantType() == Tenant.TenantType.VENDOR
+        && (sameTenant(order.getSupplierVendor(), tokenTenant)
+            || (order.getSupplierVendor() == null && tokenTenant.getTenantName().equals(order.getSupplierName())));
+    if (!organisationAccess && !vendorAccess) {
+      throw new RuntimeException("Purchase order not found");
+    }
+    return order;
   }
 
   private Invoice.ApprovalSide resolveApprovalSide(PurchaseOrder purchaseOrder, Tenant approvingTenant) {
