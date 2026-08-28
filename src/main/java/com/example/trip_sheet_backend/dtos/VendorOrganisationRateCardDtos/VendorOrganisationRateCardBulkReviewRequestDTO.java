@@ -11,6 +11,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -29,7 +30,8 @@ public class VendorOrganisationRateCardBulkReviewRequestDTO {
   public enum BulkAction {
     APPROVE,
     REJECT,
-    UPDATE
+    UPDATE,
+    CREATE
   }
 
   @Getter
@@ -37,14 +39,17 @@ public class VendorOrganisationRateCardBulkReviewRequestDTO {
   @NoArgsConstructor
   @AllArgsConstructor
   public static class RateCardActionDTO {
-    @NotNull
     private UUID rateCardId;
 
+    @NotNull
     @NotNull
     private BulkAction action;
 
     @Valid
     private PartialUpdateDTO changes;
+
+    @Valid
+    private VendorOrganisationRateCardCreateRequestDTO newRateCard;
   }
 
   @Getter

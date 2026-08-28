@@ -280,7 +280,10 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
     validateTenantLinkedToVendorOrganisation(loggedInTenant, vendorOrganisation);
 
     Set<UUID> requestedRateCardIds = body.getRateCards().stream()
+        .filter(actionItem -> actionItem.getAction() != null)
+        .filter(actionItem -> actionItem.getAction() != VendorOrganisationRateCardBulkReviewRequestDTO.BulkAction.CREATE)
         .map(VendorOrganisationRateCardBulkReviewRequestDTO.RateCardActionDTO::getRateCardId)
+        .filter(java.util.Objects::nonNull)
         .collect(Collectors.toSet());
 
     Map<UUID, VendorOrganisationRateCard> rateCardById = vendorOrganisationRateCardRepository.findAllById(requestedRateCardIds)
@@ -288,6 +291,19 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
         .collect(Collectors.toMap(VendorOrganisationRateCard::getId, Function.identity()));
 
     for (VendorOrganisationRateCardBulkReviewRequestDTO.RateCardActionDTO actionItem : body.getRateCards()) {
+      if (actionItem.getAction() == null) {
+        throw new RuntimeException("Action is required for each rate card item");
+      }
+
+      if (actionItem.getAction() == VendorOrganisationRateCardBulkReviewRequestDTO.BulkAction.CREATE) {
+        applyBulkRateCardCreate(vendorOrganisation, actionItem.getNewRateCard(), loggedInTenant, actedBy);
+        continue;
+      }
+
+      if (actionItem.getRateCardId() == null) {
+        throw new RuntimeException("Rate card id is required for " + actionItem.getAction() + " action");
+      }
+
       VendorOrganisationRateCard rateCard = rateCardById.get(actionItem.getRateCardId());
       if (rateCard == null || Boolean.TRUE.equals(rateCard.getIsDeleted())) {
         throw new RuntimeException("Vendor organisation rate card not found for id: " + actionItem.getRateCardId());
@@ -301,6 +317,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
         case APPROVE -> applyBulkApprovalDecision(rateCard, VendorOrganisationRateCard.ApprovalStatus.APPROVED, loggedInTenant, actedBy);
         case REJECT -> applyBulkApprovalDecision(rateCard, VendorOrganisationRateCard.ApprovalStatus.REJECTED, loggedInTenant, actedBy);
         case UPDATE -> applyPartialRateCardUpdate(rateCard, actionItem.getChanges(), loggedInTenant, actedBy);
+        case CREATE -> throw new RuntimeException("Unsupported bulk action");
         default -> throw new RuntimeException("Unsupported bulk action");
       }
     }
@@ -309,6 +326,23 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
 
     return vendorOrganisationRepository.findById(vendorOrganisationId)
         .orElseThrow(() -> new RuntimeException("Vendor organisation relationship not found after bulk review"));
+  }
+
+  private void applyBulkRateCardCreate(
+      VendorOrganisation vendorOrganisation,
+      VendorOrganisationRateCardCreateRequestDTO newRateCard,
+      Tenant loggedInTenant,
+      UUID createdBy
+  ) {
+    if (newRateCard == null) {
+      throw new RuntimeException("New rate card payload is required for CREATE action");
+    }
+
+    if (!vendorOrganisation.getVendor().getId().equals(loggedInTenant.getId())) {
+      throw new RuntimeException("Only vendor can create rate cards");
+    }
+
+    createSingleRateCard(vendorOrganisation, newRateCard, createdBy);
   }
 
   @Override
