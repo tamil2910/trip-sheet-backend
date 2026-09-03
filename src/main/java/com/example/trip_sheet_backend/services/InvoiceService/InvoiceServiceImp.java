@@ -1,9 +1,20 @@
 package com.example.trip_sheet_backend.services.InvoiceService;
 
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.JoinType;
+import jakarta.persistence.criteria.Predicate;
 
 import com.example.trip_sheet_backend.models.Invoice;
 import com.example.trip_sheet_backend.models.Tenant;
@@ -15,6 +26,42 @@ public class InvoiceServiceImp implements InvoiceService {
 
   public InvoiceServiceImp(InvoiceRepository invoiceRepository) {
     this.invoiceRepository = invoiceRepository;
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public Page<Invoice> getInvoices(Tenant tokenTenant, Map<String, Object> filters, Pageable pageable) {
+    if (tokenTenant == null || tokenTenant.getId() == null) {
+      throw new RuntimeException("Tenant not found in token");
+    }
+
+    Specification<Invoice> spec = (root, query, cb) -> {
+      query.distinct(true);
+      List<Predicate> predicates = new ArrayList<>();
+      predicates.add(cb.isFalse(root.get("isDeleted")));
+
+      Join<Object, Object> purchaseOrder = root.join("purchaseOrder", JoinType.LEFT);
+      Join<Object, Object> tripSummary = purchaseOrder.join("tripSummary", JoinType.LEFT);
+      Join<Object, Object> trip = tripSummary.join("tripId", JoinType.LEFT);
+
+      Predicate invoiceTenant = cb.equal(root.join("tenant", JoinType.LEFT).get("id"), tokenTenant.getId());
+      Predicate organisation = cb.equal(trip.join("organisation", JoinType.LEFT).get("id"), tokenTenant.getId());
+      Predicate vendor = cb.equal(trip.join("vendor", JoinType.LEFT).get("id"), tokenTenant.getId());
+      predicates.add(cb.or(invoiceTenant, organisation, vendor));
+
+      addLikeFilter(predicates, cb, trip.get("tripCode"), filters.get("tripCode"));
+      addLikeFilter(predicates, cb, trip.join("passengers", JoinType.LEFT).get("name"), filters.get("passengerName"));
+      addLikeFilter(predicates, cb, trip.join("driver", JoinType.LEFT).get("fullName"), filters.get("driverName"));
+      addLikeFilter(predicates, cb, trip.join("vendor", JoinType.LEFT).get("tenantName"), filters.get("vendorName"));
+      addLikeFilter(predicates, cb, trip.join("organisation", JoinType.LEFT).get("tenantName"), filters.get("organisationName"));
+
+      Invoice.InvoiceStatus status = parseStatus(filters.get("invoiceStatus"));
+      if (status != null) {
+        predicates.add(cb.equal(root.get("status"), status));
+      }
+      return cb.and(predicates.toArray(new Predicate[0]));
+    };
+    return invoiceRepository.findAll(spec, pageable);
   }
 
   @Override
@@ -98,6 +145,25 @@ public class InvoiceServiceImp implements InvoiceService {
   private void setUpdatedBy(Invoice invoice, UUID actorId) {
     if (actorId != null) {
       invoice.setUpdatedBy(actorId.toString());
+    }
+  }
+
+  private void addLikeFilter(List<Predicate> predicates, jakarta.persistence.criteria.CriteriaBuilder cb,
+      jakarta.persistence.criteria.Expression<String> field, Object value) {
+    if (value == null || value.toString().isBlank()) {
+      return;
+    }
+    predicates.add(cb.like(cb.lower(field), "%" + value.toString().trim().toLowerCase(Locale.ROOT) + "%"));
+  }
+
+  private Invoice.InvoiceStatus parseStatus(Object value) {
+    if (value == null || value.toString().isBlank()) {
+      return null;
+    }
+    try {
+      return Invoice.InvoiceStatus.valueOf(value.toString().trim().toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException exception) {
+      throw new RuntimeException("Invalid invoiceStatus");
     }
   }
 }

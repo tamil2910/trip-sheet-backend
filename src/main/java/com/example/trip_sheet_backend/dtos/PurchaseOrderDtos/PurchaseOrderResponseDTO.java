@@ -5,6 +5,9 @@ import java.util.UUID;
 import java.util.List;
 
 import com.example.trip_sheet_backend.models.PurchaseOrder;
+import com.example.trip_sheet_backend.models.PeopleTenant;
+import com.example.trip_sheet_backend.models.Trip;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripRelationResponseDTO;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -30,6 +33,8 @@ public class PurchaseOrderResponseDTO {
   private Integer lineItemCount;
   private String lineItemsSnapshot;
   private UUID tripSummaryId;
+  private String tripCode;
+  private List<TripRelationResponseDTO> passengers;
   private List<PurchaseOrderAllocationResponseDTO> allocations;
   private UUID tenantId;
   private PurchaseOrder.PurchaseOrderStatus status;
@@ -129,6 +134,8 @@ public class PurchaseOrderResponseDTO {
         entity.getLineItemCount(),
         entity.getLineItemsSnapshot(),
         entity.getTripSummary() == null ? null : entity.getTripSummary().getId(),
+        tripCode(entity),
+        passengers(entity),
         entity.getAllocations() == null ? List.of() : entity.getAllocations().stream()
             .filter(allocation -> !Boolean.TRUE.equals(allocation.getIsDeleted()))
             .map(PurchaseOrderAllocationResponseDTO::fromEntity)
@@ -211,5 +218,32 @@ public class PurchaseOrderResponseDTO {
         entity.getTotalAmount(),
         entity.getNotes()
     );
+  }
+
+  private static String tripCode(PurchaseOrder entity) {
+    Trip trip = trip(entity);
+    return trip == null ? null : trip.getTripCode();
+  }
+
+  private static List<TripRelationResponseDTO> passengers(PurchaseOrder entity) {
+    Trip trip = trip(entity);
+    if (trip == null || trip.getPassengers() == null) {
+      return List.of();
+    }
+    return trip.getPassengers().stream().map(PurchaseOrderResponseDTO::passenger).toList();
+  }
+
+  private static Trip trip(PurchaseOrder entity) {
+    return entity.getTripSummary() == null ? null : entity.getTripSummary().getTripId();
+  }
+
+  private static TripRelationResponseDTO passenger(PeopleTenant person) {
+    TripRelationResponseDTO result = new TripRelationResponseDTO();
+    if (person.getId() != null) {
+      result.setId(person.getId().toString());
+    }
+    result.setName(person.getName());
+    result.setPhone(person.getPhone());
+    return result;
   }
 }
