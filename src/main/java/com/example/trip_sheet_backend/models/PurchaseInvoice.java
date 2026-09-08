@@ -170,7 +170,7 @@ public class PurchaseInvoice extends BaseModel implements TenantScoped {
   private BigDecimal totalAmount;
 
   public enum PurchaseInvoiceStatus {
-    GENERATED, PAYMENT_RECEIVED, CANCELLED
+    GENERATED, PAYMENT_RECEIVED, CANCELLED, INVOICED
   }
 
   @Override

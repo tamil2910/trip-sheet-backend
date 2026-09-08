@@ -49,6 +49,7 @@ import com.example.trip_sheet_backend.repositories.VendorPartnerRateCardReposito
 import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
 import com.example.trip_sheet_backend.repositories.VendorDelegationHistoryRepository;
 import com.example.trip_sheet_backend.repositories.PurchaseInvoiceRepository;
+import com.example.trip_sheet_backend.services.PurchaseInvoiceService.PurchaseInvoiceNumberService;
 
 @Service
 public class TripBillingService {
@@ -72,6 +73,7 @@ public class TripBillingService {
   private final VendorPartnerRateCardRepository vendorPartnerRateCardRepository;
   private final VendorDelegationHistoryRepository vendorDelegationHistoryRepository;
   private final PurchaseInvoiceRepository purchaseInvoiceRepository;
+  private final PurchaseInvoiceNumberService purchaseInvoiceNumberService;
 
   public TripBillingService(
       PurchaseOrderRepository purchaseOrderRepository,
@@ -86,7 +88,8 @@ public class TripBillingService {
       VendorPartnerRepository vendorPartnerRepository,
       VendorPartnerRateCardRepository vendorPartnerRateCardRepository,
       VendorDelegationHistoryRepository vendorDelegationHistoryRepository,
-      PurchaseInvoiceRepository purchaseInvoiceRepository
+      PurchaseInvoiceRepository purchaseInvoiceRepository,
+      PurchaseInvoiceNumberService purchaseInvoiceNumberService
   ) {
     this.purchaseOrderRepository = purchaseOrderRepository;
     this.purchaseOrderNumberRuleRepository = purchaseOrderNumberRuleRepository;
@@ -101,6 +104,7 @@ public class TripBillingService {
     this.vendorPartnerRateCardRepository = vendorPartnerRateCardRepository;
     this.vendorDelegationHistoryRepository = vendorDelegationHistoryRepository;
     this.purchaseInvoiceRepository = purchaseInvoiceRepository;
+    this.purchaseInvoiceNumberService = purchaseInvoiceNumberService;
   }
 
   @Transactional(rollbackFor = Exception.class)
@@ -202,6 +206,7 @@ public class TripBillingService {
         invoice.setTripSummary(tripSummary);
         invoice.setPayerVendor(delegation.getFromVendor());
         invoice.setPayeeVendor(delegation.getToVendor());
+        invoice.setOrderNumber(purchaseInvoiceNumberService.nextOrderNumber(delegation.getToVendor()));
         invoice.setAmountPayable(payable);
         invoice.setAmountReceivable(scaleCurrency(receivable));
         invoice.setEarning(scaleCurrency(receivable.subtract(payable)));

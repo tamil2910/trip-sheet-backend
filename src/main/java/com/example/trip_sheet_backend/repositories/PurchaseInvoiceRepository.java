@@ -14,8 +14,12 @@ public interface PurchaseInvoiceRepository extends BaseRepository<PurchaseInvoic
   boolean existsByDelegationHistory_IdAndIsDeletedFalse(UUID delegationHistoryId);
 
   @Query("select p from PurchaseInvoice p where p.isDeleted = false "
-      + "and (p.payerVendor.id = :tenantId or p.payeeVendor.id = :tenantId) order by p.createdAt desc")
-  List<PurchaseInvoice> findVisibleToTenant(@Param("tenantId") UUID tenantId);
+      + "and (p.payerVendor.id = :tenantId or p.payeeVendor.id = :tenantId) "
+      + "and (:status is null or p.status = :status) order by p.createdAt desc")
+  List<PurchaseInvoice> findVisibleToTenant(@Param("tenantId") UUID tenantId,
+      @Param("status") PurchaseInvoice.PurchaseInvoiceStatus status);
+
+  List<PurchaseInvoice> findByPayeeVendor_IdAndIsDeletedFalse(UUID payeeVendorId);
 
   Optional<PurchaseInvoice> findByIdAndIsDeletedFalse(UUID id);
 }

@@ -1,15 +1,19 @@
 package com.example.trip_sheet_backend.controllers;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.PurchaseInvoiceDtos.PurchaseInvoiceResponseDTO;
+import com.example.trip_sheet_backend.models.PurchaseInvoice.PurchaseInvoiceStatus;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.PurchaseInvoiceService.PurchaseInvoiceService;
@@ -23,8 +27,10 @@ public class PurchaseInvoiceController {
   public PurchaseInvoiceController(PurchaseInvoiceService service) { this.service = service; }
 
   @GetMapping
-  public ResponseEntity<ApiResponse<List<PurchaseInvoiceResponseDTO>>> getAll(HttpServletRequest request) {
-    List<PurchaseInvoiceResponseDTO> response = service.getForTenant(tenant(request)).stream()
+  public ResponseEntity<ApiResponse<List<PurchaseInvoiceResponseDTO>>> getAll(
+      @RequestParam(required = false) String status,
+      HttpServletRequest request) {
+    List<PurchaseInvoiceResponseDTO> response = service.getForTenant(tenant(request), parseStatus(status)).stream()
         .map(PurchaseInvoiceResponseDTO::fromEntity).toList();
     return ResponseEntity.ok(new ApiResponse<>(true, "Purchase invoices fetched successfully", response));
   }
@@ -35,5 +41,31 @@ public class PurchaseInvoiceController {
         PurchaseInvoiceResponseDTO.fromEntity(service.getById(id, tenant(request)))));
   }
 
+  @PutMapping("/{id}/approve")
+  public ResponseEntity<ApiResponse<PurchaseInvoiceResponseDTO>> approve(@PathVariable UUID id,
+      HttpServletRequest request) {
+    return ResponseEntity.ok(new ApiResponse<>(true, "Purchase invoice approved successfully",
+        PurchaseInvoiceResponseDTO.fromEntity(service.approve(id, tenant(request), actorId(request)))));
+  }
+
   private Tenant tenant(HttpServletRequest request) { return (Tenant) request.getAttribute("tenant"); }
+
+  private UUID actorId(HttpServletRequest request) {
+    UUID actorId = (UUID) request.getAttribute("updatedBy");
+    if (actorId == null) {
+      actorId = (UUID) request.getAttribute("createdBy");
+    }
+    return actorId != null ? actorId : (UUID) request.getAttribute("userId");
+  }
+
+  private PurchaseInvoiceStatus parseStatus(String status) {
+    if (status == null || status.isBlank()) {
+      return null;
+    }
+    try {
+      return PurchaseInvoiceStatus.valueOf(status.trim().toUpperCase(Locale.ROOT));
+    } catch (IllegalArgumentException exception) {
+      throw new IllegalArgumentException("Invalid purchase invoice status: " + status);
+    }
+  }
 }

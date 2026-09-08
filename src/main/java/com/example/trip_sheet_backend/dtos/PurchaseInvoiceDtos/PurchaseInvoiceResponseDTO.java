@@ -12,6 +12,7 @@ import lombok.Setter;
 @Getter @Setter
 public class PurchaseInvoiceResponseDTO {
   private UUID id;
+  private String orderNumber;
   private String invoiceNumber;
   private UUID tripSummaryId;
   private BigDecimal amountPayable;
@@ -40,11 +41,12 @@ public class PurchaseInvoiceResponseDTO {
   private BigDecimal igstPercentage, igstAmount;
   private BigDecimal taxableTotalWithGst, nonTaxableTotal, roundOffAmount, totalAmount;
 
-  public PurchaseInvoiceResponseDTO(UUID id, String invoiceNumber, UUID tripSummaryId, BigDecimal amountPayable,
+  public PurchaseInvoiceResponseDTO(UUID id, String orderNumber, String invoiceNumber, UUID tripSummaryId, BigDecimal amountPayable,
       BigDecimal amountReceivable, BigDecimal earning,
       String currencyCode, String rateCardPackageName, String notes,
       PurchaseInvoice.PurchaseInvoiceStatus status, VendorReference payerVendor, VendorReference payeeVendor) {
     this.id = id;
+    this.orderNumber = orderNumber;
     this.invoiceNumber = invoiceNumber;
     this.tripSummaryId = tripSummaryId;
     this.amountPayable = amountPayable;
@@ -65,7 +67,7 @@ public class PurchaseInvoiceResponseDTO {
   }
 
   public static PurchaseInvoiceResponseDTO fromEntity(PurchaseInvoice value) {
-    PurchaseInvoiceResponseDTO response = new PurchaseInvoiceResponseDTO(value.getId(), value.getInvoiceNumber(),
+    PurchaseInvoiceResponseDTO response = new PurchaseInvoiceResponseDTO(value.getId(), value.getOrderNumber(), value.getInvoiceNumber(),
         value.getTripSummary() == null ? null : value.getTripSummary().getId(),
         value.getAmountPayable(), value.getAmountReceivable(), value.getEarning(),
         value.getCurrencyCode(), value.getRateCardPackageName(), value.getNotes(), value.getStatus(),

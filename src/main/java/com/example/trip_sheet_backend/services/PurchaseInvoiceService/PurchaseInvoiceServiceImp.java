@@ -13,14 +13,19 @@ import com.example.trip_sheet_backend.repositories.PurchaseInvoiceRepository;
 @Service
 public class PurchaseInvoiceServiceImp implements PurchaseInvoiceService {
   private final PurchaseInvoiceRepository repository;
+  private final PurchaseInvoiceNumberService purchaseInvoiceNumberService;
 
-  public PurchaseInvoiceServiceImp(PurchaseInvoiceRepository repository) { this.repository = repository; }
+  public PurchaseInvoiceServiceImp(PurchaseInvoiceRepository repository,
+      PurchaseInvoiceNumberService purchaseInvoiceNumberService) {
+    this.repository = repository;
+    this.purchaseInvoiceNumberService = purchaseInvoiceNumberService;
+  }
 
   @Override
   @Transactional(readOnly = true)
-  public List<PurchaseInvoice> getForTenant(Tenant tenant) {
+  public List<PurchaseInvoice> getForTenant(Tenant tenant, PurchaseInvoice.PurchaseInvoiceStatus status) {
     requireVendor(tenant);
-    return repository.findVisibleToTenant(tenant.getId());
+    return repository.findVisibleToTenant(tenant.getId(), status);
   }
 
   @Override
@@ -33,6 +38,34 @@ public class PurchaseInvoiceServiceImp implements PurchaseInvoiceService {
       throw new RuntimeException("Purchase invoice is not accessible for this tenant");
     }
     return invoice;
+  }
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public PurchaseInvoice approve(UUID id, Tenant tenant, UUID approvedBy) {
+    requireVendor(tenant);
+    PurchaseInvoice invoice = repository.findByIdAndIsDeletedFalse(id)
+        .orElseThrow(() -> new RuntimeException("Purchase invoice not found"));
+    if (!sameTenant(tenant, invoice.getPayeeVendor())) {
+      throw new RuntimeException("Only the receiving vendor can approve this purchase invoice");
+    }
+    if (invoice.getStatus() == PurchaseInvoice.PurchaseInvoiceStatus.CANCELLED) {
+      throw new RuntimeException("Cancelled purchase invoices cannot be approved");
+    }
+    if (invoice.getStatus() == PurchaseInvoice.PurchaseInvoiceStatus.INVOICED
+        && invoice.getInvoiceNumber() != null && !invoice.getInvoiceNumber().isBlank()) {
+      return invoice;
+    }
+
+    if (invoice.getOrderNumber() == null || invoice.getOrderNumber().isBlank()) {
+      invoice.setOrderNumber(purchaseInvoiceNumberService.nextOrderNumber(invoice.getPayeeVendor()));
+    }
+    invoice.setInvoiceNumber(purchaseInvoiceNumberService.invoiceNumberFor(invoice.getOrderNumber()));
+    invoice.setStatus(PurchaseInvoice.PurchaseInvoiceStatus.INVOICED);
+    if (approvedBy != null) {
+      invoice.setUpdatedBy(approvedBy.toString());
+    }
+    return repository.save(invoice);
   }
 
   private void requireVendor(Tenant tenant) {
