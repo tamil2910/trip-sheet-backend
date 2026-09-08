@@ -25,6 +25,16 @@ public class Invoice extends BaseModel implements TenantScoped {
 
   private String invoiceNumber;
 
+  /** Epoch milliseconds when this invoice was generated. */
+  private Long invoiceDate;
+
+  /** Epoch milliseconds calculated from invoiceDate and the vendor-organisation payment timeline. */
+  private Long dueDate;
+
+  /** Inclusive calendar-month boundaries for invoiceDate, in epoch milliseconds. */
+  private Long invoicePeriodStart;
+  private Long invoicePeriodEnd;
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "tenant_id")
   private Tenant tenant;

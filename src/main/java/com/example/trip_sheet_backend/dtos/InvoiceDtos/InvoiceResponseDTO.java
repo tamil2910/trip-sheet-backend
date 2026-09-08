@@ -3,6 +3,7 @@ package com.example.trip_sheet_backend.dtos.InvoiceDtos;
 import java.util.UUID;
 import java.util.List;
 
+import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripRelationResponseDTO;
 import com.example.trip_sheet_backend.models.Invoice;
 import com.example.trip_sheet_backend.models.PeopleTenant;
@@ -16,7 +17,12 @@ import lombok.Getter;
 public class InvoiceResponseDTO {
   private UUID id;
   private String invoiceNumber;
+  private Long invoiceDate;
+  private Long dueDate;
+  private Long invoicePeriodStart;
+  private Long invoicePeriodEnd;
   private UUID purchaseOrderId;
+  private PurchaseOrderResponseDTO purchaseOrder;
   private String tripCode;
   private List<TripRelationResponseDTO> passengers;
   private UUID tenantId;
@@ -31,7 +37,12 @@ public class InvoiceResponseDTO {
     return new InvoiceResponseDTO(
         invoice.getId(),
         invoice.getInvoiceNumber(),
+        invoice.getInvoiceDate(),
+        invoice.getDueDate(),
+        invoice.getInvoicePeriodStart(),
+        invoice.getInvoicePeriodEnd(),
         invoice.getPurchaseOrder() == null ? null : invoice.getPurchaseOrder().getId(),
+        invoice.getPurchaseOrder() == null ? null : PurchaseOrderResponseDTO.fromEntity(invoice.getPurchaseOrder()),
         tripCode(invoice),
         passengers(invoice),
         invoice.getTenant() == null ? null : invoice.getTenant().getId(),

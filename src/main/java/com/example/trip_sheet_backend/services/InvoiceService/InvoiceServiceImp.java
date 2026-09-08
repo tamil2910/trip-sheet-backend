@@ -49,11 +49,41 @@ public class InvoiceServiceImp implements InvoiceService {
       Predicate vendor = cb.equal(trip.join("vendor", JoinType.LEFT).get("id"), tokenTenant.getId());
       predicates.add(cb.or(invoiceTenant, organisation, vendor));
 
+      Join<Object, Object> passengers = trip.join("passengers", JoinType.LEFT);
+      Join<Object, Object> driver = trip.join("driver", JoinType.LEFT);
+      Join<Object, Object> tripVendor = trip.join("vendor", JoinType.LEFT);
+      Join<Object, Object> tripOrganisation = trip.join("organisation", JoinType.LEFT);
+
       addLikeFilter(predicates, cb, trip.get("tripCode"), filters.get("tripCode"));
-      addLikeFilter(predicates, cb, trip.join("passengers", JoinType.LEFT).get("name"), filters.get("passengerName"));
-      addLikeFilter(predicates, cb, trip.join("driver", JoinType.LEFT).get("fullName"), filters.get("driverName"));
-      addLikeFilter(predicates, cb, trip.join("vendor", JoinType.LEFT).get("tenantName"), filters.get("vendorName"));
-      addLikeFilter(predicates, cb, trip.join("organisation", JoinType.LEFT).get("tenantName"), filters.get("organisationName"));
+      addLikeFilter(predicates, cb, passengers.get("name"), filters.get("passengerName"));
+      addLikeFilter(predicates, cb, driver.get("fullName"), filters.get("driverName"));
+      addLikeFilter(predicates, cb, tripVendor.get("tenantName"), filters.get("vendorName"));
+      addLikeFilter(predicates, cb, tripOrganisation.get("tenantName"), filters.get("organisationName"));
+
+      String searchFilter = firstNonBlank(filters.get("searchFilter"), filters.get("searchValue"));
+      if (searchFilter != null) {
+        String pattern = "%" + searchFilter.toLowerCase(Locale.ROOT) + "%";
+        predicates.add(cb.or(
+            cb.like(cb.lower(trip.get("tripCode")), pattern),
+            cb.like(cb.lower(passengers.get("name")), pattern),
+            cb.like(cb.lower(driver.get("fullName")), pattern),
+            cb.like(cb.lower(tripVendor.get("tenantName")), pattern),
+            cb.like(cb.lower(tripOrganisation.get("tenantName")), pattern)
+        ));
+      }
+
+      Long startDate = parseLong(filters.get("startDate"), "startDate");
+      if (startDate != null) {
+        predicates.add(cb.greaterThanOrEqualTo(root.get("invoiceDate"), startDate));
+      }
+      Long endDate = parseLong(filters.get("endDate"), "endDate");
+      if (endDate != null) {
+        predicates.add(cb.lessThanOrEqualTo(root.get("invoiceDate"), endDate));
+      }
+      Long invoiceDate = parseLong(filters.get("invoiceDate"), "invoiceDate");
+      if (invoiceDate != null) {
+        predicates.add(cb.equal(root.get("invoiceDate"), invoiceDate));
+      }
 
       Invoice.InvoiceStatus status = parseStatus(filters.get("invoiceStatus"));
       if (status != null) {
@@ -164,6 +194,27 @@ public class InvoiceServiceImp implements InvoiceService {
       return Invoice.InvoiceStatus.valueOf(value.toString().trim().toUpperCase(Locale.ROOT));
     } catch (IllegalArgumentException exception) {
       throw new RuntimeException("Invalid invoiceStatus");
+    }
+  }
+
+  private String firstNonBlank(Object primary, Object fallback) {
+    if (primary != null && !primary.toString().isBlank()) {
+      return primary.toString().trim();
+    }
+    if (fallback != null && !fallback.toString().isBlank()) {
+      return fallback.toString().trim();
+    }
+    return null;
+  }
+
+  private Long parseLong(Object value, String fieldName) {
+    if (value == null || value.toString().isBlank()) {
+      return null;
+    }
+    try {
+      return Long.parseLong(value.toString());
+    } catch (NumberFormatException exception) {
+      throw new RuntimeException(fieldName + " must be an epoch timestamp in milliseconds");
     }
   }
 }

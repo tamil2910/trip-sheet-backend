@@ -9,6 +9,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.Instant;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -29,6 +30,8 @@ import com.example.trip_sheet_backend.models.PurchaseOrder;
 import com.example.trip_sheet_backend.models.PurchaseOrderAllocation;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.TripSummary;
+import com.example.trip_sheet_backend.models.Trip;
+import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.repositories.CustomFieldRepository;
 import com.example.trip_sheet_backend.repositories.InvoiceRepository;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderRepository;
@@ -36,6 +39,7 @@ import com.example.trip_sheet_backend.repositories.PurchaseOrderNumberRuleReposi
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.TripPassengerCustomFieldValueRepository;
 import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
+import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 
 @Service
 public class PurchaseOrderServiceImp implements PurchaseOrderService {
@@ -47,6 +51,7 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
   private final TripSummaryRepository tripSummaryRepository;
   private final CustomFieldRepository customFieldRepository;
   private final TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository;
+  private final VendorOrganisationRepository vendorOrganisationRepository;
 
   public PurchaseOrderServiceImp(
       PurchaseOrderRepository purchaseOrderRepository,
@@ -55,7 +60,8 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
       TenantRepository tenantRepository,
       TripSummaryRepository tripSummaryRepository,
       CustomFieldRepository customFieldRepository,
-      TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository
+      TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository,
+      VendorOrganisationRepository vendorOrganisationRepository
   ) {
     this.purchaseOrderRepository = purchaseOrderRepository;
     this.invoiceRepository = invoiceRepository;
@@ -64,6 +70,7 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     this.tripSummaryRepository = tripSummaryRepository;
     this.customFieldRepository = customFieldRepository;
     this.tripPassengerCustomFieldValueRepository = tripPassengerCustomFieldValueRepository;
+    this.vendorOrganisationRepository = vendorOrganisationRepository;
   }
 
   @Override
@@ -162,6 +169,7 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     invoice.setPurchaseOrder(purchaseOrder);
     invoice.setTenant(resolveInvoiceTenant(purchaseOrder, approvingTenant));
     invoice.setInvoiceNumber(buildInvoiceNumber(purchaseOrder, existingInvoices.size()));
+    setInvoiceDates(invoice, purchaseOrder);
     invoice.setStatus(Invoice.InvoiceStatus.GENERATED);
     invoice.setApprovedBySide(approvalSide);
     invoice.setApprovedByUserId(approvingUserId == null ? null : approvingUserId.toString());
@@ -460,6 +468,33 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
   private String buildInvoiceNumber(PurchaseOrder purchaseOrder, int previousInvoiceCount) {
     String invoiceNumber = "INV-" + purchaseOrder.getOrderNumber().replaceFirst("^PO-", "");
     return previousInvoiceCount == 0 ? invoiceNumber : invoiceNumber + "-R" + previousInvoiceCount;
+  }
+
+  private void setInvoiceDates(Invoice invoice, PurchaseOrder purchaseOrder) {
+    long invoiceDate = System.currentTimeMillis();
+    ZoneId zone = ZoneId.of("Asia/Kolkata");
+    LocalDate month = Instant.ofEpochMilli(invoiceDate).atZone(zone).toLocalDate();
+
+    invoice.setInvoiceDate(invoiceDate);
+    invoice.setInvoicePeriodStart(month.withDayOfMonth(1).atStartOfDay(zone).toInstant().toEpochMilli());
+    invoice.setInvoicePeriodEnd(month.plusMonths(1).withDayOfMonth(1).atStartOfDay(zone).toInstant().toEpochMilli() - 1);
+    invoice.setDueDate(Instant.ofEpochMilli(invoiceDate).atZone(zone)
+        .plusDays(paymentTimelineInDays(purchaseOrder)).toInstant().toEpochMilli());
+  }
+
+  private long paymentTimelineInDays(PurchaseOrder purchaseOrder) {
+    if (purchaseOrder.getTripSummary() == null || purchaseOrder.getTripSummary().getTripId() == null) {
+      return 0;
+    }
+    Trip trip = purchaseOrder.getTripSummary().getTripId();
+    if (trip.getVendor() == null || trip.getOrganisation() == null) {
+      return 0;
+    }
+    return vendorOrganisationRepository.findByVendorAndOrganisation_Id(trip.getVendor(), trip.getOrganisation().getId())
+        .map(VendorOrganisation::getPaymentTimelineInDays)
+        .filter(days -> days != null && days >= 0)
+        .orElse(0)
+        .longValue();
   }
 
   private boolean sameTenant(Tenant first, Tenant second) {
