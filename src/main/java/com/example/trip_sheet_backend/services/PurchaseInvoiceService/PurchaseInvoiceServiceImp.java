@@ -46,8 +46,8 @@ public class PurchaseInvoiceServiceImp implements PurchaseInvoiceService {
     requireTenant(tenant);
     PurchaseInvoice invoice = repository.findByIdAndIsDeletedFalse(id)
         .orElseThrow(() -> new RuntimeException("Purchase invoice not found"));
-    if (!isOwningOrganisation(tenant, invoice)) {
-      throw new RuntimeException("Only the organisation's internal team can approve this purchase invoice");
+    if (!sameTenant(tenant, invoice.getPayerVendor())) {
+      throw new RuntimeException("Only the paying vendor can approve this purchase invoice");
     }
     if (invoice.getStatus() == PurchaseInvoice.PurchaseInvoiceStatus.CANCELLED) {
       throw new RuntimeException("Cancelled purchase invoices cannot be approved");
