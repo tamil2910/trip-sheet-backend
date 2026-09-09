@@ -35,7 +35,7 @@ public class PurchaseInvoiceController {
     return ResponseEntity.ok(new ApiResponse<>(true, "Purchase invoices fetched successfully", response));
   }
 
-  @GetMapping("/{id}")
+  @GetMapping("/{id}") // Get purchase invoice by ID
   public ResponseEntity<ApiResponse<PurchaseInvoiceResponseDTO>> getById(@PathVariable UUID id, HttpServletRequest request) {
     return ResponseEntity.ok(new ApiResponse<>(true, "Purchase invoice fetched successfully",
         PurchaseInvoiceResponseDTO.fromEntity(service.getById(id, tenant(request)))));
