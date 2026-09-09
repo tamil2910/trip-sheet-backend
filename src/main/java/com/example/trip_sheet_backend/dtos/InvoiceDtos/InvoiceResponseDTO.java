@@ -21,7 +21,6 @@ public class InvoiceResponseDTO {
   private Long dueDate;
   private Long invoicePeriodStart;
   private Long invoicePeriodEnd;
-  private UUID purchaseOrderId;
   private PurchaseOrderResponseDTO purchaseOrder;
   private String tripCode;
   private List<TripRelationResponseDTO> passengers;
@@ -41,7 +40,6 @@ public class InvoiceResponseDTO {
         invoice.getDueDate(),
         invoice.getInvoicePeriodStart(),
         invoice.getInvoicePeriodEnd(),
-        invoice.getPurchaseOrder() == null ? null : invoice.getPurchaseOrder().getId(),
         invoice.getPurchaseOrder() == null ? null : PurchaseOrderResponseDTO.fromEntity(invoice.getPurchaseOrder()),
         tripCode(invoice),
         passengers(invoice),
