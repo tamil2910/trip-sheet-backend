@@ -24,17 +24,17 @@ public class PurchaseInvoiceServiceImp implements PurchaseInvoiceService {
   @Override
   @Transactional(readOnly = true)
   public List<PurchaseInvoice> getForTenant(Tenant tenant, PurchaseInvoice.PurchaseInvoiceStatus status) {
-    requireVendor(tenant);
+    requireTenant(tenant);
     return repository.findVisibleToTenant(tenant.getId(), status);
   }
 
   @Override
   @Transactional(readOnly = true)
   public PurchaseInvoice getById(UUID id, Tenant tenant) {
-    requireVendor(tenant);
+    requireTenant(tenant);
     PurchaseInvoice invoice = repository.findByIdAndIsDeletedFalse(id)
         .orElseThrow(() -> new RuntimeException("Purchase invoice not found"));
-    if (!sameTenant(tenant, invoice.getPayerVendor()) && !sameTenant(tenant, invoice.getPayeeVendor())) {
+    if (!canView(tenant, invoice)) {
       throw new RuntimeException("Purchase invoice is not accessible for this tenant");
     }
     return invoice;
@@ -43,11 +43,11 @@ public class PurchaseInvoiceServiceImp implements PurchaseInvoiceService {
   @Override
   @Transactional(rollbackFor = Exception.class)
   public PurchaseInvoice approve(UUID id, Tenant tenant, UUID approvedBy) {
-    requireVendor(tenant);
+    requireTenant(tenant);
     PurchaseInvoice invoice = repository.findByIdAndIsDeletedFalse(id)
         .orElseThrow(() -> new RuntimeException("Purchase invoice not found"));
-    if (!sameTenant(tenant, invoice.getPayeeVendor())) {
-      throw new RuntimeException("Only the receiving vendor can approve this purchase invoice");
+    if (!isOwningOrganisation(tenant, invoice)) {
+      throw new RuntimeException("Only the organisation's internal team can approve this purchase invoice");
     }
     if (invoice.getStatus() == PurchaseInvoice.PurchaseInvoiceStatus.CANCELLED) {
       throw new RuntimeException("Cancelled purchase invoices cannot be approved");
@@ -68,10 +68,28 @@ public class PurchaseInvoiceServiceImp implements PurchaseInvoiceService {
     return repository.save(invoice);
   }
 
-  private void requireVendor(Tenant tenant) {
-    if (tenant == null || tenant.getId() == null || tenant.getTenantType() != Tenant.TenantType.VENDOR) {
-      throw new RuntimeException("Only vendor tenants can access purchase invoices");
+  private void requireTenant(Tenant tenant) {
+    if (tenant == null || tenant.getId() == null || tenant.getTenantType() == null) {
+      throw new RuntimeException("Tenant is required to access purchase invoices");
     }
   }
-  private boolean sameTenant(Tenant one, Tenant two) { return two != null && one.getId().equals(two.getId()); }
+
+  private boolean canView(Tenant tenant, PurchaseInvoice invoice) {
+    return sameTenant(tenant, invoice.getPayerVendor())
+        || sameTenant(tenant, invoice.getPayeeVendor())
+        || isOwningOrganisation(tenant, invoice);
+  }
+
+  private boolean isOwningOrganisation(Tenant tenant, PurchaseInvoice invoice) {
+    if (tenant.getTenantType() != Tenant.TenantType.ORGANISATION
+        || invoice.getTripSummary() == null
+        || invoice.getTripSummary().getTripId() == null) {
+      return false;
+    }
+    return sameTenant(tenant, invoice.getTripSummary().getTripId().getOrganisation());
+  }
+
+  private boolean sameTenant(Tenant one, Tenant two) {
+    return one != null && one.getId() != null && two != null && one.getId().equals(two.getId());
+  }
 }
