@@ -52,11 +52,11 @@ public class PurchaseInvoiceNumberService {
     return "P-" + vendorCode + "-" + financialYear + "-" + String.format("%02d", nextSequence);
   }
 
-  public String invoiceNumberFor(String orderNumber) {
+  public String purchaseInvoiceNumberFor(String orderNumber) {
     if (orderNumber == null || orderNumber.isBlank()) {
       throw new RuntimeException("Purchase invoice order number is required");
     }
-    return "INV-" + orderNumber.replaceFirst("^P-", "");
+    return "PINV-" + orderNumber.replaceFirst("^PO-", "");
   }
 
   private String currentFinancialYearCode() {

@@ -22,5 +22,7 @@ public interface PurchaseInvoiceRepository extends BaseRepository<PurchaseInvoic
 
   List<PurchaseInvoice> findByPayeeVendor_IdAndIsDeletedFalse(UUID payeeVendorId);
 
+  Optional<PurchaseInvoice> findByPurchaseOrder_IdAndIsDeletedFalse(UUID purchaseOrderId);
+
   Optional<PurchaseInvoice> findByIdAndIsDeletedFalse(UUID id);
 }

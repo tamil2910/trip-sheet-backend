@@ -197,6 +197,10 @@ public class TripBillingService {
         PricingContext context = resolvePartnerPricingContext(trip, delegation.getFromVendor(), delegation.getToVendor());
         ChargeSnapshot charges = buildChargeSnapshot(tripSummary, context);
         PurchaseOrder pricingSnapshot = buildPurchaseOrder(trip, tripSummary, context, charges);
+        // This is Vendor B's real PO.  Vendor A is the buyer/owner while B is
+        // the supplier, so B can see and approve it in /purchase-orders.
+        pricingSnapshot.setTenant(delegation.getFromVendor());
+        PurchaseOrder vendorPurchaseOrder = purchaseOrderRepository.save(pricingSnapshot);
         BigDecimal payable = scaleCurrency(pricingSnapshot.getTotalAmount());
         BigDecimal receivable = receivableByVendor.getOrDefault(delegation.getFromVendor().getId(), originatingRevenue);
 
@@ -206,7 +210,8 @@ public class TripBillingService {
         invoice.setTripSummary(tripSummary);
         invoice.setPayerVendor(delegation.getFromVendor());
         invoice.setPayeeVendor(delegation.getToVendor());
-        invoice.setOrderNumber(purchaseInvoiceNumberService.nextOrderNumber(delegation.getToVendor()));
+        invoice.setPurchaseOrder(vendorPurchaseOrder);
+        invoice.setOrderNumber(vendorPurchaseOrder.getOrderNumber());
         invoice.setAmountPayable(payable);
         invoice.setAmountReceivable(scaleCurrency(receivable));
         invoice.setEarning(scaleCurrency(receivable.subtract(payable)));

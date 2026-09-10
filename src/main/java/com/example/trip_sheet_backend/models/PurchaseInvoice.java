@@ -31,8 +31,19 @@ import lombok.Setter;
 @Table(name = "purchase_invoices", uniqueConstraints = @UniqueConstraint(columnNames = "delegation_history_id"))
 public class PurchaseInvoice extends BaseModel implements TenantScoped {
 
-  /** Kept null until the receiving vendor explicitly raises/finalises an invoice. */
+  /** Vendor B's invoice number, assigned when Vendor B approves its PO. */
   private String invoiceNumber;
+
+  /** Vendor A's internal purchase-invoice number, assigned when Vendor A approves this payable. */
+  private String purchaseInvoiceNumber;
+
+  /**
+   * The PO issued to the executing vendor (Vendor B).  This is deliberately a
+   * real PurchaseOrder so it appears in Vendor B's purchase-order workflow.
+   */
+  @OneToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "purchase_order_id", unique = true)
+  private PurchaseOrder purchaseOrder;
 
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "delegation_history_id", nullable = false, unique = true)
@@ -170,7 +181,7 @@ public class PurchaseInvoice extends BaseModel implements TenantScoped {
   private BigDecimal totalAmount;
 
   public enum PurchaseInvoiceStatus {
-    GENERATED, PAYMENT_RECEIVED, CANCELLED, INVOICED
+    GENERATED, INVOICE_RAISED, PAYMENT_RECEIVED, CANCELLED, INVOICED
   }
 
   @Override

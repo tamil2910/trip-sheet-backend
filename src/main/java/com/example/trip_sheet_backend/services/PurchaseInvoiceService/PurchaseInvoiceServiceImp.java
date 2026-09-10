@@ -53,14 +53,16 @@ public class PurchaseInvoiceServiceImp implements PurchaseInvoiceService {
       throw new RuntimeException("Cancelled purchase invoices cannot be approved");
     }
     if (invoice.getStatus() == PurchaseInvoice.PurchaseInvoiceStatus.INVOICED
-        && invoice.getInvoiceNumber() != null && !invoice.getInvoiceNumber().isBlank()) {
+        && invoice.getPurchaseInvoiceNumber() != null && !invoice.getPurchaseInvoiceNumber().isBlank()) {
       return invoice;
     }
 
-    if (invoice.getOrderNumber() == null || invoice.getOrderNumber().isBlank()) {
-      invoice.setOrderNumber(purchaseInvoiceNumberService.nextOrderNumber(invoice.getPayeeVendor()));
+    if (invoice.getInvoiceNumber() == null || invoice.getInvoiceNumber().isBlank()
+        || invoice.getStatus() != PurchaseInvoice.PurchaseInvoiceStatus.INVOICE_RAISED) {
+      throw new RuntimeException("Vendor invoice must be raised before approving this purchase invoice");
     }
-    invoice.setInvoiceNumber(purchaseInvoiceNumberService.invoiceNumberFor(invoice.getOrderNumber()));
+
+    invoice.setPurchaseInvoiceNumber(purchaseInvoiceNumberService.purchaseInvoiceNumberFor(invoice.getOrderNumber()));
     invoice.setStatus(PurchaseInvoice.PurchaseInvoiceStatus.INVOICED);
     if (approvedBy != null) {
       invoice.setUpdatedBy(approvedBy.toString());
