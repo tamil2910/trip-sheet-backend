@@ -30,8 +30,11 @@ public class PurchaseInvoiceController {
   public ResponseEntity<ApiResponse<List<PurchaseInvoiceResponseDTO>>> getAll(
       @RequestParam(required = false) String status,
       HttpServletRequest request) {
-    List<PurchaseInvoiceResponseDTO> response = service.getForTenant(tenant(request), parseStatus(status)).stream()
-        .map(PurchaseInvoiceResponseDTO::fromEntity).toList();
+    List<PurchaseInvoiceResponseDTO> response = new java.util.ArrayList<>(service.getForTenant(tenant(request), parseStatus(status)).stream()
+        .map(PurchaseInvoiceResponseDTO::fromEntity).toList());
+    if (status == null || status.isBlank() || PurchaseInvoiceStatus.GENERATED.name().equalsIgnoreCase(status)) {
+      response.addAll(service.getPendingVendorInvoices(tenant(request)).stream().map(PurchaseInvoiceResponseDTO::fromSourceInvoice).toList());
+    }
     return ResponseEntity.ok(new ApiResponse<>(true, "Purchase invoices fetched successfully", response));
   }
 

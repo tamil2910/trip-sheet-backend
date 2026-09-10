@@ -24,7 +24,6 @@ import org.springframework.beans.BeanUtils;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.CustomTax;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
-import com.example.trip_sheet_backend.models.PurchaseInvoice;
 import com.example.trip_sheet_backend.models.PurchaseOrderNumberRule;
 import com.example.trip_sheet_backend.models.Tax;
 import com.example.trip_sheet_backend.models.Tenant;
@@ -48,8 +47,6 @@ import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRateCardRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
 import com.example.trip_sheet_backend.repositories.VendorDelegationHistoryRepository;
-import com.example.trip_sheet_backend.repositories.PurchaseInvoiceRepository;
-import com.example.trip_sheet_backend.services.PurchaseInvoiceService.PurchaseInvoiceNumberService;
 
 @Service
 public class TripBillingService {
@@ -72,8 +69,6 @@ public class TripBillingService {
   private final VendorPartnerRepository vendorPartnerRepository;
   private final VendorPartnerRateCardRepository vendorPartnerRateCardRepository;
   private final VendorDelegationHistoryRepository vendorDelegationHistoryRepository;
-  private final PurchaseInvoiceRepository purchaseInvoiceRepository;
-  private final PurchaseInvoiceNumberService purchaseInvoiceNumberService;
 
   public TripBillingService(
       PurchaseOrderRepository purchaseOrderRepository,
@@ -87,9 +82,7 @@ public class TripBillingService {
       CustomTaxRepository customTaxRepository,
       VendorPartnerRepository vendorPartnerRepository,
       VendorPartnerRateCardRepository vendorPartnerRateCardRepository,
-      VendorDelegationHistoryRepository vendorDelegationHistoryRepository,
-      PurchaseInvoiceRepository purchaseInvoiceRepository,
-      PurchaseInvoiceNumberService purchaseInvoiceNumberService
+      VendorDelegationHistoryRepository vendorDelegationHistoryRepository
   ) {
     this.purchaseOrderRepository = purchaseOrderRepository;
     this.purchaseOrderNumberRuleRepository = purchaseOrderNumberRuleRepository;
@@ -103,8 +96,6 @@ public class TripBillingService {
     this.vendorPartnerRepository = vendorPartnerRepository;
     this.vendorPartnerRateCardRepository = vendorPartnerRateCardRepository;
     this.vendorDelegationHistoryRepository = vendorDelegationHistoryRepository;
-    this.purchaseInvoiceRepository = purchaseInvoiceRepository;
-    this.purchaseInvoiceNumberService = purchaseInvoiceNumberService;
   }
 
   @Transactional(rollbackFor = Exception.class)
@@ -165,7 +156,7 @@ public class TripBillingService {
    * Missing or unapproved rate cards intentionally leave that hop unbilled.
    */
   @Transactional(rollbackFor = Exception.class)
-  public List<PurchaseInvoice> generatePurchaseInvoicesForTrip(UUID tripId) {
+  public List<PurchaseOrder> generateDelegatedPurchaseOrdersForTrip(UUID tripId) {
     if (tripId == null) {
       throw new RuntimeException("Trip is required for purchase invoice billing");
     }
@@ -185,14 +176,17 @@ public class TripBillingService {
     BigDecimal originatingRevenue = purchaseOrderRepository.findByTripSummary_IdAndIsDeletedFalse(tripSummary.getId())
         .stream().map(PurchaseOrder::getTotalAmount).filter(Objects::nonNull).findFirst().orElse(ZERO);
     Map<UUID, BigDecimal> receivableByVendor = new java.util.HashMap<>();
-    List<PurchaseInvoice> generated = new java.util.ArrayList<>();
+    List<PurchaseOrder> generated = new java.util.ArrayList<>();
 
     for (VendorDelegationHistory delegation : delegations) {
       if (delegation.getId() == null || delegation.getFromVendor() == null || delegation.getToVendor() == null
-          || delegation.getFromVendor().getId() == null || delegation.getToVendor().getId() == null
-          || purchaseInvoiceRepository.existsByDelegationHistory_IdAndIsDeletedFalse(delegation.getId())) {
+          || delegation.getFromVendor().getId() == null || delegation.getToVendor().getId() == null) {
         continue;
       }
+      boolean purchaseOrderExists = purchaseOrderRepository.findByTripSummary_IdAndIsDeletedFalse(tripSummary.getId()).stream()
+          .anyMatch(order -> Objects.equals(order.getTenant() == null ? null : order.getTenant().getId(), delegation.getFromVendor().getId())
+              && Objects.equals(order.getSupplierVendor() == null ? null : order.getSupplierVendor().getId(), delegation.getToVendor().getId()));
+      if (purchaseOrderExists) continue;
       try {
         PricingContext context = resolvePartnerPricingContext(trip, delegation.getFromVendor(), delegation.getToVendor());
         ChargeSnapshot charges = buildChargeSnapshot(tripSummary, context);
@@ -204,22 +198,7 @@ public class TripBillingService {
         BigDecimal payable = scaleCurrency(pricingSnapshot.getTotalAmount());
         BigDecimal receivable = receivableByVendor.getOrDefault(delegation.getFromVendor().getId(), originatingRevenue);
 
-        PurchaseInvoice invoice = new PurchaseInvoice();
-        copyPurchaseOrderSnapshot(pricingSnapshot, invoice);
-        invoice.setDelegationHistory(delegation);
-        invoice.setTripSummary(tripSummary);
-        invoice.setPayerVendor(delegation.getFromVendor());
-        invoice.setPayeeVendor(delegation.getToVendor());
-        invoice.setPurchaseOrder(vendorPurchaseOrder);
-        invoice.setOrderNumber(vendorPurchaseOrder.getOrderNumber());
-        invoice.setAmountPayable(payable);
-        invoice.setAmountReceivable(scaleCurrency(receivable));
-        invoice.setEarning(scaleCurrency(receivable.subtract(payable)));
-        invoice.setStatus(PurchaseInvoice.PurchaseInvoiceStatus.GENERATED);
-        invoice.setCurrencyCode("INR");
-        invoice.setRateCardPackageName(context.rateCardPackageName());
-        invoice.setNotes("Private delegated-trip payable");
-        generated.add(purchaseInvoiceRepository.save(invoice));
+        generated.add(vendorPurchaseOrder);
         receivableByVendor.put(delegation.getToVendor().getId(), payable);
       } catch (RuntimeException ex) {
         // A missing rate card on one hop must not block later independent hops.
@@ -228,14 +207,6 @@ public class TripBillingService {
       }
     }
     return generated;
-  }
-
-  /** Copies every PO calculation/header field without copying its identity or organisation tenant. */
-  private void copyPurchaseOrderSnapshot(PurchaseOrder source, PurchaseInvoice target) {
-    BeanUtils.copyProperties(source, target,
-        "id", "createdAt", "updatedAt", "deletedAt", "createdBy", "updatedBy", "deletedBy",
-        "isDeleted", "tenant", "status", "allocations", "combinedPurchaseOrder", "orderNumber");
-    target.setOrderNumber(null);
   }
 
   /** Refreshes reimbursable trip charges on all active, non-invoiced POs for a trip. */

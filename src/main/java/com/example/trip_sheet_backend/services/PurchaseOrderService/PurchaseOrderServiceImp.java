@@ -28,7 +28,6 @@ import com.example.trip_sheet_backend.models.CustomField;
 import com.example.trip_sheet_backend.models.Invoice;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
 import com.example.trip_sheet_backend.models.PurchaseOrderAllocation;
-import com.example.trip_sheet_backend.models.PurchaseInvoice;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.TripSummary;
 import com.example.trip_sheet_backend.models.Trip;
@@ -36,7 +35,6 @@ import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.repositories.CustomFieldRepository;
 import com.example.trip_sheet_backend.repositories.InvoiceRepository;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderRepository;
-import com.example.trip_sheet_backend.repositories.PurchaseInvoiceRepository;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderNumberRuleRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.TripPassengerCustomFieldValueRepository;
@@ -47,7 +45,6 @@ import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 public class PurchaseOrderServiceImp implements PurchaseOrderService {
 
   private final PurchaseOrderRepository purchaseOrderRepository;
-  private final PurchaseInvoiceRepository purchaseInvoiceRepository;
   private final InvoiceRepository invoiceRepository;
   private final PurchaseOrderNumberRuleRepository purchaseOrderNumberRuleRepository;
   private final TenantRepository tenantRepository;
@@ -58,7 +55,6 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
 
   public PurchaseOrderServiceImp(
       PurchaseOrderRepository purchaseOrderRepository,
-      PurchaseInvoiceRepository purchaseInvoiceRepository,
       InvoiceRepository invoiceRepository,
       PurchaseOrderNumberRuleRepository purchaseOrderNumberRuleRepository,
       TenantRepository tenantRepository,
@@ -68,7 +64,6 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
       VendorOrganisationRepository vendorOrganisationRepository
   ) {
     this.purchaseOrderRepository = purchaseOrderRepository;
-    this.purchaseInvoiceRepository = purchaseInvoiceRepository;
     this.invoiceRepository = invoiceRepository;
     this.purchaseOrderNumberRuleRepository = purchaseOrderNumberRuleRepository;
     this.tenantRepository = tenantRepository;
@@ -187,14 +182,6 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     }
 
     Invoice savedInvoice = invoiceRepository.save(invoice);
-    purchaseInvoiceRepository.findByPurchaseOrder_IdAndIsDeletedFalse(purchaseOrderId).ifPresent(purchaseInvoice -> {
-      purchaseInvoice.setInvoiceNumber(savedInvoice.getInvoiceNumber());
-      purchaseInvoice.setStatus(PurchaseInvoice.PurchaseInvoiceStatus.INVOICE_RAISED);
-      if (approvingUserId != null) {
-        purchaseInvoice.setUpdatedBy(approvingUserId.toString());
-      }
-      purchaseInvoiceRepository.save(purchaseInvoice);
-    });
     purchaseOrder.setStatus(PurchaseOrder.PurchaseOrderStatus.INVOICED);
     if (approvingUserId != null) {
       purchaseOrder.setUpdatedBy(approvingUserId.toString());

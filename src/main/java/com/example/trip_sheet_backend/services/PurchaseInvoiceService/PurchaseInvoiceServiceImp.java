@@ -7,18 +7,29 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.models.PurchaseInvoice;
+import com.example.trip_sheet_backend.models.Invoice;
+import com.example.trip_sheet_backend.models.PurchaseOrder;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.VendorDelegationHistory;
+import com.example.trip_sheet_backend.repositories.InvoiceRepository;
 import com.example.trip_sheet_backend.repositories.PurchaseInvoiceRepository;
+import com.example.trip_sheet_backend.repositories.VendorDelegationHistoryRepository;
+import org.springframework.beans.BeanUtils;
 
 @Service
 public class PurchaseInvoiceServiceImp implements PurchaseInvoiceService {
   private final PurchaseInvoiceRepository repository;
   private final PurchaseInvoiceNumberService purchaseInvoiceNumberService;
+  private final InvoiceRepository invoiceRepository;
+  private final VendorDelegationHistoryRepository delegationHistoryRepository;
 
   public PurchaseInvoiceServiceImp(PurchaseInvoiceRepository repository,
-      PurchaseInvoiceNumberService purchaseInvoiceNumberService) {
+      PurchaseInvoiceNumberService purchaseInvoiceNumberService, InvoiceRepository invoiceRepository,
+      VendorDelegationHistoryRepository delegationHistoryRepository) {
     this.repository = repository;
     this.purchaseInvoiceNumberService = purchaseInvoiceNumberService;
+    this.invoiceRepository = invoiceRepository;
+    this.delegationHistoryRepository = delegationHistoryRepository;
   }
 
   @Override
@@ -44,8 +55,26 @@ public class PurchaseInvoiceServiceImp implements PurchaseInvoiceService {
   @Transactional(rollbackFor = Exception.class)
   public PurchaseInvoice approve(UUID id, Tenant tenant, UUID approvedBy) {
     requireTenant(tenant);
-    PurchaseInvoice invoice = repository.findByIdAndIsDeletedFalse(id)
-        .orElseThrow(() -> new RuntimeException("Purchase invoice not found"));
+    PurchaseInvoice existing = repository.findByIdAndIsDeletedFalse(id).orElse(null);
+    if (existing != null) return approveExisting(existing, tenant, approvedBy);
+
+    Invoice sourceInvoice = invoiceRepository.findById(id)
+        .filter(value -> !Boolean.TRUE.equals(value.getIsDeleted()))
+        .orElseThrow(() -> new RuntimeException("Purchase invoice source invoice not found"));
+    return createFromVendorInvoice(sourceInvoice, tenant, approvedBy);
+  }
+
+  @Override
+  @Transactional(readOnly = true)
+  public List<Invoice> getPendingVendorInvoices(Tenant tenant) {
+    requireTenant(tenant);
+    if (tenant.getTenantType() != Tenant.TenantType.VENDOR) return List.of();
+    return invoiceRepository.findVendorInvoicesPayableBy(tenant.getId()).stream()
+        .filter(invoice -> repository.findBySourceInvoice_IdAndIsDeletedFalse(invoice.getId()).isEmpty())
+        .toList();
+  }
+
+  private PurchaseInvoice approveExisting(PurchaseInvoice invoice, Tenant tenant, UUID approvedBy) {
     if (!sameTenant(tenant, invoice.getPayerVendor())) {
       throw new RuntimeException("Only the paying vendor can approve this purchase invoice");
     }
@@ -57,17 +86,38 @@ public class PurchaseInvoiceServiceImp implements PurchaseInvoiceService {
       return invoice;
     }
 
-    if (invoice.getInvoiceNumber() == null || invoice.getInvoiceNumber().isBlank()
-        || invoice.getStatus() != PurchaseInvoice.PurchaseInvoiceStatus.INVOICE_RAISED) {
-      throw new RuntimeException("Vendor invoice must be raised before approving this purchase invoice");
-    }
+    return invoice;
+  }
 
-    invoice.setPurchaseInvoiceNumber(purchaseInvoiceNumberService.purchaseInvoiceNumberFor(invoice.getOrderNumber()));
-    invoice.setStatus(PurchaseInvoice.PurchaseInvoiceStatus.INVOICED);
-    if (approvedBy != null) {
-      invoice.setUpdatedBy(approvedBy.toString());
+  private PurchaseInvoice createFromVendorInvoice(Invoice sourceInvoice, Tenant tenant, UUID approvedBy) {
+    PurchaseOrder order = sourceInvoice.getPurchaseOrder();
+    if (order == null || !sameTenant(tenant, order.getTenant()) || tenant.getTenantType() != Tenant.TenantType.VENDOR
+        || order.getSupplierVendor() == null || order.getSupplierVendor().getTenantType() != Tenant.TenantType.VENDOR) {
+      throw new RuntimeException("Only the paying vendor can approve this vendor invoice");
     }
-    return repository.save(invoice);
+    PurchaseInvoice alreadyCreated = repository.findBySourceInvoice_IdAndIsDeletedFalse(sourceInvoice.getId()).orElse(null);
+    if (alreadyCreated != null) return alreadyCreated;
+    VendorDelegationHistory delegation = delegationHistoryRepository
+        .findByTrip_IdAndIsDeletedFalseOrderByDelegatedAtAscCreatedAtAsc(order.getTripSummary().getTripId().getId()).stream()
+        .filter(value -> sameTenant(value.getFromVendor(), tenant) && sameTenant(value.getToVendor(), order.getSupplierVendor()))
+        .findFirst().orElseThrow(() -> new RuntimeException("Delegation history not found for vendor invoice"));
+
+    PurchaseInvoice purchaseInvoice = new PurchaseInvoice();
+    BeanUtils.copyProperties(order, purchaseInvoice, "id", "createdAt", "updatedAt", "deletedAt", "createdBy", "updatedBy", "deletedBy",
+        "isDeleted", "tenant", "status", "allocations", "combinedPurchaseOrder", "supplierVendor");
+    purchaseInvoice.setSourceInvoice(sourceInvoice);
+    purchaseInvoice.setDelegationHistory(delegation);
+    purchaseInvoice.setTripSummary(order.getTripSummary());
+    purchaseInvoice.setPayerVendor(tenant);
+    purchaseInvoice.setPayeeVendor(order.getSupplierVendor());
+    purchaseInvoice.setInvoiceNumber(sourceInvoice.getInvoiceNumber());
+    purchaseInvoice.setPurchaseInvoiceNumber(purchaseInvoiceNumberService.purchaseInvoiceNumberFor(order.getOrderNumber()));
+    purchaseInvoice.setAmountPayable(order.getTotalAmount());
+    purchaseInvoice.setAmountReceivable(order.getTotalAmount());
+    purchaseInvoice.setEarning(java.math.BigDecimal.ZERO);
+    purchaseInvoice.setStatus(PurchaseInvoice.PurchaseInvoiceStatus.INVOICED);
+    if (approvedBy != null) purchaseInvoice.setUpdatedBy(approvedBy.toString());
+    return repository.save(purchaseInvoice);
   }
 
   private void requireTenant(Tenant tenant) {

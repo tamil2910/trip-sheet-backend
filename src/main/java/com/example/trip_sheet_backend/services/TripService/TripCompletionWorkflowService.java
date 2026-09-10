@@ -42,7 +42,7 @@ public class TripCompletionWorkflowService {
     }
 
     try {
-      tripBillingService.generatePurchaseInvoicesForTrip(tripId);
+      tripBillingService.generateDelegatedPurchaseOrdersForTrip(tripId);
     } catch (Exception ex) {
       log.error("Failed to generate purchase invoices for completed trip {}", tripId, ex);
     }

@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 import com.example.trip_sheet_backend.models.PurchaseInvoice;
+import com.example.trip_sheet_backend.models.Invoice;
+import com.example.trip_sheet_backend.models.PurchaseOrder;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -16,6 +18,7 @@ public class PurchaseInvoiceResponseDTO {
   private String invoiceNumber;
   private String purchaseInvoiceNumber;
   private UUID purchaseOrderId;
+  private Boolean isSourceInvoice;
   private UUID tripSummaryId;
   private BigDecimal amountPayable;
   private BigDecimal amountReceivable;
@@ -73,7 +76,7 @@ public class PurchaseInvoiceResponseDTO {
 
   public static PurchaseInvoiceResponseDTO fromEntity(PurchaseInvoice value) {
     PurchaseInvoiceResponseDTO response = new PurchaseInvoiceResponseDTO(value.getId(), value.getOrderNumber(), value.getInvoiceNumber(),
-        value.getPurchaseInvoiceNumber(), value.getPurchaseOrder() == null ? null : value.getPurchaseOrder().getId(),
+        value.getPurchaseInvoiceNumber(), value.getSourceInvoice() == null || value.getSourceInvoice().getPurchaseOrder() == null ? null : value.getSourceInvoice().getPurchaseOrder().getId(),
         value.getTripSummary() == null ? null : value.getTripSummary().getId(),
         value.getAmountPayable(), value.getAmountReceivable(), value.getEarning(),
         value.getCurrencyCode(), value.getRateCardPackageName(), value.getNotes(), value.getStatus(),
@@ -92,6 +95,18 @@ public class PurchaseInvoiceResponseDTO {
     response.cgstPercentage = value.getCgstPercentage(); response.cgstAmount = value.getCgstAmount(); response.sgstPercentage = value.getSgstPercentage(); response.sgstAmount = value.getSgstAmount();
     response.igstPercentage = value.getIgstPercentage(); response.igstAmount = value.getIgstAmount();
     response.taxableTotalWithGst = value.getTaxableTotalWithGst(); response.nonTaxableTotal = value.getNonTaxableTotal(); response.roundOffAmount = value.getRoundOffAmount(); response.totalAmount = value.getTotalAmount();
+    return response;
+  }
+
+  /** View of Vendor B's invoice awaiting Vendor A's approval. It is not yet a PurchaseInvoice row. */
+  public static PurchaseInvoiceResponseDTO fromSourceInvoice(Invoice invoice) {
+    PurchaseOrder order = invoice.getPurchaseOrder();
+    PurchaseInvoiceResponseDTO response = new PurchaseInvoiceResponseDTO(invoice.getId(), order.getOrderNumber(), invoice.getInvoiceNumber(),
+        null, order.getId(), order.getTripSummary() == null ? null : order.getTripSummary().getId(),
+        order.getTotalAmount(), null, null, order.getCurrencyCode(), order.getRateCardPackageName(), order.getNotes(),
+        PurchaseInvoice.PurchaseInvoiceStatus.GENERATED, vendor(order.getTenant()), vendor(order.getSupplierVendor()));
+    response.isSourceInvoice = true;
+    response.totalAmount = order.getTotalAmount();
     return response;
   }
 

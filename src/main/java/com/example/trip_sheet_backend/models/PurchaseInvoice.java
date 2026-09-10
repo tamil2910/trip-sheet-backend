@@ -37,13 +37,10 @@ public class PurchaseInvoice extends BaseModel implements TenantScoped {
   /** Vendor A's internal purchase-invoice number, assigned when Vendor A approves this payable. */
   private String purchaseInvoiceNumber;
 
-  /**
-   * The PO issued to the executing vendor (Vendor B).  This is deliberately a
-   * real PurchaseOrder so it appears in Vendor B's purchase-order workflow.
-   */
+  /** The Vendor B invoice from which this real Vendor A purchase invoice was created. */
   @OneToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "purchase_order_id", unique = true)
-  private PurchaseOrder purchaseOrder;
+  @JoinColumn(name = "source_invoice_id", unique = true)
+  private Invoice sourceInvoice;
 
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "delegation_history_id", nullable = false, unique = true)
@@ -181,7 +178,7 @@ public class PurchaseInvoice extends BaseModel implements TenantScoped {
   private BigDecimal totalAmount;
 
   public enum PurchaseInvoiceStatus {
-    GENERATED, INVOICE_RAISED, PAYMENT_RECEIVED, CANCELLED, INVOICED
+    GENERATED, PAYMENT_RECEIVED, CANCELLED, INVOICED
   }
 
   @Override
