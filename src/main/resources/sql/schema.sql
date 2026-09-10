@@ -53,6 +53,8 @@ CREATE TABLE IF NOT EXISTS purchase_invoices (
   deleted_by VARCHAR(255),
   is_deleted BIT,
   invoice_number VARCHAR(255) NULL,
+  purchase_invoice_number VARCHAR(255) NULL,
+  purchase_order_id BINARY(16) NULL,
   delegation_history_id BINARY(16) NOT NULL,
   trip_summary_id BINARY(16) NOT NULL,
   payer_vendor_id BINARY(16) NOT NULL,
@@ -66,6 +68,7 @@ CREATE TABLE IF NOT EXISTS purchase_invoices (
   status VARCHAR(32) NOT NULL DEFAULT 'GENERATED',
   PRIMARY KEY (id),
   UNIQUE KEY uk_purchase_invoice_delegation (delegation_history_id),
+  UNIQUE KEY uk_purchase_invoice_purchase_order (purchase_order_id),
   INDEX idx_purchase_invoice_payer (payer_vendor_id),
   INDEX idx_purchase_invoice_payee (payee_vendor_id),
   CONSTRAINT fk_purchase_invoice_delegation FOREIGN KEY (delegation_history_id)
@@ -75,8 +78,51 @@ CREATE TABLE IF NOT EXISTS purchase_invoices (
   CONSTRAINT fk_purchase_invoice_payer FOREIGN KEY (payer_vendor_id)
     REFERENCES tenants (id),
   CONSTRAINT fk_purchase_invoice_payee FOREIGN KEY (payee_vendor_id)
-    REFERENCES tenants (id)
+    REFERENCES tenants (id),
+  CONSTRAINT fk_purchase_invoice_purchase_order FOREIGN KEY (purchase_order_id)
+    REFERENCES purchase_orders (id)
 );
+
+-- Vendor-to-vendor invoice workflow fields for databases that already had
+-- purchase_invoices before the linked Vendor B PO was introduced.
+SET @purchase_invoice_number_exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'purchase_invoices'
+    AND column_name = 'purchase_invoice_number'
+);
+SET @purchase_invoice_number_sql := IF(@purchase_invoice_number_exists = 0,
+  'ALTER TABLE purchase_invoices ADD COLUMN purchase_invoice_number VARCHAR(255) NULL',
+  'SELECT 1'
+);
+PREPARE purchase_invoice_number_statement FROM @purchase_invoice_number_sql;
+EXECUTE purchase_invoice_number_statement;
+DEALLOCATE PREPARE purchase_invoice_number_statement;
+
+SET @purchase_invoice_po_exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'purchase_invoices'
+    AND column_name = 'purchase_order_id'
+);
+SET @purchase_invoice_po_sql := IF(@purchase_invoice_po_exists = 0,
+  'ALTER TABLE purchase_invoices ADD COLUMN purchase_order_id BINARY(16) NULL',
+  'SELECT 1'
+);
+PREPARE purchase_invoice_po_statement FROM @purchase_invoice_po_sql;
+EXECUTE purchase_invoice_po_statement;
+DEALLOCATE PREPARE purchase_invoice_po_statement;
+
+SET @purchase_invoice_po_index_exists := (
+  SELECT COUNT(*) FROM information_schema.statistics
+  WHERE table_schema = DATABASE() AND table_name = 'purchase_invoices'
+    AND index_name = 'uk_purchase_invoice_purchase_order'
+);
+SET @purchase_invoice_po_index_sql := IF(@purchase_invoice_po_index_exists = 0,
+  'ALTER TABLE purchase_invoices ADD UNIQUE KEY uk_purchase_invoice_purchase_order (purchase_order_id)',
+  'SELECT 1'
+);
+PREPARE purchase_invoice_po_index_statement FROM @purchase_invoice_po_index_sql;
+EXECUTE purchase_invoice_po_index_statement;
+DEALLOCATE PREPARE purchase_invoice_po_index_statement;
 
 -- ALTER TABLE purchase_orders ADD COLUMN IF NOT EXISTS supplier_vendor_id BINARY(16) NULL;
 UPDATE purchase_orders po
