@@ -12,7 +12,6 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.EnumType;
@@ -62,7 +61,8 @@ public class PurchaseOrder extends BaseModel implements TenantScoped {
   @Column(columnDefinition = "LONGTEXT")
   private String lineItemsSnapshot;
 
-  @OneToOne(fetch = FetchType.LAZY)
+  /** A completed trip can have the organisation PO and one PO per vendor delegation hop. */
+  @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "trip_summary_id")
   private TripSummary tripSummary;
 

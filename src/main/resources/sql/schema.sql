@@ -130,6 +130,35 @@ JOIN tenants t ON t.tenant_name = po.supplier_name AND t.tenant_type = 'VENDOR'
 SET po.supplier_vendor_id = t.id
 WHERE po.supplier_vendor_id IS NULL;
 
+-- A trip summary has one organisation PO plus one PO for each delegation hop.
+-- Older versions mapped this relation as one-to-one, which made the first PO
+-- consume the unique trip_summary_id and blocked the Vendor B PO.
+SET @po_trip_summary_index_exists := (
+  SELECT COUNT(*) FROM information_schema.statistics
+  WHERE table_schema = DATABASE() AND table_name = 'purchase_orders'
+    AND index_name = 'idx_purchase_orders_trip_summary'
+);
+SET @po_trip_summary_index_sql := IF(@po_trip_summary_index_exists = 0,
+  'ALTER TABLE purchase_orders ADD INDEX idx_purchase_orders_trip_summary (trip_summary_id)',
+  'SELECT 1'
+);
+PREPARE po_trip_summary_index_statement FROM @po_trip_summary_index_sql;
+EXECUTE po_trip_summary_index_statement;
+DEALLOCATE PREPARE po_trip_summary_index_statement;
+
+SELECT index_name INTO @legacy_po_trip_summary_unique_index
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = 'purchase_orders'
+  AND column_name = 'trip_summary_id' AND non_unique = 0 AND index_name <> 'PRIMARY'
+LIMIT 1;
+SET @legacy_po_trip_summary_unique_sql := IF(@legacy_po_trip_summary_unique_index IS NULL,
+  'SELECT 1',
+  CONCAT('ALTER TABLE purchase_orders DROP INDEX `', @legacy_po_trip_summary_unique_index, '`')
+);
+PREPARE legacy_po_trip_summary_unique_statement FROM @legacy_po_trip_summary_unique_sql;
+EXECUTE legacy_po_trip_summary_unique_statement;
+DEALLOCATE PREPARE legacy_po_trip_summary_unique_statement;
+
 -- Add the PO-equivalent snapshot fields to databases created by the first
 -- PurchaseInvoice version (safe to run repeatedly on MySQL 8).
 -- ALTER TABLE purchase_invoices
