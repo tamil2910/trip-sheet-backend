@@ -343,3 +343,15 @@ SET @legacy_invoice_po_index_sql := IF(
 PREPARE legacy_invoice_po_index_statement FROM @legacy_invoice_po_index_sql;
 EXECUTE legacy_invoice_po_index_statement;
 DEALLOCATE PREPARE legacy_invoice_po_index_statement;
+
+-- Taxes selected for a vendor-to-vendor partnership.
+CREATE TABLE IF NOT EXISTS vendor_partner_taxes (
+  vendor_partner_id BINARY(16) NOT NULL,
+  tax_id BINARY(16) NOT NULL,
+  PRIMARY KEY (vendor_partner_id, tax_id),
+  INDEX idx_vendor_partner_taxes_tax (tax_id),
+  CONSTRAINT fk_vendor_partner_taxes_partner FOREIGN KEY (vendor_partner_id)
+    REFERENCES vendor_partners (id),
+  CONSTRAINT fk_vendor_partner_taxes_tax FOREIGN KEY (tax_id)
+    REFERENCES taxes (id)
+);

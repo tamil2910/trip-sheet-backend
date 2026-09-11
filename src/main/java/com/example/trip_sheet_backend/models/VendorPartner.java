@@ -10,6 +10,8 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
@@ -70,6 +72,14 @@ public class VendorPartner extends BaseModel {
   private Long contractStartDate;
 
   private Long contractEndDate;
+
+  @ManyToMany
+  @JoinTable(
+      name = "vendor_partner_taxes",
+      joinColumns = @JoinColumn(name = "vendor_partner_id"),
+      inverseJoinColumns = @JoinColumn(name = "tax_id")
+  )
+  private List<Tax> taxList = new ArrayList<>();
 
   @JsonManagedReference
   @OneToMany(mappedBy = "vendorPartner")
