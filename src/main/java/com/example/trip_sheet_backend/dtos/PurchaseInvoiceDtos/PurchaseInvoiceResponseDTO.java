@@ -26,6 +26,8 @@ public class PurchaseInvoiceResponseDTO {
   private String currencyCode;
   private String rateCardPackageName;
   private String notes;
+  private Long tripStartKmOdo;
+  private Long tripEndKmOdo;
   private PurchaseInvoice.PurchaseInvoiceStatus status;
   private VendorReference payerVendor;
   private VendorReference payeeVendor;
@@ -95,6 +97,8 @@ public class PurchaseInvoiceResponseDTO {
     response.cgstPercentage = value.getCgstPercentage(); response.cgstAmount = value.getCgstAmount(); response.sgstPercentage = value.getSgstPercentage(); response.sgstAmount = value.getSgstAmount();
     response.igstPercentage = value.getIgstPercentage(); response.igstAmount = value.getIgstAmount();
     response.taxableTotalWithGst = value.getTaxableTotalWithGst(); response.nonTaxableTotal = value.getNonTaxableTotal(); response.roundOffAmount = value.getRoundOffAmount(); response.totalAmount = value.getTotalAmount();
+    response.tripStartKmOdo = value.getTripStartKmOdo();
+    response.tripEndKmOdo = value.getTripEndKmOdo();
     return response;
   }
 
@@ -107,6 +111,8 @@ public class PurchaseInvoiceResponseDTO {
         PurchaseInvoice.PurchaseInvoiceStatus.GENERATED, vendor(order.getTenant()), vendor(order.getSupplierVendor()));
     response.isSourceInvoice = true;
     response.totalAmount = order.getTotalAmount();
+    response.tripStartKmOdo = order.getTripStartKmOdo();
+    response.tripEndKmOdo = order.getTripEndKmOdo();
     return response;
   }
 
