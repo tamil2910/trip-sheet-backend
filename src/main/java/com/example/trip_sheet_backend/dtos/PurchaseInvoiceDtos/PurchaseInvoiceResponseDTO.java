@@ -113,6 +113,20 @@ public class PurchaseInvoiceResponseDTO {
     response.totalAmount = order.getTotalAmount();
     response.tripStartKmOdo = order.getTripStartKmOdo();
     response.tripEndKmOdo = order.getTripEndKmOdo();
+    response.baseFareAmount = order.getBaseFareAmount(); response.baseFareQty = order.getBaseFareQty(); response.baseFareTotal = order.getBaseFareTotal();
+    response.extraKmChargeAmount = order.getExtraKmChargeAmount(); response.extraKmQty = order.getExtraKmQty(); response.extraKmTotal = order.getExtraKmTotal();
+    response.extraHrChargeAmount = order.getExtraHrChargeAmount(); response.extraHrQty = order.getExtraHrQty(); response.extraHrTotal = order.getExtraHrTotal();
+    response.dailyAllowanceChargeAmount = order.getDailyAllowanceChargeAmount(); response.dailyAllowanceQty = order.getDailyAllowanceQty(); response.dailyAllowanceTotal = order.getDailyAllowanceTotal();
+    response.earlyAllowanceChargeAmount = order.getEarlyAllowanceChargeAmount(); response.earlyAllowanceQty = order.getEarlyAllowanceQty(); response.earlyAllowanceTotal = order.getEarlyAllowanceTotal();
+    response.lateAllowanceChargeAmount = order.getLateAllowanceChargeAmount(); response.lateAllowanceQty = order.getLateAllowanceQty(); response.lateAllowanceTotal = order.getLateAllowanceTotal();
+    response.hourlyAllowanceCharge = order.getHourlyAllowanceCharge(); response.hourlyAllowanceQty = order.getHourlyAllowanceQty(); response.hourlyAllowanceAmount = order.getHourlyAllowanceAmount();
+    response.tollChargeAmount = order.getTollChargeAmount(); response.tollQty = order.getTollQty(); response.tollTotal = order.getTollTotal();
+    response.parkingChargeAmount = order.getParkingChargeAmount(); response.parkingQty = order.getParkingQty(); response.parkingTotal = order.getParkingTotal();
+    response.otherChargeAmount = order.getOtherChargeAmount(); response.otherQty = order.getOtherQty(); response.otherTotal = order.getOtherTotal();
+    response.taxableSubTotal = order.getTaxableSubTotal(); response.gstPercentage = order.getGstPercentage(); response.gstAmount = order.getGstAmount();
+    response.cgstPercentage = order.getCgstPercentage(); response.cgstAmount = order.getCgstAmount(); response.sgstPercentage = order.getSgstPercentage(); response.sgstAmount = order.getSgstAmount();
+    response.igstPercentage = order.getIgstPercentage(); response.igstAmount = order.getIgstAmount();
+    response.taxableTotalWithGst = order.getTaxableTotalWithGst(); response.nonTaxableTotal = order.getNonTaxableTotal(); response.roundOffAmount = order.getRoundOffAmount();
     return response;
   }
 
