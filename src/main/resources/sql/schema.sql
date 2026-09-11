@@ -374,3 +374,33 @@ SET @vendor_partner_tax_id_sql := IF(
 PREPARE vendor_partner_tax_id_statement FROM @vendor_partner_tax_id_sql;
 EXECUTE vendor_partner_tax_id_statement;
 DEALLOCATE PREPARE vendor_partner_tax_id_statement;
+
+SET @vendor_partner_tax_tenant_id_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'vendor_partner_taxes'
+    AND column_name = 'tenant_id'
+);
+SET @vendor_partner_tax_tenant_id_fk := (
+  SELECT constraint_name
+  FROM information_schema.key_column_usage
+  WHERE table_schema = DATABASE()
+    AND table_name = 'vendor_partner_taxes'
+    AND column_name = 'tenant_id'
+    AND referenced_table_name IS NOT NULL
+  LIMIT 1
+);
+SET @vendor_partner_tax_tenant_id_sql := IF(
+  @vendor_partner_tax_tenant_id_exists = 1,
+  CONCAT(
+    'ALTER TABLE vendor_partner_taxes ',
+    IF(@vendor_partner_tax_tenant_id_fk IS NULL, '',
+      CONCAT('DROP FOREIGN KEY `', @vendor_partner_tax_tenant_id_fk, '`, ')),
+    'DROP COLUMN tenant_id'
+  ),
+  'SELECT 1'
+);
+PREPARE vendor_partner_tax_tenant_id_statement FROM @vendor_partner_tax_tenant_id_sql;
+EXECUTE vendor_partner_tax_tenant_id_statement;
+DEALLOCATE PREPARE vendor_partner_tax_tenant_id_statement;
