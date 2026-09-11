@@ -355,3 +355,22 @@ CREATE TABLE IF NOT EXISTS vendor_partner_taxes (
   CONSTRAINT fk_vendor_partner_taxes_tax FOREIGN KEY (tax_id)
     REFERENCES taxes (id)
 );
+
+-- Older deployments created this join table with a BaseModel-style `id`
+-- column. A @ManyToMany join table has no entity id, so remove that legacy
+-- column and make the relationship columns its key.
+SET @vendor_partner_tax_id_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'vendor_partner_taxes'
+    AND column_name = 'id'
+);
+SET @vendor_partner_tax_id_sql := IF(
+  @vendor_partner_tax_id_exists = 1,
+  'ALTER TABLE vendor_partner_taxes DROP PRIMARY KEY, DROP COLUMN id, ADD PRIMARY KEY (vendor_partner_id, tax_id)',
+  'SELECT 1'
+);
+PREPARE vendor_partner_tax_id_statement FROM @vendor_partner_tax_id_sql;
+EXECUTE vendor_partner_tax_id_statement;
+DEALLOCATE PREPARE vendor_partner_tax_id_statement;
