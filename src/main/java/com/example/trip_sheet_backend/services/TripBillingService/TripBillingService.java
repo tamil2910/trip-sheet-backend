@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.BeanUtils;
 
 import com.example.trip_sheet_backend.models.DutyType;
-import com.example.trip_sheet_backend.models.CustomTax;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
 import com.example.trip_sheet_backend.models.PurchaseOrderNumberRule;
 import com.example.trip_sheet_backend.models.Tax;
@@ -37,7 +36,6 @@ import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 import com.example.trip_sheet_backend.models.VendorDelegationHistory;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderRepository;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderNumberRuleRepository;
-import com.example.trip_sheet_backend.repositories.CustomTaxRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
 import com.example.trip_sheet_backend.repositories.TripChargesRepository;
 import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
@@ -65,7 +63,6 @@ public class TripBillingService {
   private final TripChargesRepository tripChargesRepository;
   private final VendorOrganisationRepository vendorOrganisationRepository;
   private final VendorOrganisationRateCardRepository vendorOrganisationRateCardRepository;
-  private final CustomTaxRepository customTaxRepository;
   private final VendorPartnerRepository vendorPartnerRepository;
   private final VendorPartnerRateCardRepository vendorPartnerRateCardRepository;
   private final VendorDelegationHistoryRepository vendorDelegationHistoryRepository;
@@ -79,7 +76,6 @@ public class TripBillingService {
       TripChargesRepository tripChargesRepository,
       VendorOrganisationRepository vendorOrganisationRepository,
       VendorOrganisationRateCardRepository vendorOrganisationRateCardRepository,
-      CustomTaxRepository customTaxRepository,
       VendorPartnerRepository vendorPartnerRepository,
       VendorPartnerRateCardRepository vendorPartnerRateCardRepository,
       VendorDelegationHistoryRepository vendorDelegationHistoryRepository
@@ -92,7 +88,6 @@ public class TripBillingService {
     this.tripChargesRepository = tripChargesRepository;
     this.vendorOrganisationRepository = vendorOrganisationRepository;
     this.vendorOrganisationRateCardRepository = vendorOrganisationRateCardRepository;
-    this.customTaxRepository = customTaxRepository;
     this.vendorPartnerRepository = vendorPartnerRepository;
     this.vendorPartnerRateCardRepository = vendorPartnerRateCardRepository;
     this.vendorDelegationHistoryRepository = vendorDelegationHistoryRepository;
@@ -624,8 +619,9 @@ public class TripBillingService {
         .findFirst()
         .orElseThrow(() -> new RuntimeException("No approved vendor partner rate card found for trip"));
 
-    List<CustomTax> taxes = customTaxRepository
-        .findByTenant_IdAndIsDeletedFalseOrderByUpdatedAtDesc(vendorPartner.getPrimaryVendor().getId());
+    // Taxes are contract-specific. The Vendor A -> Vendor B payable must use
+    // only the CGST/SGST/IGST taxes selected on this partner relationship.
+    List<Tax> taxes = vendorPartner.getTaxList();
 
     return new PricingContext(
         vendorPartner.getPrimaryVendor(),
@@ -634,7 +630,7 @@ public class TripBillingService {
         rateCard.getExtraKmCharges(),
         rateCard.getExtraHrCharges(),
         ZERO, ZERO, ZERO, ZERO, false, null, null, null, null, null,
-        buildTaxRateSummary(taxes),
+        buildTaxRateSummaryForTaxes(taxes),
         trip.getDutyType() == null ? null : trip.getDutyType().getName(),
         buildRateCardPackageName(rateCard.getCity(), trip.getVehicleType(), trip.getDutyType()),
         "Partner vendor to primary vendor billing"
@@ -656,17 +652,6 @@ public class TripBillingService {
     String dutyTypeName = dutyType == null ? "duty" : dutyType.getName();
     String cityPart = city == null || city.isBlank() ? "default-city" : city.trim();
     return cityPart + " | " + vehicleName + " | " + dutyTypeName;
-  }
-
-  private TaxRateSummary buildTaxRateSummary(List<CustomTax> customTaxes) {
-    TaxRateSummary summary = new TaxRateSummary(ZERO, ZERO, ZERO);
-    for (CustomTax customTax : customTaxes) {
-      if (Boolean.FALSE.equals(customTax.getIsActive())) {
-        continue;
-      }
-      summary = addTax(summary, customTax.getTax());
-    }
-    return summary;
   }
 
   private TaxRateSummary buildTaxRateSummaryForTaxes(List<Tax> taxes) {
