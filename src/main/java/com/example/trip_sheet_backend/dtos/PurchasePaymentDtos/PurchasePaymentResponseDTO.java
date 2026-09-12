@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.example.trip_sheet_backend.models.PurchasePayment;
-import com.example.trip_sheet_backend.models.PurchasePayment.PaymentMode;
+import com.example.trip_sheet_backend.models.PaymentMode;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;

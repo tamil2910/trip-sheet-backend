@@ -26,33 +26,35 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "purchase_payments")
-public class PurchasePayment extends BaseModel implements TenantScoped {
+@Table(name = "receipts")
+public class Receipt extends BaseModel implements TenantScoped {
 
-    /** Vendor creating and making this payment. */
+    /** Vendor recording this receipt. */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "payer_vendor_id", nullable = false)
-    private Tenant payerVendor;
+    @JoinColumn(name = "vendor_id", nullable = false)
+    private Tenant vendor;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "payee_vendor_id", nullable = false)
-    private Tenant payeeVendor;
+    @JoinColumn(name = "organisation_id", nullable = false)
+    private Tenant organisation;
 
     /** Epoch milliseconds. */
-    @Column(name = "purchase_payment_date", nullable = false)
-    private Long purchasePaymentDate;
+    @Column(name = "receipt_date", nullable = false)
+    private Long receiptDate;
+
+    @Column(nullable = false)
+    private Boolean isOnAccount = false;
 
     @Column(nullable = false)
     private Boolean isAdvance = false;
 
-    /** Supports both full and partial payments across one or more invoices. */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
-        name = "purchase_payment_invoices",
-        joinColumns = @JoinColumn(name = "purchase_payment_id"),
-        inverseJoinColumns = @JoinColumn(name = "purchase_invoice_id")
+        name = "receipt_invoices",
+        joinColumns = @JoinColumn(name = "receipt_id"),
+        inverseJoinColumns = @JoinColumn(name = "invoice_id")
     )
-    private List<PurchaseInvoice> purchaseInvoices = new ArrayList<>();
+    private List<Invoice> invoices = new ArrayList<>();
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
@@ -67,21 +69,16 @@ public class PurchasePayment extends BaseModel implements TenantScoped {
     @Column(nullable = false)
     private PaymentMode paymentMode;
 
-    /** Foreign key to bank_accounts.id. */
+    /** Bank account into which the receipt was recorded. */
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "from_bank_id")
     private BankAccount fromBank;
 
     /** Epoch milliseconds. */
     private Long bankDebitDate;
-
     private String chequeNumber;
-
-    /** Epoch milliseconds. */
     private Long chequeDate;
-
     private String bankName;
-
     private String transactionNumber;
 
     @Column(columnDefinition = "LONGTEXT")
@@ -89,12 +86,11 @@ public class PurchasePayment extends BaseModel implements TenantScoped {
 
     @Override
     public Tenant getTenant() {
-        return payerVendor;
+        return vendor;
     }
 
     @Override
     public void setTenant(Tenant tenant) {
-        this.payerVendor = tenant;
+        this.vendor = tenant;
     }
-
 }

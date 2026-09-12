@@ -12,7 +12,7 @@ import com.example.trip_sheet_backend.dtos.PurchasePaymentDtos.PurchasePaymentRe
 import com.example.trip_sheet_backend.models.BankAccount;
 import com.example.trip_sheet_backend.models.PurchaseInvoice;
 import com.example.trip_sheet_backend.models.PurchasePayment;
-import com.example.trip_sheet_backend.models.PurchasePayment.PaymentMode;
+import com.example.trip_sheet_backend.models.PaymentMode;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.repositories.BankAccountRepository;
 import com.example.trip_sheet_backend.repositories.PurchaseInvoiceRepository;

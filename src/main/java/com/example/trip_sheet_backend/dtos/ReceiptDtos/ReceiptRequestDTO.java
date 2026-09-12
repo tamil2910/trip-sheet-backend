@@ -1,4 +1,4 @@
-package com.example.trip_sheet_backend.dtos.PurchasePaymentDtos;
+package com.example.trip_sheet_backend.dtos.ReceiptDtos;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -13,17 +13,20 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class PurchasePaymentRequestDTO {
-    @NotNull(message = "payeeVendorId is required")
-    private UUID payeeVendorId;
+public class ReceiptRequestDTO {
+    @NotNull(message = "organisationId is required")
+    private UUID organisationId;
 
-    @NotNull(message = "purchasePaymentDate is required")
-    private Long purchasePaymentDate;
+    @NotNull(message = "receiptDate is required")
+    private Long receiptDate;
+
+    @NotNull(message = "isOnAccount is required")
+    private Boolean isOnAccount;
 
     @NotNull(message = "isAdvance is required")
     private Boolean isAdvance;
 
-    private List<UUID> purchaseInvoiceIds;
+    private List<UUID> invoiceIds;
 
     @NotNull(message = "amount is required")
     @Positive(message = "amount must be greater than zero")
