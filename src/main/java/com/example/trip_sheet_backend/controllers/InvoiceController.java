@@ -18,6 +18,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.InvoiceDtos.InvoiceResponseDTO;
+import com.example.trip_sheet_backend.dtos.InvoiceDtos.VendorInvoiceOutstandingResponseDTO;
+import com.example.trip_sheet_backend.dtos.InvoiceDtos.OrganisationVendorPayableResponseDTO;
+import com.example.trip_sheet_backend.dtos.InvoiceDtos.InvoiceOutstandingTotalsResponseDTO;
+import com.example.trip_sheet_backend.dtos.InvoiceDtos.OrganisationVendorPayableTotalsResponseDTO;
 import com.example.trip_sheet_backend.dtos.CreditDebitNoteDtos.CreditDebitNoteApplicationRequestDTO;
 import com.example.trip_sheet_backend.dtos.CreditDebitNoteDtos.CreditDebitNoteResponseDTO;
 import com.example.trip_sheet_backend.models.Invoice;
@@ -78,6 +82,48 @@ public class InvoiceController {
     response.put("page", page);
     response.put("size", size);
     return ResponseEntity.ok(new ApiResponse<>(true, "Invoices fetched successfully", response));
+  }
+
+  @GetMapping("/outstanding")
+  public ResponseEntity<ApiResponse<VendorInvoiceOutstandingResponseDTO>> getOutstanding(HttpServletRequest request) {
+    return ResponseEntity.ok(new ApiResponse<>(true, "Vendor outstanding fetched successfully",
+        invoiceService.getVendorOutstanding(tenant(request))));
+  }
+
+  @GetMapping("/outstanding/filter")
+  public ResponseEntity<ApiResponse<VendorInvoiceOutstandingResponseDTO>> getOutstandingForPeriod(
+      @RequestParam(required = false) Long startDate,
+      @RequestParam(required = false) Long endDate,
+      @RequestParam(required = false) UUID organisationId,
+      HttpServletRequest request) {
+    return ResponseEntity.ok(new ApiResponse<>(true, "Filtered vendor outstanding fetched successfully",
+        invoiceService.getVendorOutstandingForPeriod(tenant(request), startDate, endDate, organisationId)));
+  }
+
+  @GetMapping("/outstanding-only/filter")
+  public ResponseEntity<ApiResponse<InvoiceOutstandingTotalsResponseDTO>> getOutstandingTotalsForPeriod(
+      @RequestParam(required = false) Long startDate,
+      @RequestParam(required = false) Long endDate,
+      @RequestParam(required = false) UUID organisationId,
+      HttpServletRequest request) {
+    return ResponseEntity.ok(new ApiResponse<>(true, "Vendor outstanding totals fetched successfully",
+        invoiceService.getVendorOutstandingTotalsForPeriod(tenant(request), startDate, endDate, organisationId)));
+  }
+
+  @GetMapping("/payables")
+  public ResponseEntity<ApiResponse<OrganisationVendorPayableResponseDTO>> getPayables(HttpServletRequest request) {
+    return ResponseEntity.ok(new ApiResponse<>(true, "Organisation vendor payables fetched successfully",
+        invoiceService.getOrganisationPayables(tenant(request))));
+  }
+
+  @GetMapping("/payables-only/filter")
+  public ResponseEntity<ApiResponse<OrganisationVendorPayableTotalsResponseDTO>> getPayableTotalsForPeriod(
+      @RequestParam(required = false) Long startDate,
+      @RequestParam(required = false) Long endDate,
+      @RequestParam(required = false) UUID vendorId,
+      HttpServletRequest request) {
+    return ResponseEntity.ok(new ApiResponse<>(true, "Organisation vendor payable totals fetched successfully",
+        invoiceService.getOrganisationPayableTotalsForPeriod(tenant(request), startDate, endDate, vendorId)));
   }
 
   @GetMapping("/{purchaseOrderId}")
