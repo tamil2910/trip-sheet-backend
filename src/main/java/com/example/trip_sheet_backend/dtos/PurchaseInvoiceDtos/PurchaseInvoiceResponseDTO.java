@@ -21,6 +21,8 @@ public class PurchaseInvoiceResponseDTO {
   private Boolean isSourceInvoice;
   private UUID tripSummaryId;
   private BigDecimal amountPayable;
+  private BigDecimal creditDebitNoteAppliedAmount;
+  private BigDecimal currentPayableAmount;
   private BigDecimal amountReceivable;
   private BigDecimal earning;
   private String currencyCode;
@@ -99,6 +101,8 @@ public class PurchaseInvoiceResponseDTO {
     response.taxableTotalWithGst = value.getTaxableTotalWithGst(); response.nonTaxableTotal = value.getNonTaxableTotal(); response.roundOffAmount = value.getRoundOffAmount(); response.totalAmount = value.getTotalAmount();
     response.tripStartKmOdo = value.getTripStartKmOdo();
     response.tripEndKmOdo = value.getTripEndKmOdo();
+    response.creditDebitNoteAppliedAmount = value.getCreditDebitNoteAppliedAmount();
+    response.currentPayableAmount = value.getCurrentPayableAmount();
     return response;
   }
 

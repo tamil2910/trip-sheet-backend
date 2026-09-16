@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.dtos.InvoiceDtos;
 
 import java.util.UUID;
 import java.util.List;
+import java.math.BigDecimal;
 
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripRelationResponseDTO;
@@ -26,6 +27,8 @@ public class InvoiceResponseDTO {
   private List<TripRelationResponseDTO> passengers;
   private UUID tenantId;
   private Invoice.InvoiceStatus status;
+  private BigDecimal creditDebitNoteAppliedAmount;
+  private BigDecimal currentPayableAmount;
   private Invoice.ApprovalSide approvedBySide;
   private String approvedByUserId;
   private Long approvedAt;
@@ -45,6 +48,8 @@ public class InvoiceResponseDTO {
         passengers(invoice),
         invoice.getTenant() == null ? null : invoice.getTenant().getId(),
         invoice.getStatus(),
+        invoice.getCreditDebitNoteAppliedAmount(),
+        invoice.getCurrentPayableAmount(),
         invoice.getApprovedBySide(),
         invoice.getApprovedByUserId(),
         invoice.getApprovedAt(),

@@ -61,6 +61,14 @@ public class PurchaseInvoice extends BaseModel implements TenantScoped {
   @Column(nullable = false, precision = 12, scale = 2)
   private BigDecimal amountPayable;
 
+  /** Cumulative value of credit/debit-note allocations applied to this payable. */
+  @Column(nullable = false, precision = 12, scale = 2)
+  private BigDecimal creditDebitNoteAppliedAmount = BigDecimal.ZERO;
+
+  /** Outstanding amount after credit/debit-note allocations. */
+  @Column(precision = 12, scale = 2)
+  private BigDecimal currentPayableAmount;
+
   /** What the payer earns from its immediately preceding relationship. */
   @Column(nullable = false, precision = 12, scale = 2)
   private BigDecimal amountReceivable;

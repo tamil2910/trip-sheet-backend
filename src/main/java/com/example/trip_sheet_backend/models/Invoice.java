@@ -2,6 +2,8 @@ package com.example.trip_sheet_backend.models;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
+import java.math.BigDecimal;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -54,6 +56,14 @@ public class Invoice extends BaseModel implements TenantScoped {
 
   private Boolean isPrintedInvoice = false;
   private Boolean isDownloadedInvoice = false;
+
+  /** Cumulative value of credit/debit-note allocations applied to this invoice. */
+  @jakarta.persistence.Column(nullable = false, precision = 12, scale = 2)
+  private BigDecimal creditDebitNoteAppliedAmount = BigDecimal.ZERO;
+
+  /** Outstanding amount after credit/debit-note allocations. */
+  @jakarta.persistence.Column(precision = 12, scale = 2)
+  private BigDecimal currentPayableAmount;
 
   public enum InvoiceStatus {
     GENERATED,

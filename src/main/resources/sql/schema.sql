@@ -404,3 +404,90 @@ SET @vendor_partner_tax_tenant_id_sql := IF(
 PREPARE vendor_partner_tax_tenant_id_statement FROM @vendor_partner_tax_tenant_id_sql;
 EXECUTE vendor_partner_tax_tenant_id_statement;
 DEALLOCATE PREPARE vendor_partner_tax_tenant_id_statement;
+
+CREATE TABLE IF NOT EXISTS credit_debit_notes (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT,
+  updated_at BIGINT,
+  deleted_at BIGINT,
+  created_by VARCHAR(255),
+  updated_by VARCHAR(255),
+  deleted_by VARCHAR(255),
+  is_deleted BIT,
+  note_number VARCHAR(255) NOT NULL,
+  note_date BIGINT NOT NULL,
+  note_type VARCHAR(255) NOT NULL,
+  financial_year VARCHAR(4) NOT NULL,
+  sequence_number INT NOT NULL,
+  organisation_id BINARY(16) NULL,
+  vendor_partner_id BINARY(16) NULL,
+  is_non_taxable BIT NOT NULL,
+  tax_amount DECIMAL(12,2),
+  taxable_sub_total DECIMAL(12,2) NULL,
+  total_amount DECIMAL(12,2) NOT NULL,
+  remaining_amount DECIMAL(12,2) NOT NULL,
+  attachment_url VARCHAR(255),
+  comments LONGTEXT,
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_credit_debit_note_number (note_number),
+  UNIQUE KEY uk_credit_debit_note_sequence (organisation_id, note_type, financial_year, sequence_number),
+  INDEX idx_credit_debit_note_organisation (organisation_id),
+  INDEX idx_credit_debit_note_vendor_partner (vendor_partner_id),
+  CONSTRAINT fk_credit_debit_note_organisation FOREIGN KEY (organisation_id) REFERENCES tenants (id),
+  CONSTRAINT fk_credit_debit_note_vendor_partner FOREIGN KEY (vendor_partner_id) REFERENCES vendor_partners (id)
+);
+
+CREATE TABLE IF NOT EXISTS credit_debit_note_taxes (
+  credit_debit_note_id BINARY(16) NOT NULL,
+  tax_id BINARY(16) NOT NULL,
+  PRIMARY KEY (credit_debit_note_id, tax_id),
+  INDEX idx_credit_debit_note_taxes_tax (tax_id),
+  CONSTRAINT fk_credit_debit_note_taxes_note FOREIGN KEY (credit_debit_note_id) REFERENCES credit_debit_notes (id),
+  CONSTRAINT fk_credit_debit_note_taxes_tax FOREIGN KEY (tax_id) REFERENCES taxes (id)
+);
+
+CREATE TABLE IF NOT EXISTS credit_debit_note_invoice_applications (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT,
+  updated_at BIGINT,
+  deleted_at BIGINT,
+  created_by VARCHAR(255),
+  updated_by VARCHAR(255),
+  deleted_by VARCHAR(255),
+  is_deleted BIT,
+  credit_debit_note_id BINARY(16) NOT NULL,
+  invoice_id BINARY(16) NOT NULL,
+  amount DECIMAL(12,2) NOT NULL,
+  PRIMARY KEY (id),
+  INDEX idx_cd_note_invoice_application_note (credit_debit_note_id),
+  INDEX idx_cd_note_invoice_application_invoice (invoice_id),
+  CONSTRAINT fk_cd_note_invoice_application_note FOREIGN KEY (credit_debit_note_id) REFERENCES credit_debit_notes (id),
+  CONSTRAINT fk_cd_note_invoice_application_invoice FOREIGN KEY (invoice_id) REFERENCES invoices (id)
+);
+
+CREATE TABLE IF NOT EXISTS credit_debit_note_purchase_invoice_applications (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT,
+  updated_at BIGINT,
+  deleted_at BIGINT,
+  created_by VARCHAR(255),
+  updated_by VARCHAR(255),
+  deleted_by VARCHAR(255),
+  is_deleted BIT,
+  credit_debit_note_id BINARY(16) NOT NULL,
+  purchase_invoice_id BINARY(16) NOT NULL,
+  amount DECIMAL(12,2) NOT NULL,
+  PRIMARY KEY (id),
+  INDEX idx_cd_note_purchase_application_note (credit_debit_note_id),
+  INDEX idx_cd_note_purchase_application_invoice (purchase_invoice_id),
+  CONSTRAINT fk_cd_note_purchase_application_note FOREIGN KEY (credit_debit_note_id) REFERENCES credit_debit_notes (id),
+  CONSTRAINT fk_cd_note_purchase_application_invoice FOREIGN KEY (purchase_invoice_id) REFERENCES purchase_invoices (id)
+);
+
+-- ALTER TABLE invoices
+--   ADD COLUMN IF NOT EXISTS credit_debit_note_applied_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+--   ADD COLUMN IF NOT EXISTS current_payable_amount DECIMAL(12,2) NULL;
+
+-- ALTER TABLE purchase_invoices
+--   ADD COLUMN IF NOT EXISTS credit_debit_note_applied_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+--   ADD COLUMN IF NOT EXISTS current_payable_amount DECIMAL(12,2) NULL;

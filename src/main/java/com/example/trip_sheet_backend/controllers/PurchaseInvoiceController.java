@@ -7,24 +7,34 @@ import java.util.UUID;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.PurchaseInvoiceDtos.PurchaseInvoiceResponseDTO;
+import com.example.trip_sheet_backend.dtos.CreditDebitNoteDtos.CreditDebitNoteApplicationRequestDTO;
+import com.example.trip_sheet_backend.dtos.CreditDebitNoteDtos.CreditDebitNoteResponseDTO;
 import com.example.trip_sheet_backend.models.PurchaseInvoice.PurchaseInvoiceStatus;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.PurchaseInvoiceService.PurchaseInvoiceService;
+import com.example.trip_sheet_backend.services.CreditDebitNoteService.CreditDebitNoteService;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/purchase-invoices")
 public class PurchaseInvoiceController {
   private final PurchaseInvoiceService service;
-  public PurchaseInvoiceController(PurchaseInvoiceService service) { this.service = service; }
+  private final CreditDebitNoteService creditDebitNoteService;
+  public PurchaseInvoiceController(PurchaseInvoiceService service, CreditDebitNoteService creditDebitNoteService) {
+    this.service = service;
+    this.creditDebitNoteService = creditDebitNoteService;
+  }
 
   @GetMapping
   public ResponseEntity<ApiResponse<List<PurchaseInvoiceResponseDTO>>> getAll(
@@ -36,6 +46,15 @@ public class PurchaseInvoiceController {
       response.addAll(service.getPendingVendorInvoices(tenant(request)).stream().map(PurchaseInvoiceResponseDTO::fromSourceInvoice).toList());
     }
     return ResponseEntity.ok(new ApiResponse<>(true, "Purchase invoices fetched successfully", response));
+  }
+
+  @PostMapping("/credit-debit-notes/{noteId}/apply")
+  public ResponseEntity<ApiResponse<CreditDebitNoteResponseDTO>> applyCreditDebitNote(
+      @PathVariable UUID noteId, @Valid @RequestBody CreditDebitNoteApplicationRequestDTO body,
+      HttpServletRequest request) {
+    return ResponseEntity.ok(new ApiResponse<>(true, "Credit/debit note applied to purchase invoice successfully",
+        CreditDebitNoteResponseDTO.fromEntity(
+            creditDebitNoteService.applyToPurchaseInvoices(noteId, body, tenant(request), actorId(request)))));
   }
 
   @GetMapping("/{id}") // Get purchase invoice by ID

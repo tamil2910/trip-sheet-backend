@@ -10,26 +10,43 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.InvoiceDtos.InvoiceResponseDTO;
+import com.example.trip_sheet_backend.dtos.CreditDebitNoteDtos.CreditDebitNoteApplicationRequestDTO;
+import com.example.trip_sheet_backend.dtos.CreditDebitNoteDtos.CreditDebitNoteResponseDTO;
 import com.example.trip_sheet_backend.models.Invoice;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.InvoiceService.InvoiceService;
+import com.example.trip_sheet_backend.services.CreditDebitNoteService.CreditDebitNoteService;
 
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/invoices")
 public class InvoiceController {
   private final InvoiceService invoiceService;
+  private final CreditDebitNoteService creditDebitNoteService;
 
-  public InvoiceController(InvoiceService invoiceService) {
+  public InvoiceController(InvoiceService invoiceService, CreditDebitNoteService creditDebitNoteService) {
     this.invoiceService = invoiceService;
+    this.creditDebitNoteService = creditDebitNoteService;
+  }
+
+  @PostMapping("/credit-debit-notes/{noteId}/apply")
+  public ResponseEntity<ApiResponse<CreditDebitNoteResponseDTO>> applyCreditDebitNote(
+      @PathVariable UUID noteId, @Valid @RequestBody CreditDebitNoteApplicationRequestDTO body,
+      HttpServletRequest request) {
+    return ResponseEntity.ok(new ApiResponse<>(true, "Credit/debit note applied to invoice successfully",
+        CreditDebitNoteResponseDTO.fromEntity(
+            creditDebitNoteService.applyToInvoices(noteId, body, tenant(request), actorId(request)))));
   }
 
   @GetMapping
