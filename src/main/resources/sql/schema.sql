@@ -491,3 +491,22 @@ CREATE TABLE IF NOT EXISTS credit_debit_note_purchase_invoice_applications (
 -- ALTER TABLE purchase_invoices
 --   ADD COLUMN IF NOT EXISTS credit_debit_note_applied_amount DECIMAL(12,2) NOT NULL DEFAULT 0.00,
 --   ADD COLUMN IF NOT EXISTS current_payable_amount DECIMAL(12,2) NULL;
+
+CREATE TABLE IF NOT EXISTS receipt_invoice_applications (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT,
+  updated_at BIGINT,
+  deleted_at BIGINT,
+  created_by VARCHAR(255),
+  updated_by VARCHAR(255),
+  deleted_by VARCHAR(255),
+  is_deleted BIT,
+  receipt_id BINARY(16) NOT NULL,
+  invoice_id BINARY(16) NOT NULL,
+  amount DECIMAL(12,2) NOT NULL,
+  PRIMARY KEY (id),
+  INDEX idx_receipt_invoice_application_receipt (receipt_id),
+  INDEX idx_receipt_invoice_application_invoice (invoice_id),
+  CONSTRAINT fk_receipt_invoice_application_receipt FOREIGN KEY (receipt_id) REFERENCES receipts (id),
+  CONSTRAINT fk_receipt_invoice_application_invoice FOREIGN KEY (invoice_id) REFERENCES invoices (id)
+);

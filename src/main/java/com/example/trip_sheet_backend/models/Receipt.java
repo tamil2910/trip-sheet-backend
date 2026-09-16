@@ -16,6 +16,7 @@ import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.OneToMany;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -58,6 +59,13 @@ public class Receipt extends BaseModel implements TenantScoped {
 
     @Column(nullable = false, precision = 12, scale = 2)
     private BigDecimal amount;
+
+    /** Amount still available to apply to invoices. */
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal remainingAmount;
+
+    @OneToMany(mappedBy = "receipt")
+    private List<ReceiptInvoiceApplication> invoiceApplications = new ArrayList<>();
 
     @Column(precision = 12, scale = 2)
     private BigDecimal tdsDeduction;

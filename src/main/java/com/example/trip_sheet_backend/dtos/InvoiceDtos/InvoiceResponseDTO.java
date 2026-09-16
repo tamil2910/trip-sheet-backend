@@ -28,6 +28,7 @@ public class InvoiceResponseDTO {
   private UUID tenantId;
   private Invoice.InvoiceStatus status;
   private BigDecimal creditDebitNoteAppliedAmount;
+  private BigDecimal receiptAppliedAmount;
   private BigDecimal currentPayableAmount;
   private Invoice.ApprovalSide approvedBySide;
   private String approvedByUserId;
@@ -49,6 +50,7 @@ public class InvoiceResponseDTO {
         invoice.getTenant() == null ? null : invoice.getTenant().getId(),
         invoice.getStatus(),
         invoice.getCreditDebitNoteAppliedAmount(),
+        invoice.getReceiptAppliedAmount(),
         invoice.getCurrentPayableAmount(),
         invoice.getApprovedBySide(),
         invoice.getApprovedByUserId(),

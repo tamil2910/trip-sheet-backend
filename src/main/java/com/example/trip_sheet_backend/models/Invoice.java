@@ -61,6 +61,10 @@ public class Invoice extends BaseModel implements TenantScoped {
   @jakarta.persistence.Column(nullable = false, precision = 12, scale = 2)
   private BigDecimal creditDebitNoteAppliedAmount = BigDecimal.ZERO;
 
+  /** Cumulative receipt value applied to this invoice. */
+  @jakarta.persistence.Column(nullable = false, precision = 12, scale = 2)
+  private BigDecimal receiptAppliedAmount = BigDecimal.ZERO;
+
   /** Outstanding amount after credit/debit-note allocations. */
   @jakarta.persistence.Column(precision = 12, scale = 2)
   private BigDecimal currentPayableAmount;

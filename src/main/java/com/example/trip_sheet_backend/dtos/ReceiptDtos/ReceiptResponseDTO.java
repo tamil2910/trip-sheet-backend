@@ -21,6 +21,7 @@ public class ReceiptResponseDTO {
     private Boolean isAdvance;
     private List<UUID> invoiceIds;
     private BigDecimal amount;
+    private BigDecimal remainingAmount;
     private BigDecimal tdsDeduction;
     private BigDecimal adjustments;
     private PaymentMode paymentMode;
@@ -36,7 +37,7 @@ public class ReceiptResponseDTO {
         return new ReceiptResponseDTO(receipt.getId(), receipt.getOrganisation().getId(),
             receipt.getOrganisation().getTenantName(), receipt.getReceiptDate(), receipt.getIsOnAccount(),
             receipt.getIsAdvance(), receipt.getInvoices().stream().map(invoice -> invoice.getId()).toList(),
-            receipt.getAmount(), receipt.getTdsDeduction(), receipt.getAdjustments(), receipt.getPaymentMode(),
+            receipt.getAmount(), receipt.getRemainingAmount(), receipt.getTdsDeduction(), receipt.getAdjustments(), receipt.getPaymentMode(),
             receipt.getFromBank() == null ? null : receipt.getFromBank().getId(), receipt.getBankDebitDate(),
             receipt.getChequeNumber(), receipt.getChequeDate(), receipt.getBankName(), receipt.getTransactionNumber(),
             receipt.getNotes());

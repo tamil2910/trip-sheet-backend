@@ -4,31 +4,38 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.dtos.ReceiptDtos.ReceiptRequestDTO;
+import com.example.trip_sheet_backend.dtos.ReceiptDtos.ReceiptApplyRequestDTO;
 import com.example.trip_sheet_backend.models.BankAccount;
 import com.example.trip_sheet_backend.models.Invoice;
 import com.example.trip_sheet_backend.models.PaymentMode;
 import com.example.trip_sheet_backend.models.Receipt;
+import com.example.trip_sheet_backend.models.ReceiptInvoiceApplication;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.repositories.BankAccountRepository;
 import com.example.trip_sheet_backend.repositories.InvoiceRepository;
 import com.example.trip_sheet_backend.repositories.ReceiptRepository;
+import com.example.trip_sheet_backend.repositories.ReceiptInvoiceApplicationRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 
 @Service
 public class ReceiptServiceImp implements ReceiptService {
     private final ReceiptRepository receiptRepository;
+    private final ReceiptInvoiceApplicationRepository receiptInvoiceApplicationRepository;
     private final InvoiceRepository invoiceRepository;
     private final TenantRepository tenantRepository;
     private final BankAccountRepository bankAccountRepository;
 
-    public ReceiptServiceImp(ReceiptRepository receiptRepository, InvoiceRepository invoiceRepository,
+    public ReceiptServiceImp(ReceiptRepository receiptRepository, ReceiptInvoiceApplicationRepository receiptInvoiceApplicationRepository,
+            InvoiceRepository invoiceRepository,
             TenantRepository tenantRepository, BankAccountRepository bankAccountRepository) {
         this.receiptRepository = receiptRepository;
+        this.receiptInvoiceApplicationRepository = receiptInvoiceApplicationRepository;
         this.invoiceRepository = invoiceRepository;
         this.tenantRepository = tenantRepository;
         this.bankAccountRepository = bankAccountRepository;
@@ -97,6 +104,9 @@ public class ReceiptServiceImp implements ReceiptService {
         receipt.setIsAdvance(body.getIsAdvance());
         receipt.setInvoices(resolveInvoices(body, vendor, organisation));
         receipt.setAmount(body.getAmount());
+        if (!hasApplications(receipt.getId())) {
+            receipt.setRemainingAmount(body.getAmount());
+        }
         receipt.setTdsDeduction(body.getTdsDeduction());
         receipt.setAdjustments(body.getAdjustments());
         receipt.setPaymentMode(body.getPaymentMode());
@@ -107,6 +117,68 @@ public class ReceiptServiceImp implements ReceiptService {
         receipt.setBankName(trimToNull(body.getBankName()));
         receipt.setTransactionNumber(trimToNull(body.getTransactionNumber()));
         receipt.setNotes(trimToNull(body.getNotes()));
+    }
+
+    @Override
+    @Transactional
+    public Receipt apply(UUID receiptId, ReceiptApplyRequestDTO body, Tenant tenant, UUID updatedBy) {
+        Receipt receipt = getById(receiptId, tenant);
+        if (Boolean.TRUE.equals(receipt.getIsOnAccount()) || Boolean.TRUE.equals(receipt.getIsAdvance())) {
+            throw new RuntimeException("On-account or advance receipts cannot be applied to invoices");
+        }
+        BigDecimal requestedAmount = body.getAmount();
+        BigDecimal availableAmount = amount(receipt.getRemainingAmount());
+        if (requestedAmount.compareTo(availableAmount) > 0) {
+            throw new RuntimeException("Application amount exceeds the receipt remaining amount of " + availableAmount);
+        }
+        List<UUID> invoiceIds = body.getInvoiceIds();
+        if (new LinkedHashSet<>(invoiceIds).size() != invoiceIds.size() || invoiceIds.contains(null)) {
+            throw new RuntimeException("invoiceIds must contain unique, non-null values");
+        }
+
+        BigDecimal unapplied = requestedAmount;
+        List<Invoice> appliedInvoices = new ArrayList<>(receipt.getInvoices());
+        for (UUID invoiceId : invoiceIds) {
+            if (unapplied.signum() == 0) {
+                break;
+            }
+            Invoice invoice = invoiceRepository.findById(invoiceId)
+                .filter(value -> !Boolean.TRUE.equals(value.getIsDeleted()))
+                .orElseThrow(() -> new RuntimeException("Invoice not found: " + invoiceId));
+            if (!sameTenant(invoice.getTenant(), tenant) || !belongsToOrganisation(invoice, receipt.getOrganisation())) {
+                throw new RuntimeException("Each invoice must belong to this vendor and receipt organisation");
+            }
+            BigDecimal outstanding = currentPayable(invoice);
+            if (outstanding.signum() <= 0) {
+                continue;
+            }
+            BigDecimal allocationAmount = unapplied.min(outstanding);
+            invoice.setCurrentPayableAmount(outstanding.subtract(allocationAmount));
+            invoice.setReceiptAppliedAmount(amount(invoice.getReceiptAppliedAmount()).add(allocationAmount));
+            if (invoice.getCurrentPayableAmount().signum() == 0) {
+                invoice.setStatus(Invoice.InvoiceStatus.PAYMENT_RECEIVED);
+            }
+            invoiceRepository.save(invoice);
+
+            ReceiptInvoiceApplication allocation = new ReceiptInvoiceApplication();
+            allocation.setReceipt(receipt);
+            allocation.setInvoice(invoice);
+            allocation.setAmount(allocationAmount);
+            receiptInvoiceApplicationRepository.save(allocation);
+            if (appliedInvoices.stream().noneMatch(item -> item.getId().equals(invoice.getId()))) {
+                appliedInvoices.add(invoice);
+            }
+            unapplied = unapplied.subtract(allocationAmount);
+        }
+        if (unapplied.signum() > 0) {
+            throw new RuntimeException("Receipt amount could not be fully applied because the selected invoices have insufficient outstanding amount");
+        }
+        receipt.setInvoices(appliedInvoices);
+        receipt.setRemainingAmount(availableAmount.subtract(requestedAmount));
+        if (updatedBy != null) {
+            receipt.setUpdatedBy(updatedBy.toString());
+        }
+        return receiptRepository.save(receipt);
     }
 
     private List<Invoice> resolveInvoices(ReceiptRequestDTO body, Tenant vendor, Tenant organisation) {
@@ -136,6 +208,24 @@ public class ReceiptServiceImp implements ReceiptService {
             && invoice.getPurchaseOrder().getTripSummary() != null
             && invoice.getPurchaseOrder().getTripSummary().getTripId() != null
             && sameTenant(invoice.getPurchaseOrder().getTripSummary().getTripId().getOrganisation(), organisation);
+    }
+
+    private BigDecimal currentPayable(Invoice invoice) {
+        if (invoice.getCurrentPayableAmount() != null) {
+            return invoice.getCurrentPayableAmount();
+        }
+        if (invoice.getPurchaseOrder() == null || invoice.getPurchaseOrder().getTotalAmount() == null) {
+            throw new RuntimeException("Invoice does not have a payable total");
+        }
+        return invoice.getPurchaseOrder().getTotalAmount();
+    }
+
+    private BigDecimal amount(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
+    private boolean hasApplications(UUID receiptId) {
+        return receiptId != null && receiptInvoiceApplicationRepository.existsByReceipt_IdAndIsDeletedFalse(receiptId);
     }
 
     private BankAccount resolveBank(UUID bankAccountId, Tenant vendor) {

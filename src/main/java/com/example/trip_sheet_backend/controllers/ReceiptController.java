@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.ReceiptDtos.ReceiptRequestDTO;
+import com.example.trip_sheet_backend.dtos.ReceiptDtos.ReceiptApplyRequestDTO;
 import com.example.trip_sheet_backend.dtos.ReceiptDtos.ReceiptResponseDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -56,6 +57,13 @@ public class ReceiptController {
             @Valid @RequestBody ReceiptRequestDTO body, HttpServletRequest request) {
         return ResponseEntity.ok(new ApiResponse<>(true, "Receipt updated successfully",
             ReceiptResponseDTO.fromEntity(receiptService.update(id, body, tenant(request), actorId(request)))));
+    }
+
+    @PutMapping("/apply/{receiptId}")
+    public ResponseEntity<ApiResponse<ReceiptResponseDTO>> apply(@PathVariable UUID receiptId,
+            @Valid @RequestBody ReceiptApplyRequestDTO body, HttpServletRequest request) {
+        return ResponseEntity.ok(new ApiResponse<>(true, "Receipt applied successfully",
+            ReceiptResponseDTO.fromEntity(receiptService.apply(receiptId, body, tenant(request), actorId(request)))));
     }
 
     @DeleteMapping("/{id}")
