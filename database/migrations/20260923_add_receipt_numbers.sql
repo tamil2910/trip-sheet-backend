@@ -1,0 +1,2 @@
+ALTER TABLE receipts
+  ADD COLUMN IF NOT EXISTS receipt_number VARCHAR(255) NULL;

@@ -5,8 +5,12 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.dtos.ReceiptDtos.ReceiptRequestDTO;
@@ -25,6 +29,7 @@ import com.example.trip_sheet_backend.repositories.TenantRepository;
 
 @Service
 public class ReceiptServiceImp implements ReceiptService {
+    private static final ZoneId FINANCIAL_YEAR_ZONE = ZoneId.of("Asia/Kolkata");
     private final ReceiptRepository receiptRepository;
     private final ReceiptInvoiceApplicationRepository receiptInvoiceApplicationRepository;
     private final InvoiceRepository invoiceRepository;
@@ -42,11 +47,17 @@ public class ReceiptServiceImp implements ReceiptService {
     }
 
     @Override
-    @Transactional
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public Receipt create(ReceiptRequestDTO body, Tenant tenant, UUID createdBy) {
         validateVendor(tenant);
         Receipt receipt = new Receipt();
         receipt.setVendor(tenant);
+        String financialYear = financialYear(body.getReceiptDate());
+        int nextSequence = receiptRepository.findLastReceiptNumber(tenant.getId(), financialYear)
+            .map(this::sequenceFromReceiptNumber)
+            .map(sequence -> sequence + 1)
+            .orElse(1);
+        receipt.setReceiptNumber("R-" + financialYear + "-" + String.format("%02d", nextSequence));
         applyFields(receipt, body, tenant);
         setCreatedAudit(receipt, createdBy);
         return receiptRepository.save(receipt);
@@ -276,6 +287,23 @@ public class ReceiptServiceImp implements ReceiptService {
 
     private String trimToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private String financialYear(Long epochMillis) {
+        if (epochMillis == null || epochMillis <= 0) {
+            throw new RuntimeException("receiptDate must be an epoch timestamp in milliseconds");
+        }
+        LocalDate date = Instant.ofEpochMilli(epochMillis).atZone(FINANCIAL_YEAR_ZONE).toLocalDate();
+        int startYear = date.getMonthValue() >= 4 ? date.getYear() : date.getYear() - 1;
+        return String.format("%02d%02d", startYear % 100, (startYear + 1) % 100);
+    }
+
+    private int sequenceFromReceiptNumber(String receiptNumber) {
+        int separator = receiptNumber.lastIndexOf('-');
+        if (separator < 0 || separator == receiptNumber.length() - 1) {
+            throw new RuntimeException("Invalid existing receipt number: " + receiptNumber);
+        }
+        return Integer.parseInt(receiptNumber.substring(separator + 1));
     }
 
     private void setCreatedAudit(Receipt receipt, UUID actorId) {

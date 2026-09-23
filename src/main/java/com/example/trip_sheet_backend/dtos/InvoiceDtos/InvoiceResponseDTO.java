@@ -30,6 +30,7 @@ public class InvoiceResponseDTO {
   private BigDecimal creditDebitNoteAppliedAmount;
   private BigDecimal receiptAppliedAmount;
   private BigDecimal currentPayableAmount;
+  private List<ReceiptReferenceDTO> receiptIds;
   private Invoice.ApprovalSide approvedBySide;
   private String approvedByUserId;
   private Long approvedAt;
@@ -52,12 +53,27 @@ public class InvoiceResponseDTO {
         invoice.getCreditDebitNoteAppliedAmount(),
         invoice.getReceiptAppliedAmount(),
         invoice.getCurrentPayableAmount(),
+        invoice.getReceiptApplications().stream()
+          .map(application -> new ReceiptReferenceDTO(
+              application.getReceipt().getId(), receiptNumber(application.getReceipt())))
+          .toList(),
         invoice.getApprovedBySide(),
         invoice.getApprovedByUserId(),
         invoice.getApprovedAt(),
         invoice.getIsPrintedInvoice(),
         invoice.getIsDownloadedInvoice()
     );
+  }
+
+  private static String receiptNumber(com.example.trip_sheet_backend.models.Receipt receipt) {
+    return receipt.getReceiptNumber();
+  }
+
+  @Getter
+  @AllArgsConstructor
+  public static class ReceiptReferenceDTO {
+    private UUID id;
+    private String number;
   }
 
   private static String tripCode(Invoice invoice) {

@@ -3,6 +3,8 @@ package com.example.trip_sheet_backend.models;
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -10,6 +12,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
 import jakarta.persistence.Index;
 import lombok.AllArgsConstructor;
@@ -68,6 +71,9 @@ public class Invoice extends BaseModel implements TenantScoped {
   /** Outstanding amount after credit/debit-note allocations. */
   @jakarta.persistence.Column(precision = 12, scale = 2)
   private BigDecimal currentPayableAmount;
+
+  @OneToMany(mappedBy = "invoice", fetch = FetchType.LAZY)
+  private List<ReceiptInvoiceApplication> receiptApplications = new ArrayList<>();
 
   public enum InvoiceStatus {
     GENERATED,

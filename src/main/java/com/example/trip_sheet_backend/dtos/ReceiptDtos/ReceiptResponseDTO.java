@@ -16,10 +16,12 @@ public class ReceiptResponseDTO {
     private UUID id;
     private UUID organisationId;
     private String organisationName;
+    private String receiptNumber;
     private Long receiptDate;
     private Boolean isOnAccount;
     private Boolean isAdvance;
     private List<UUID> invoiceIds;
+    private List<String> invoiceNumbers;
     private BigDecimal amount;
     private BigDecimal remainingAmount;
     private BigDecimal tdsDeduction;
@@ -35,8 +37,9 @@ public class ReceiptResponseDTO {
 
     public static ReceiptResponseDTO fromEntity(Receipt receipt) {
         return new ReceiptResponseDTO(receipt.getId(), receipt.getOrganisation().getId(),
-            receipt.getOrganisation().getTenantName(), receipt.getReceiptDate(), receipt.getIsOnAccount(),
+            receipt.getOrganisation().getTenantName(), receipt.getReceiptNumber(), receipt.getReceiptDate(), receipt.getIsOnAccount(),
             receipt.getIsAdvance(), receipt.getInvoices().stream().map(invoice -> invoice.getId()).toList(),
+            receipt.getInvoices().stream().map(invoice -> invoice.getInvoiceNumber()).toList(),
             receipt.getAmount(), receipt.getRemainingAmount(), receipt.getTdsDeduction(), receipt.getAdjustments(), receipt.getPaymentMode(),
             receipt.getFromBank() == null ? null : receipt.getFromBank().getId(), receipt.getBankDebitDate(),
             receipt.getChequeNumber(), receipt.getChequeDate(), receipt.getBankName(), receipt.getTransactionNumber(),

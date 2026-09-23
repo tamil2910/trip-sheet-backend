@@ -39,6 +39,9 @@ public class Receipt extends BaseModel implements TenantScoped {
     @JoinColumn(name = "organisation_id", nullable = false)
     private Tenant organisation;
 
+    @Column(name = "receipt_number", nullable = false, updatable = false)
+    private String receiptNumber;
+
     /** Epoch milliseconds. */
     @Column(name = "receipt_date", nullable = false)
     private Long receiptDate;
