@@ -416,6 +416,7 @@ CREATE TABLE IF NOT EXISTS credit_debit_notes (
   is_deleted BIT,
   note_number VARCHAR(255) NOT NULL,
   note_date BIGINT NOT NULL,
+  apply_to VARCHAR(32) NOT NULL,
   note_type VARCHAR(255) NOT NULL,
   financial_year VARCHAR(4) NOT NULL,
   sequence_number INT NOT NULL,
@@ -436,6 +437,33 @@ CREATE TABLE IF NOT EXISTS credit_debit_notes (
   CONSTRAINT fk_credit_debit_note_organisation FOREIGN KEY (organisation_id) REFERENCES tenants (id),
   CONSTRAINT fk_credit_debit_note_vendor_partner FOREIGN KEY (vendor_partner_id) REFERENCES vendor_partners (id)
 );
+
+-- Repair legacy databases that predate the explicit note target.
+SET @credit_debit_note_apply_to_exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'credit_debit_notes'
+    AND column_name = 'apply_to'
+);
+SET @credit_debit_note_apply_to_sql := IF(@credit_debit_note_apply_to_exists = 0,
+  'ALTER TABLE credit_debit_notes ADD COLUMN apply_to VARCHAR(32) NULL AFTER note_date',
+  'SELECT 1'
+);
+PREPARE credit_debit_note_apply_to_statement FROM @credit_debit_note_apply_to_sql;
+EXECUTE credit_debit_note_apply_to_statement;
+DEALLOCATE PREPARE credit_debit_note_apply_to_statement;
+
+UPDATE credit_debit_notes
+SET apply_to = CASE
+  WHEN organisation_id IS NOT NULL THEN 'ORGANISATION'
+  WHEN vendor_partner_id IS NOT NULL THEN 'VENDOR_PARTNER'
+  ELSE apply_to
+END
+WHERE apply_to IS NULL;
+
+-- Repair legacy databases that created either owner relation as NOT NULL.
+ALTER TABLE credit_debit_notes
+  MODIFY COLUMN organisation_id BINARY(16) NULL,
+  MODIFY COLUMN vendor_partner_id BINARY(16) NULL;
 
 CREATE TABLE IF NOT EXISTS credit_debit_note_taxes (
   credit_debit_note_id BINARY(16) NOT NULL,

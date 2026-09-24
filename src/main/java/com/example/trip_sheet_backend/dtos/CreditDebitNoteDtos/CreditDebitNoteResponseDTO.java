@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.example.trip_sheet_backend.models.CreditDebitNote;
+import com.example.trip_sheet_backend.models.CreditDebitNote.ApplyTo;
 import com.example.trip_sheet_backend.models.CreditDebitNote.NoteType;
 
 import lombok.AllArgsConstructor;
@@ -17,6 +18,7 @@ public class CreditDebitNoteResponseDTO {
     private String noteNumber;
     private Long noteDate;
     private NoteType noteType;
+    private ApplyTo applyTo;
     private UUID organisationId;
     private UUID vendorPartnerId;
     private Boolean isNonTaxable;
@@ -31,7 +33,7 @@ public class CreditDebitNoteResponseDTO {
     private String comments;
 
     public static CreditDebitNoteResponseDTO fromEntity(CreditDebitNote note) {
-        return new CreditDebitNoteResponseDTO(note.getId(), note.getNoteNumber(), note.getNoteDate(), note.getNoteType(),
+        return new CreditDebitNoteResponseDTO(note.getId(), note.getNoteNumber(), note.getNoteDate(), note.getNoteType(), note.getApplyTo(),
             note.getOrganisation() == null ? null : note.getOrganisation().getId(),
             note.getVendorPartner() == null ? null : note.getVendorPartner().getId(), note.getIsNonTaxable(),
             note.getTaxList().stream().map(tax -> tax.getId()).toList(), note.getTaxAmount(), note.getTaxableSubTotal(),

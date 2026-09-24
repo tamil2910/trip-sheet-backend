@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.trip_sheet_backend.dtos.CreditDebitNoteDtos.CreditDebitNoteRequestDTO;
 import com.example.trip_sheet_backend.dtos.CreditDebitNoteDtos.CreditDebitNoteApplicationRequestDTO;
 import com.example.trip_sheet_backend.models.CreditDebitNote;
+import com.example.trip_sheet_backend.models.CreditDebitNote.ApplyTo;
 import com.example.trip_sheet_backend.models.CreditDebitNoteInvoiceApplication;
 import com.example.trip_sheet_backend.models.CreditDebitNotePurchaseInvoiceApplication;
 import com.example.trip_sheet_backend.models.Invoice;
@@ -78,6 +79,7 @@ public class CreditDebitNoteServiceImp implements CreditDebitNoteService {
 
         note.setOrganisation(relations.organisation());
         note.setVendorPartner(relations.vendorPartner());
+        note.setApplyTo(body.getApplyTo());
         note.setNoteType(body.getNoteType());
         note.setFinancialYear(financialYear);
         note.setSequenceNumber(nextSequence);
@@ -111,9 +113,10 @@ public class CreditDebitNoteServiceImp implements CreditDebitNoteService {
     public CreditDebitNote update(UUID id, CreditDebitNoteRequestDTO body, Tenant tenant, UUID updatedBy) {
         CreditDebitNote note = getById(id, tenant);
         if (body.getNoteType() != note.getNoteType()
+                || body.getApplyTo() != note.getApplyTo()
                 || !sameId(body.getOrganisationId(), note.getOrganisation() == null ? null : note.getOrganisation().getId())
                 || !sameId(body.getVendorPartnerId(), note.getVendorPartner() == null ? null : note.getVendorPartner().getId())) {
-            throw new RuntimeException("noteType, organisationId and vendorPartnerId cannot be changed after note creation");
+            throw new RuntimeException("noteType, applyTo, organisationId and vendorPartnerId cannot be changed after note creation");
         }
         if (!financialYear(body.getNoteDate()).equals(note.getFinancialYear())) {
             throw new RuntimeException("noteDate cannot be moved to a different financial year");
@@ -346,10 +349,10 @@ public class CreditDebitNoteServiceImp implements CreditDebitNoteService {
     }
 
     private ResolvedRelations resolveRelations(CreditDebitNoteRequestDTO body, Tenant tenant) {
-        if ((body.getOrganisationId() == null) == (body.getVendorPartnerId() == null)) {
-            throw new RuntimeException("Provide exactly one of organisationId or vendorPartnerId");
-        }
-        if (body.getOrganisationId() != null) {
+        if (body.getApplyTo() == ApplyTo.ORGANISATION) {
+            if (body.getOrganisationId() == null || body.getVendorPartnerId() != null) {
+                throw new RuntimeException("organisationId is required and vendorPartnerId must be absent when applyTo is ORGANISATION");
+            }
             Tenant organisation = tenantRepository.findById(body.getOrganisationId())
                 .filter(value -> !Boolean.TRUE.equals(value.getIsDeleted()))
                 .orElseThrow(() -> new RuntimeException("Organisation not found"));
@@ -360,6 +363,12 @@ public class CreditDebitNoteServiceImp implements CreditDebitNoteService {
                 .filter(value -> !Boolean.TRUE.equals(value.getIsDeleted()))
                 .orElseThrow(() -> new RuntimeException("You are not linked with this organisation"));
             return new ResolvedRelations(link.getOrganisation(), null, link.getOrganisation());
+        }
+        if (body.getApplyTo() != ApplyTo.VENDOR_PARTNER) {
+            throw new RuntimeException("applyTo must be ORGANISATION or VENDOR_PARTNER");
+        }
+        if (body.getVendorPartnerId() == null || body.getOrganisationId() != null) {
+            throw new RuntimeException("vendorPartnerId is required and organisationId must be absent when applyTo is VENDOR_PARTNER");
         }
         VendorPartner vendorPartner = vendorPartnerRepository.findById(body.getVendorPartnerId())
             .filter(value -> !Boolean.TRUE.equals(value.getIsDeleted()))

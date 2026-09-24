@@ -42,6 +42,10 @@ public class CreditDebitNote extends BaseModel {
     private Long noteDate;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "apply_to", nullable = false, updatable = false, length = 32)
+    private ApplyTo applyTo;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "note_type", nullable = false, updatable = false)
     private NoteType noteType;
 
@@ -94,5 +98,10 @@ public class CreditDebitNote extends BaseModel {
     public enum NoteType {
         CREDIT,
         DEBIT
+    }
+
+    public enum ApplyTo {
+        ORGANISATION,
+        VENDOR_PARTNER
     }
 }
