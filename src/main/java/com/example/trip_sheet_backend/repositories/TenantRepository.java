@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.repositories;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.Lock;
@@ -14,6 +15,7 @@ import jakarta.persistence.LockModeType;
 
 public interface TenantRepository extends BaseRepository<Tenant, UUID> {
   Optional<Tenant> findByTenantName(String tenantName);
+  List<Tenant> findByTenantNameContainingIgnoreCase(String tenantName);
   Optional<Tenant> findByGstNumber(String gstNumber);
   Optional<Tenant> findByContactEmail(String contactEmail);
   Optional<Tenant> findByAdmin_UserAccount_Id(UUID userAccountId);

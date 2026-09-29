@@ -16,6 +16,7 @@ import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.CreatePeopleRequestD
 import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
+import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.services.PeopleTenantService.PeopleTenantServiceImp;
 
 @Service
@@ -24,25 +25,51 @@ public class PassengerRouteService {
     private final PeopleTenantRepository peopleTenantRepository;
     private final PeopleTenantServiceImp peopleTenantService;
     private final PassengerGeocodingService geocodingService;
+    private final TenantRepository tenantRepository;
+    private final PassengerRouteEstimateService routeEstimateService;
 
     public PassengerRouteService(
             PeopleTenantRepository peopleTenantRepository,
             PeopleTenantServiceImp peopleTenantService,
-            PassengerGeocodingService geocodingService) {
+            PassengerGeocodingService geocodingService,
+            TenantRepository tenantRepository,
+            PassengerRouteEstimateService routeEstimateService) {
         this.peopleTenantRepository = peopleTenantRepository;
         this.peopleTenantService = peopleTenantService;
         this.geocodingService = geocodingService;
+        this.tenantRepository = tenantRepository;
+        this.routeEstimateService = routeEstimateService;
     }
 
     @Transactional(readOnly = true)
     public PassengerRouteDtos.Response analyse(PassengerRouteDtos.AnalyseRequest request) {
         requireRequest(request);
         PassengerRouteDtos.Response response = new PassengerRouteDtos.Response(request.getArrivalTime());
-        Map<String, List<PassengerRouteDtos.Passenger>> grouped = groupByRoute(request.getPassengers());
+        List<Tenant> organisationMatches = resolveOrganisationMatches(request.getOrganisationId(), request.getCompanyName());
+        Tenant resolvedOrganisation = selectOrganisation(organisationMatches, request.getOrganisationId(), request.getCompanyName());
+        if (resolvedOrganisation != null) {
+            response.setOrganisationId(resolvedOrganisation.getId());
+            response.setName(resolvedOrganisation.getTenantName());
+        } else {
+            response.setOrganisationMatches(organisationMatches.stream()
+                    .map(tenant -> new PassengerRouteDtos.OrganisationMatch(tenant.getId(), tenant.getTenantName()))
+                    .toList());
+        }
+        String groupingOrganisationId = resolvedOrganisation != null
+                ? resolvedOrganisation.getId().toString()
+                : request.getOrganisationId() != null ? request.getOrganisationId() : request.getCompanyName();
+        Map<String, List<PassengerRouteDtos.Passenger>> grouped = groupByRoute(
+                request.getPassengers(), groupingOrganisationId, request.getCompanyName());
 
         int groupNumber = 1;
         for (List<PassengerRouteDtos.Passenger> passengers : grouped.values()) {
-            response.getGroups().add(buildGroup("group-" + groupNumber++, passengers, request.getArrivalTime()));
+                PassengerRouteDtos.Group group = buildGroup(
+                    "group-" + groupNumber++, passengers, request.getArrivalTime());
+                group.setCompanyName(request.getCompanyName());
+                if (Boolean.TRUE.equals(request.getIsEstimatedHrKm())) {
+                    addRouteEstimates(group);
+                }
+                response.getGroups().add(group);
         }
         return response;
     }
@@ -60,7 +87,10 @@ public class PassengerRouteService {
             throw new IllegalArgumentException("Authenticated user not found");
         }
 
+        Tenant targetOrganisation = resolveOrganisation(request.getOrganisationId(), request.getCompanyName(), organisation);
         PassengerRouteDtos.Response response = new PassengerRouteDtos.Response(request.getArrivalTime());
+        response.setOrganisationId(targetOrganisation.getId());
+        response.setName(targetOrganisation.getTenantName());
         int groupNumber = 1;
         for (PassengerRouteDtos.Group submittedGroup : request.getGroups()) {
             if (submittedGroup == null || submittedGroup.getPassengers() == null
@@ -70,24 +100,84 @@ public class PassengerRouteService {
 
             List<PassengerRouteDtos.Passenger> passengers = submittedGroup.getPassengers();
             for (PassengerRouteDtos.Passenger passenger : passengers) {
-                resolvePassengerId(passenger, organisation, createdBy);
+                resolvePassengerId(passenger, targetOrganisation, organisation, createdBy);
             }
 
             String groupId = submittedGroup.getGroupId();
             if (groupId == null || groupId.isBlank()) {
                 groupId = "group-" + groupNumber;
             }
-            response.getGroups().add(buildGroup(groupId, passengers, request.getArrivalTime()));
+            PassengerRouteDtos.Group group = buildGroup(groupId, passengers, request.getArrivalTime());
+            group.setCompanyName(request.getCompanyName());
+            response.getGroups().add(group);
             groupNumber++;
         }
 
         if (request.getUnmatchedPassengers() != null) {
             for (PassengerRouteDtos.Passenger passenger : request.getUnmatchedPassengers()) {
-                resolvePassengerId(passenger, organisation, createdBy);
+                resolvePassengerId(passenger, targetOrganisation, organisation, createdBy);
                 response.getUnmatchedPassengers().add(passenger);
             }
         }
         return response;
+    }
+
+    private Tenant resolveOrganisation(String organisationId, String companyName, Tenant authenticatedTenant) {
+        if (authenticatedTenant.getTenantType() == Tenant.TenantType.ORGANISATION) {
+            if (organisationId != null && !authenticatedTenant.getId().equals(UUID.fromString(organisationId))) {
+                throw new IllegalArgumentException("organisationId does not match authenticated organisation");
+            }
+            return authenticatedTenant;
+        }
+        if (organisationId == null || organisationId.isBlank()) {
+            List<Tenant> matches = resolveOrganisationMatches(null, companyName);
+            Tenant selected = selectOrganisation(matches, null, companyName);
+            if (selected == null) {
+                throw new IllegalArgumentException("Company name is ambiguous or does not match an organisation; select an organisationId");
+            }
+            return selected;
+        }
+        Tenant target = tenantRepository.findById(UUID.fromString(organisationId))
+                .orElseThrow(() -> new IllegalArgumentException("Organisation not found: " + organisationId));
+        if (target.getTenantType() != Tenant.TenantType.ORGANISATION) {
+            throw new IllegalArgumentException("organisationId must reference an organisation tenant");
+        }
+        return target;
+    }
+
+    private List<Tenant> resolveOrganisationMatches(String organisationId, String companyName) {
+        if (organisationId != null && !organisationId.isBlank()) {
+            Tenant tenant = tenantRepository.findById(UUID.fromString(organisationId))
+                    .filter(value -> value.getTenantType() == Tenant.TenantType.ORGANISATION)
+                    .orElseThrow(() -> new IllegalArgumentException("Organisation not found: " + organisationId));
+            return List.of(tenant);
+        }
+        if (companyName == null || companyName.isBlank()) {
+            return List.of();
+        }
+        List<Tenant> matches = tenantRepository.findByTenantNameContainingIgnoreCase(companyName.trim()).stream()
+                .filter(tenant -> tenant.getTenantType() == Tenant.TenantType.ORGANISATION)
+                .toList();
+        List<Tenant> exactMatches = matches.stream()
+                .filter(tenant -> tenant.getTenantName().equalsIgnoreCase(companyName.trim()))
+                .toList();
+        return exactMatches.isEmpty() ? matches : exactMatches;
+    }
+
+    private Tenant selectOrganisation(List<Tenant> matches, String organisationId, String companyName) {
+        if (matches.size() == 1) {
+            return matches.get(0);
+        }
+        if (organisationId != null && !organisationId.isBlank()) {
+            return matches.stream().findFirst().orElse(null);
+        }
+        if (companyName != null && !companyName.isBlank()) {
+            return matches.stream()
+                    .filter(tenant -> tenant.getTenantName().equalsIgnoreCase(companyName.trim()))
+                    .findFirst()
+                    .orElse(null);
+        }
+        return null;
     }
 
     private PassengerRouteDtos.Group buildGroup(
@@ -113,9 +203,37 @@ public class PassengerRouteService {
         return group;
     }
 
+    private void addRouteEstimates(PassengerRouteDtos.Group group) {
+        List<PassengerRouteDtos.Passenger> passengers = group.getPassengers();
+        List<PassengerGeocodingService.GeoPoint> pickupPoints = passengers.stream()
+                .map(passenger -> new PassengerGeocodingService.GeoPoint(
+                        passenger.getLatitude(), passenger.getLongitude()))
+                .toList();
+        PassengerRouteDtos.Passenger finalPassenger = passengers.get(passengers.size() - 1);
+        PassengerGeocodingService.GeoPoint destination = new PassengerGeocodingService.GeoPoint(
+                finalPassenger.getDestinationLatitude(), finalPassenger.getDestinationLongitude());
+
+        PassengerRouteEstimateService.RouteEstimate estimate = routeEstimateService.estimate(pickupPoints, destination);
+        List<PassengerRouteEstimateService.RouteLeg> legs = estimate.legs();
+
+        // The first pickup is the assumed vehicle start point because no vehicle origin is supplied.
+        passengers.get(0).setEstimatedKmToPickup(0.0);
+        passengers.get(0).setEstimatedMinutesToPickup(0L);
+        for (int index = 1; index < passengers.size(); index++) {
+            if (index - 1 < legs.size()) {
+                PassengerRouteEstimateService.RouteLeg leg = legs.get(index - 1);
+                passengers.get(index).setEstimatedKmToPickup(leg.distanceKm());
+                passengers.get(index).setEstimatedMinutesToPickup(leg.durationMinutes());
+            }
+        }
+        group.setEstimatedTotalKm(estimate.distanceKm());
+        group.setEstimatedTotalMinutes(estimate.durationMinutes());
+    }
+
     private void resolvePassengerId(
             PassengerRouteDtos.Passenger passenger,
-            Tenant organisation,
+            Tenant targetOrganisation,
+            Tenant authenticatedTenant,
             UUID createdBy) {
         if (passenger == null || passenger.getName() == null || passenger.getName().isBlank()) {
             throw new IllegalArgumentException("Passenger name is required");
@@ -124,9 +242,15 @@ public class PassengerRouteService {
             PeopleTenant existing = peopleTenantRepository.findById(passenger.getPassengerId())
                     .orElseThrow(() -> new IllegalArgumentException("Passenger not found: " + passenger.getPassengerId()));
             if (existing.getOrganisation() == null
-                    || !organisation.getId().equals(existing.getOrganisation().getId())) {
+                    || !targetOrganisation.getId().equals(existing.getOrganisation().getId())) {
                 throw new IllegalArgumentException("Passenger does not belong to this organisation");
             }
+                if (authenticatedTenant.getTenantType() == Tenant.TenantType.VENDOR
+                    && existing.getAttachedVendors().stream()
+                        .noneMatch(vendor -> authenticatedTenant.getId().equals(vendor.getId()))) {
+                existing.getAttachedVendors().add(authenticatedTenant);
+                peopleTenantRepository.save(existing);
+                }
             return;
         }
 
@@ -134,9 +258,9 @@ public class PassengerRouteService {
         create.setName(passenger.getName());
         create.setPhone(passenger.getPhone());
         create.setEmail(passenger.getEmail());
-        create.setOrganisationId(organisation.getId().toString());
+        create.setOrganisationId(targetOrganisation.getId().toString());
         create.setPeopleType(PeopleTenant.PeopleType.PASSENGER);
-        PeopleTenant person = peopleTenantService.createOrGetPerson(create, organisation, createdBy);
+        PeopleTenant person = peopleTenantService.createOrGetPerson(create, authenticatedTenant, createdBy);
         passenger.setPassengerId(person.getId());
     }
 
@@ -144,21 +268,30 @@ public class PassengerRouteService {
         return normalize(passenger.getDropAddress());
     }
 
-    private Map<String, List<PassengerRouteDtos.Passenger>> groupByRoute(
-            List<PassengerRouteDtos.Passenger> passengers) {
+        private Map<String, List<PassengerRouteDtos.Passenger>> groupByRoute(
+            List<PassengerRouteDtos.Passenger> passengers,
+                String organisationId,
+            String companyName) {
         Map<String, List<PassengerRouteDtos.Passenger>> groups = new HashMap<>();
         Map<String, PassengerGeocodingService.GeoPoint> coordinates = new HashMap<>();
 
         for (PassengerRouteDtos.Passenger passenger : passengers) {
             PassengerGeocodingService.GeoPoint pickup = geocodePickup(passenger, coordinates);
             PassengerGeocodingService.GeoPoint destination = geocodeDestination(passenger, coordinates);
+            passenger.setLatitude(pickup.latitude());
+            passenger.setLongitude(pickup.longitude());
+            passenger.setDestinationLatitude(destination.latitude());
+            passenger.setDestinationLongitude(destination.longitude());
             double bearing = bearing(pickup, destination);
-            String destinationKey = routeKey(passenger);
+                String destinationKey = normalize(organisationId) + "|"
+                    + normalize(companyName) + "|" + routeKey(passenger);
 
             List<PassengerRouteDtos.Passenger> matchingGroup = null;
             for (List<PassengerRouteDtos.Passenger> candidate : groups.values()) {
                 PassengerRouteDtos.Passenger representative = candidate.get(0);
-                if (!destinationKey.equals(routeKey(representative))) {
+                String representativeKey = normalize(organisationId) + "|"
+                    + normalize(companyName) + "|" + routeKey(representative);
+                if (!destinationKey.equals(representativeKey)) {
                     continue;
                 }
                 PassengerGeocodingService.GeoPoint representativePickup = geocodePickup(representative, coordinates);
