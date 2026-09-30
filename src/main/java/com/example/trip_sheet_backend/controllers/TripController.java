@@ -252,7 +252,7 @@ public class TripController {
 
     try {
       byte[] digest = MessageDigest.getInstance("SHA-256").digest(objectMapper.writeValueAsBytes(keyParts));
-      return "trip-list:" + tenantId + ":" + HexFormat.of().formatHex(digest);
+      return "trip-list:v2:" + tenantId + ":" + HexFormat.of().formatHex(digest);
     } catch (NoSuchAlgorithmException | JsonProcessingException ex) {
       throw new IllegalStateException("Unable to create trip search cache key", ex);
     }
