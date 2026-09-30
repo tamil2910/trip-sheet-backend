@@ -758,27 +758,6 @@ public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Obj
         }
       } catch (Exception ignored) {}
       try {
-        Object statusFilter = filters.get("status");
-        if (statusFilter != null && !statusFilter.toString().isBlank()) {
-          String normalizedStatus = statusFilter.toString().trim().toUpperCase(Locale.ROOT);
-          if (normalizedStatus.equals("ACTIVE")) {
-            predicates.add(cb.not(root.get("tripStatus").in(
-                Trip.TripStatus.COMPLETED,
-                Trip.TripStatus.CLOSED,
-                Trip.TripStatus.CANCELLED,
-                Trip.TripStatus.FAILED,
-                Trip.TripStatus.NO_SHOW,
-                Trip.TripStatus.EXPIRED,
-                Trip.TripStatus.VENDOR_CANCELLED,
-                Trip.TripStatus.DRIVER_REJECTED)));
-          } else {
-            predicates.add(cb.equal(root.get("tripStatus"), Trip.TripStatus.valueOf(normalizedStatus)));
-          }
-        }
-      } catch (IllegalArgumentException ex) {
-        throw new IllegalArgumentException("Invalid trip status filter", ex);
-      }
-      try {
         Object customFieldIdFilter = filters.get("customFieldId");
         if (customFieldIdFilter != null && !customFieldIdFilter.toString().isBlank()) {
           Join<Object, Object> passengerCustomValuesJoin = root.join("passengerCustomFieldValues", JoinType.LEFT);
