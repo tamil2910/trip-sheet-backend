@@ -1,15 +1,25 @@
 package com.example.trip_sheet_backend.controllers;
 
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.UUID;
+import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.TreeMap;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import java.time.Instant;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -21,6 +31,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.example.trip_sheet_backend.dtos.TripDtos.TripAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
@@ -53,15 +66,22 @@ import jakarta.validation.constraints.NotNull;
 @RestController
 @RequestMapping("/trips")
 public class TripController {
+  private static final Logger log = LoggerFactory.getLogger(TripController.class);
 
   private final TripServiceImp tripServiceImp;
   private final JwtTokenUtil jwtTokenUtil;
   private final SimpMessagingTemplate messagingTemplate;
+  private final RedisTemplate<String, String> redisTemplate;
+  private final ObjectMapper objectMapper;
 
-  public TripController(TripServiceImp tripServiceImp, JwtTokenUtil jwtTokenUtil, SimpMessagingTemplate messagingTemplate) {
+  public TripController(TripServiceImp tripServiceImp, JwtTokenUtil jwtTokenUtil,
+      SimpMessagingTemplate messagingTemplate, RedisTemplate<String, String> redisTemplate,
+      ObjectMapper objectMapper) {
     this.tripServiceImp = tripServiceImp;
     this.jwtTokenUtil = jwtTokenUtil;
     this.messagingTemplate = messagingTemplate;
+    this.redisTemplate = redisTemplate;
+    this.objectMapper = objectMapper;
   }
 
   @PreAuthorize("hasAuthority('CAN_CREATE_TRIP')")
@@ -183,6 +203,32 @@ public class TripController {
       }
     }
 
+    String cacheKey = null;
+    String cacheStatus = "BYPASS";
+    if (tenantId != null) {
+      try {
+        String generationKey = "trip-list:version:" + tenantId;
+        Long generation = redisTemplate.opsForValue().increment(generationKey, 0L);
+        cacheKey = createTripSearchCacheKey(tenantId, generation, effectiveFilters, globalSearchValues, effectivePageable);
+        String cachedJson = redisTemplate.opsForValue().get(cacheKey);
+        cacheStatus = "MISS";
+        if (cachedJson != null) {
+          try {
+            Map<String, Object> cachedResponse = objectMapper.readValue(cachedJson, new TypeReference<>() {});
+            return ResponseEntity.ok()
+                .header("X-Trip-Cache", "HIT")
+                .body(new ApiResponse<>(true, "Trips fetched successfully!", cachedResponse));
+          } catch (JsonProcessingException ex) {
+            log.warn("Ignoring invalid cached trip search response for tenant {}", tenantId, ex);
+          }
+        }
+      } catch (DataAccessException ex) {
+        cacheKey = null;
+        cacheStatus = "BYPASS";
+        log.warn("Redis unavailable for trip search; querying database directly", ex);
+      }
+    }
+
     Page<Trip> result = tripServiceImp.searchResourcesWithGlobalSearch(tenantId, effectiveFilters, globalSearchValues, effectivePageable);
 
     List<TripResponseDTO> data = result.getContent().stream()
@@ -203,7 +249,38 @@ public class TripController {
     response.put("page", page);
     response.put("size", size);
 
-    return ResponseEntity.ok(new ApiResponse<>(true, "Trips fetched successfully!", response));
+    if (cacheKey != null) {
+      try {
+        String json = objectMapper.writeValueAsString(response);
+        redisTemplate.opsForValue().set(cacheKey, json, Duration.ofMinutes(5));
+      } catch (JsonProcessingException ex) {
+        log.warn("Unable to serialize trip search response for Redis cache", ex);
+      } catch (DataAccessException ex) {
+        cacheStatus = "BYPASS";
+        log.warn("Unable to write trip search response to Redis", ex);
+      }
+    }
+
+    return ResponseEntity.ok()
+        .header("X-Trip-Cache", cacheStatus)
+        .body(new ApiResponse<>(true, "Trips fetched successfully!", response));
+  }
+
+  private String createTripSearchCacheKey(UUID tenantId, Long generation, Map<String, Object> filters,
+      List<String> searchValues, Pageable pageable) {
+    Map<String, Object> keyParts = new LinkedHashMap<>();
+    keyParts.put("filters", new TreeMap<>(filters));
+    keyParts.put("searchValues", searchValues);
+    keyParts.put("page", pageable.getPageNumber());
+    keyParts.put("size", pageable.getPageSize());
+    keyParts.put("sort", pageable.getSort().toString());
+
+    try {
+      byte[] digest = MessageDigest.getInstance("SHA-256").digest(objectMapper.writeValueAsBytes(keyParts));
+      return "trip-list:v1:" + tenantId + ":" + generation + ":" + HexFormat.of().formatHex(digest);
+    } catch (NoSuchAlgorithmException | JsonProcessingException ex) {
+      throw new IllegalStateException("Unable to create trip search cache key", ex);
+    }
   }
 
   private Integer parseInt(Object value, Integer defaultValue) {
