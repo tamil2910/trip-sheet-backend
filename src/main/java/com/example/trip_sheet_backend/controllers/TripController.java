@@ -252,7 +252,7 @@ public class TripController {
     if (cacheKey != null) {
       try {
         String json = objectMapper.writeValueAsString(response);
-        redisTemplate.opsForValue().set(cacheKey, json, Duration.ofMinutes(5));
+        redisTemplate.opsForValue().set(cacheKey, json, Duration.ofMinutes(10));
       } catch (JsonProcessingException ex) {
         log.warn("Unable to serialize trip search response for Redis cache", ex);
       } catch (DataAccessException ex) {
