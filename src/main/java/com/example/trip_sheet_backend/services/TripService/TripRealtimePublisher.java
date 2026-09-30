@@ -7,8 +7,6 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataAccessException;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,13 +27,10 @@ public class TripRealtimePublisher {
 
   private final SimpMessagingTemplate messagingTemplate;
   private final TripRepository tripRepository;
-  private final RedisTemplate<String, String> redisTemplate;
 
-  public TripRealtimePublisher(SimpMessagingTemplate messagingTemplate, TripRepository tripRepository,
-      RedisTemplate<String, String> redisTemplate) {
+  public TripRealtimePublisher(SimpMessagingTemplate messagingTemplate, TripRepository tripRepository) {
     this.messagingTemplate = messagingTemplate;
     this.tripRepository = tripRepository;
-    this.redisTemplate = redisTemplate;
   }
 
   public void publishCreated(Trip trip) {
@@ -92,8 +87,6 @@ public class TripRealtimePublisher {
       return;
     }
 
-    invalidateTripSearchCaches(trip);
-
     TripResponseDTO tripBody = includeTripBody ? TripResponseMapper.toDTO(trip) : null;
     TripRealtimeEventDTO payload = new TripRealtimeEventDTO(
         eventType,
@@ -103,16 +96,6 @@ public class TripRealtimePublisher {
 
     for (UUID tenantId : resolveAudienceTenantIds(trip)) {
       messagingTemplate.convertAndSend("/topic/trips/" + tenantId, payload);
-    }
-  }
-
-  private void invalidateTripSearchCaches(Trip trip) {
-    for (UUID tenantId : resolveAudienceTenantIds(trip)) {
-      try {
-        redisTemplate.opsForValue().increment("trip-list:version:" + tenantId);
-      } catch (DataAccessException ex) {
-        log.warn("Unable to invalidate trip search cache for tenant {}", tenantId, ex);
-      }
     }
   }
 

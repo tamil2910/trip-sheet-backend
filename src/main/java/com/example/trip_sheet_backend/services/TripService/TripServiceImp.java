@@ -758,18 +758,6 @@ public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Obj
         }
       } catch (Exception ignored) {}
       try {
-        Object statusFilter = filters.get("status");
-        if (statusFilter != null && !statusFilter.toString().isBlank()) {
-          String normalizedStatus = statusFilter.toString().trim().toUpperCase(Locale.ROOT);
-          Trip.TripStatus status = normalizedStatus.equals("ACTIVE")
-              ? Trip.TripStatus.STARTED
-              : Trip.TripStatus.valueOf(normalizedStatus);
-          predicates.add(cb.equal(root.get("tripStatus"), status));
-        }
-      } catch (IllegalArgumentException ex) {
-        throw new IllegalArgumentException("Invalid trip status filter", ex);
-      }
-      try {
         Object customFieldIdFilter = filters.get("customFieldId");
         if (customFieldIdFilter != null && !customFieldIdFilter.toString().isBlank()) {
           Join<Object, Object> passengerCustomValuesJoin = root.join("passengerCustomFieldValues", JoinType.LEFT);
@@ -1071,9 +1059,7 @@ private Trip updateParentSeriesTrip(
     UUID updatedBy
 ) {
   if (rootTrip.getTripType() != Trip.TripType.MULTI_DAY && rootTrip.getTripType() != Trip.TripType.RECURRING) {
-    Trip savedTrip = repository.save(rootTrip);
-    tripRealtimePublisher.publishUpdated(savedTrip);
-    return savedTrip;
+    return repository.save(rootTrip);
   }
 
   long seriesStart = updateDto.getStartDate() != null
@@ -1778,7 +1764,7 @@ public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, U
 
   trip.setTripStatus(Trip.TripStatus.COMPLETED);
   Trip completedTrip = repository.save(trip);
-  tripRealtimePublisher.publishUpdated(completedTrip);
+  
   processAfterTripCompletion(completedTrip);
   return completedTrip;
 }
