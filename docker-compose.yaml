@@ -1,6 +1,18 @@
-version: "3.9"
-
 services:
+  redis:
+    image: redis:8.2-alpine
+    restart: unless-stopped
+    container_name: trip-sheet-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - trip-sheet-network
+
   # mysql:
   #   image: mysql:8
   #   restart: always
@@ -30,8 +42,14 @@ services:
     container_name: trip-sheet-be
     env_file:
       - .env
+    environment:
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
     ports:
       - "${APP_PORT}:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
     # depends_on:
     #   mysql:  
     #     condition: service_healthy
@@ -42,9 +60,6 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-
-volumes:
-  db_data:
 
 networks:
   trip-sheet-network:

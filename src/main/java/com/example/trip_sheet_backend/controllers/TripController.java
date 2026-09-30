@@ -3,11 +3,13 @@ package com.example.trip_sheet_backend.controllers;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.UUID;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.List;
+import java.util.Locale;
 import java.util.TreeMap;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import java.time.Instant;
@@ -36,6 +38,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import com.example.trip_sheet_backend.dtos.TripDtos.TripAllotRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripBasicRelationResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
@@ -45,6 +48,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.ManualTripExecuteRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripRelationResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripSummaryResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
@@ -67,6 +71,7 @@ import jakarta.validation.constraints.NotNull;
 @RequestMapping("/trips")
 public class TripController {
   private static final Logger log = LoggerFactory.getLogger(TripController.class);
+  private static final int MAX_DATE_RANGE_SNAPSHOT_TRIPS = 500;
 
   private final TripServiceImp tripServiceImp;
   private final JwtTokenUtil jwtTokenUtil;
@@ -203,6 +208,12 @@ public class TripController {
       }
     }
 
+    ResponseEntity<ApiResponse<Map<String, Object>>> dateRangeCacheResponse = tryDateRangeSnapshot(
+        tenantId, effectiveFilters, globalSearchValues, effectivePageable);
+    if (dateRangeCacheResponse != null) {
+      return dateRangeCacheResponse;
+    }
+
     String cacheKey = null;
     String cacheStatus = "BYPASS";
     if (tenantId != null) {
@@ -266,6 +277,173 @@ public class TripController {
         .body(new ApiResponse<>(true, "Trips fetched successfully!", response));
   }
 
+  private ResponseEntity<ApiResponse<Map<String, Object>>> tryDateRangeSnapshot(
+      UUID tenantId,
+      Map<String, Object> filters,
+      List<String> searchValues,
+      Pageable pageable
+  ) {
+    if (tenantId == null || !filters.containsKey("startDate") || !filters.containsKey("endDate")
+        || filters.keySet().stream().anyMatch(key -> !key.equals("startDate") && !key.equals("endDate") && !key.equals("status"))
+        || pageable.getSort().stream().anyMatch(order -> !order.getProperty().equals("pickupTime"))) {
+      return null;
+    }
+
+    Long startDate = parseLongFilter(filters.get("startDate"));
+    Long endDate = parseLongFilter(filters.get("endDate"));
+    if (startDate == null || endDate == null || startDate > endDate) {
+      return null;
+    }
+
+    String statusFilter = filters.get("status") == null ? null : filters.get("status").toString().trim();
+    Trip.TripStatus requestedStatus = null;
+    if (statusFilter != null && !statusFilter.isBlank()) {
+      try {
+        requestedStatus = statusFilter.equalsIgnoreCase("active")
+            ? Trip.TripStatus.STARTED
+            : Trip.TripStatus.valueOf(statusFilter.toUpperCase(Locale.ROOT));
+      } catch (IllegalArgumentException ex) {
+        return null;
+      }
+    }
+
+    String cacheKey;
+    try {
+      Long generation = redisTemplate.opsForValue().increment("trip-list:version:" + tenantId, 0L);
+      cacheKey = "trip-range:v1:" + tenantId + ":" + generation + ":" + startDate + ":" + endDate;
+      String cachedJson = redisTemplate.opsForValue().get(cacheKey);
+      if (cachedJson != null) {
+        if (cachedJson.equals("!OVERSIZE!")) {
+          return null;
+        }
+        List<TripResponseDTO> cachedTrips = objectMapper.readValue(cachedJson, new TypeReference<>() {});
+        return buildDateRangeResponse(cachedTrips, searchValues, requestedStatus, pageable, "HIT");
+      }
+    } catch (DataAccessException | JsonProcessingException ex) {
+      log.warn("Unable to read trip date-range snapshot from Redis", ex);
+      return null;
+    }
+
+    Map<String, Object> dateFilters = Map.of("startDate", startDate, "endDate", endDate);
+    Pageable snapshotPageable = PageRequest.of(
+        0,
+        MAX_DATE_RANGE_SNAPSHOT_TRIPS + 1,
+        Sort.by(Sort.Direction.ASC, "pickupTime"));
+    Page<Trip> snapshotPage = tripServiceImp.searchResourcesWithGlobalSearch(
+        tenantId, dateFilters, List.of(), snapshotPageable);
+
+    if (snapshotPage.getTotalElements() > MAX_DATE_RANGE_SNAPSHOT_TRIPS
+        || snapshotPage.getContent().size() > MAX_DATE_RANGE_SNAPSHOT_TRIPS) {
+      try {
+        redisTemplate.opsForValue().set(cacheKey, "!OVERSIZE!", Duration.ofMinutes(10));
+      } catch (DataAccessException ex) {
+        log.warn("Unable to mark oversized trip date-range snapshot in Redis", ex);
+      }
+      return null;
+    }
+
+    List<TripResponseDTO> trips = snapshotPage.getContent().stream()
+        .map(TripResponseMapper::toDTO)
+        .toList();
+    try {
+      redisTemplate.opsForValue().set(cacheKey, objectMapper.writeValueAsString(trips), Duration.ofMinutes(10));
+    } catch (DataAccessException | JsonProcessingException ex) {
+      log.warn("Unable to write trip date-range snapshot to Redis", ex);
+    }
+    return buildDateRangeResponse(trips, searchValues, requestedStatus, pageable, "MISS");
+  }
+
+  private ResponseEntity<ApiResponse<Map<String, Object>>> buildDateRangeResponse(
+      List<TripResponseDTO> cachedTrips,
+      List<String> searchValues,
+      Trip.TripStatus requestedStatus,
+      Pageable pageable,
+      String cacheStatus
+  ) {
+    List<TripResponseDTO> filteredTrips = cachedTrips.stream()
+        .filter(trip -> requestedStatus == null || trip.getTripStatus() == requestedStatus)
+        .filter(trip -> matchesSearchValues(trip, searchValues))
+        .sorted((left, right) -> {
+          Long leftPickup = left.getPickupTime();
+          Long rightPickup = right.getPickupTime();
+          int comparison = leftPickup == null
+              ? (rightPickup == null ? 0 : 1)
+              : (rightPickup == null ? -1 : leftPickup.compareTo(rightPickup));
+          return pageable.getSort().stream().findFirst()
+              .filter(order -> order.getDirection() == Sort.Direction.DESC)
+              .map(order -> -comparison)
+              .orElse(comparison);
+        })
+        .toList();
+
+    int page = pageable.getPageNumber();
+    int size = pageable.getPageSize();
+    long totalItems = filteredTrips.size();
+    int totalPages = (int) Math.ceil((double) totalItems / size);
+    int fromIndex = (int) Math.min((long) page * size, totalItems);
+    int toIndex = Math.min(fromIndex + size, filteredTrips.size());
+    List<TripResponseDTO> pageData = filteredTrips.subList(fromIndex, toIndex);
+
+    Map<String, Object> response = new java.util.HashMap<>();
+    response.put("data", pageData);
+    response.put("currentPage", page);
+    response.put("pageSize", size);
+    response.put("currentPageCount", pageData.size());
+    response.put("totalItems", totalItems);
+    response.put("totalPages", totalPages);
+    response.put("isFirst", page == 0);
+    response.put("isLast", totalPages == 0 || page >= totalPages - 1);
+    response.put("hasNext", page + 1 < totalPages);
+    response.put("hasPrevious", page > 0 && totalItems > 0);
+    response.put("page", page);
+    response.put("size", size);
+
+    return ResponseEntity.ok()
+        .header("X-Trip-Cache", cacheStatus)
+        .body(new ApiResponse<>(true, "Trips fetched successfully!", response));
+  }
+
+  private boolean matchesSearchValues(TripResponseDTO trip, List<String> searchValues) {
+    if (searchValues == null || searchValues.isEmpty()) {
+      return true;
+    }
+
+    List<String> searchableFields = new ArrayList<>();
+    searchableFields.add(trip.getTripCode());
+    searchableFields.add(trip.getNotes());
+    addSearchableName(searchableFields, trip.getVendor());
+    addSearchableName(searchableFields, trip.getOrganisation());
+    addSearchableName(searchableFields, trip.getAssignedByVendor());
+    addSearchableName(searchableFields, trip.getPreviousVendor());
+    addSearchableName(searchableFields, trip.getDriver());
+    addSearchableName(searchableFields, trip.getVehicle());
+    addSearchableName(searchableFields, trip.getBooker());
+    addSearchableName(searchableFields, trip.getDutyType());
+    addSearchableName(searchableFields, trip.getVehicleType());
+    if (trip.getPassengers() != null) {
+      trip.getPassengers().forEach(passenger -> addSearchableName(searchableFields, passenger));
+    }
+
+    return searchValues.stream()
+        .filter(value -> value != null && !value.isBlank())
+        .map(value -> value.toLowerCase(Locale.ROOT))
+        .anyMatch(term -> searchableFields.stream()
+            .filter(value -> value != null)
+            .anyMatch(value -> value.toLowerCase(Locale.ROOT).contains(term)));
+  }
+
+  private void addSearchableName(List<String> values, TripRelationResponseDTO relation) {
+    if (relation != null) {
+      values.add(relation.getName());
+    }
+  }
+
+  private void addSearchableName(List<String> values, TripBasicRelationResponseDTO relation) {
+    if (relation != null) {
+      values.add(relation.getName());
+    }
+  }
+
   private String createTripSearchCacheKey(UUID tenantId, Long generation, Map<String, Object> filters,
       List<String> searchValues, Pageable pageable) {
     Map<String, Object> keyParts = new LinkedHashMap<>();
@@ -291,6 +469,17 @@ public class TripController {
       return Integer.parseInt(value.toString());
     } catch (Exception ex) {
       return defaultValue;
+    }
+  }
+
+  private Long parseLongFilter(Object value) {
+    if (value == null) {
+      return null;
+    }
+    try {
+      return Long.parseLong(value.toString());
+    } catch (NumberFormatException ex) {
+      return null;
     }
   }
 
