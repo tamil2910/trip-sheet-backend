@@ -12,6 +12,7 @@ import org.hibernate.annotations.BatchSize;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import java.util.UUID;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -56,6 +57,9 @@ public class Trip extends BaseModel implements TenantScoped {
 
   @Column(name = "trip_code")
   private String tripCode;
+
+  @Column(name = "label_id")
+  private UUID labelId;
 
   @Enumerated(EnumType.STRING)
   @Column(name = "trip_status")

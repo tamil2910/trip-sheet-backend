@@ -42,6 +42,23 @@ CREATE TABLE IF NOT EXISTS purchase_order_number_rules (
   CONSTRAINT fk_po_number_rule_vendor FOREIGN KEY (vendor_id) REFERENCES tenants (id)
 );
 
+CREATE TABLE IF NOT EXISTS labels (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT,
+  updated_at BIGINT,
+  deleted_at BIGINT,
+  created_by VARCHAR(255),
+  updated_by VARCHAR(255),
+  deleted_by VARCHAR(255),
+  is_deleted BIT,
+  name VARCHAR(255) NOT NULL,
+  color VARCHAR(255) NULL,
+  tenant_id BINARY(16) NOT NULL,
+  PRIMARY KEY (id),
+  INDEX idx_label_tenant_deleted_name (tenant_id, is_deleted, name),
+  CONSTRAINT fk_label_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)
+);
+
 -- Private payable raised for each adjacent vendor delegation hop.
 CREATE TABLE IF NOT EXISTS purchase_invoices (
   id BINARY(16) NOT NULL,
@@ -300,6 +317,22 @@ SET @trip_summary_id_sql := IF(
 PREPARE trip_summary_id_statement FROM @trip_summary_id_sql;
 EXECUTE trip_summary_id_statement;
 DEALLOCATE PREPARE trip_summary_id_statement;
+
+SET @trip_label_id_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'trips'
+    AND column_name = 'label_id'
+);
+SET @trip_label_id_sql := IF(
+  @trip_label_id_exists = 0,
+  'ALTER TABLE trips ADD COLUMN label_id BINARY(16) NULL',
+  'SELECT 1'
+);
+PREPARE trip_label_id_statement FROM @trip_label_id_sql;
+EXECUTE trip_label_id_statement;
+DEALLOCATE PREPARE trip_label_id_statement;
 
 UPDATE trips trip
 JOIN trip_summaries summary ON summary.trip_id = trip.id

@@ -46,6 +46,7 @@ import com.example.trip_sheet_backend.models.CustomField;
 import com.example.trip_sheet_backend.models.DispatchCenter;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.DutyType;
+import com.example.trip_sheet_backend.models.Label;
 import com.example.trip_sheet_backend.models.DutyType.TypeAirportTransfer;
 import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Tenant;
@@ -67,6 +68,7 @@ import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository
 import com.example.trip_sheet_backend.repositories.DutyTypeRepository;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.repositories.CustomFieldRepository;
+import com.example.trip_sheet_backend.repositories.LabelRepository;
 import com.example.trip_sheet_backend.repositories.DispatchCenterRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
@@ -101,6 +103,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final DriverRepository driverRepository;
     private final VehicleRepository vehicleRepository;
     private final CustomFieldRepository customFieldRepository;
+    private final LabelRepository labelRepository;
     private final DispatchCenterRepository dispatchCenterRepo;
     private final TripSummaryRepository tripSummaryRepository;
     private final DriverTenantMappingRepository driverTenantMappingRepository;
@@ -118,6 +121,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     DutyTypeRepository dutyTypeRepository, VehicleTypeRepository vehicleTypeRepository, 
     PeopleTenantRepository peopleTenantRepository, ModelMapper mapper, DriverRepository driverRepository,
       VehicleRepository vehicleRepository, CustomFieldRepository customFieldRepository,
+      LabelRepository labelRepository,
       DispatchCenterRepository dispatchCenterRepository, TripSummaryRepository tripSummaryRepository,
       DriverTenantMappingRepository driverTenantMappingRepository,
        VendorDelegationHistoryRepository vendorDelegationHistoryRepository,
@@ -136,6 +140,7 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     this.driverRepository = driverRepository;
     this.vehicleRepository = vehicleRepository;
     this.customFieldRepository = customFieldRepository;
+    this.labelRepository = labelRepository;
     this.dispatchCenterRepo = dispatchCenterRepository;
     this.tripSummaryRepository = tripSummaryRepository;
     this.driverTenantMappingRepository = driverTenantMappingRepository;
@@ -198,6 +203,12 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
   trip.setRecurrenceFrequency(createTripDto.getRecurrenceFrequency());
   trip.setOrganisation(organisation);
   trip.setTenant(tenant);
+  if (createTripDto.getLabelId() != null && !createTripDto.getLabelId().isBlank()) {
+    UUID labelId = UUID.fromString(createTripDto.getLabelId());
+    Label label = labelRepository.findByIdAndTenant_IdAndIsDeletedFalse(labelId, tenant.getId())
+        .orElseThrow(() -> new RuntimeException("Invalid label"));
+    trip.setLabelId(label.getId());
+  }
   trip.setDutyType(dutyType);
   trip.setVehicleType(vehicleType);
   trip.setDriver(driver);

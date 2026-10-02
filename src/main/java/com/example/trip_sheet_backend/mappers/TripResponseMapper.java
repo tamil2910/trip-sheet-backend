@@ -38,6 +38,9 @@ public final class TripResponseMapper {
         }
 
         dto.setTripCode(trip.getTripCode());
+        if (trip.getLabelId() != null) {
+            dto.setLabelId(trip.getLabelId().toString());
+        }
         dto.setTripStatus(trip.getTripStatus());
         dto.setTripType(trip.getTripType());
         dto.setRecurrenceInterval(trip.getRecurrenceInterval());

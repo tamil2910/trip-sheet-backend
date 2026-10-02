@@ -15,6 +15,7 @@ public class TripResponseDTO {
     private String parentTripId;
     private String tripSummaryId;
     private String tripCode;
+    private String labelId;
 
     private Trip.TripStatus tripStatus;
     private Trip.TripType tripType;
