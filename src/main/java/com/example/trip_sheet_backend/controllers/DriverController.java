@@ -286,6 +286,25 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
   }
 
   @PreAuthorize("hasRole('DRIVER')")
+  @PutMapping("/unlink-tenant")
+  public ResponseEntity<ApiResponse<DriverTenantResponseDto>> unlinkTenant(
+      @Valid @RequestBody DriverTenantLinkRequestByTenantDto body,
+      HttpServletRequest request
+  ) {
+    UserAccount currentUser = (UserAccount) request.getAttribute("user");
+    if (currentUser == null) {
+      throw new RuntimeException("User not found in token");
+    }
+
+    DriverTenantResponseDto response = driverService.unlinkDriverFromTenant(
+        currentUser,
+        body.getTenantId(),
+        currentUser.getId()
+    );
+    return ResponseEntity.ok(new ApiResponse<>(true, "Tenant unlinked from driver successfully", response));
+  }
+
+  @PreAuthorize("hasRole('DRIVER')")
   @GetMapping("/tenant-vehicles/{tenantId}")
   public ResponseEntity<ApiResponse<TenantVehiclesDto>> listOfTenantVehicles(@PathVariable UUID tenantId, HttpServletRequest request) {
     UserAccount currentUser = (UserAccount) request.getAttribute("user");

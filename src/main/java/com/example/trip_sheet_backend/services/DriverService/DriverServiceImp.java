@@ -245,6 +245,38 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
 
   @Transactional(rollbackFor = Exception.class)
   @Override
+  public DriverTenantResponseDto unlinkDriverFromTenant(UserAccount currentUser, UUID tenantId, UUID updatedBy) {
+    if (currentUser == null || currentUser.getId() == null) {
+      throw new RuntimeException("User not found in token");
+    }
+    if (tenantId == null) {
+      throw new RuntimeException("Tenant id is required");
+    }
+
+    Driver driver = repository.findByAccount_Id(currentUser.getId())
+        .orElseThrow(() -> new RuntimeException("Driver profile not found for current user"));
+    DriverTenantMapping mapping = driverTenantMappingRepository.findByTenant_IdAndDriver_Id(tenantId, driver.getId())
+        .filter(existing -> !Boolean.TRUE.equals(existing.getIsDeleted()))
+        .filter(existing -> Boolean.TRUE.equals(existing.getActive()))
+        .orElseThrow(() -> new RuntimeException("Driver is not actively linked with the specified tenant"));
+
+    mapping.setActive(false);
+    mapping.setUpdatedBy(updatedBy.toString());
+    DriverTenantMapping savedMapping = driverTenantMappingRepository.save(mapping);
+
+    UserAccount account = driver.getAccount();
+    if (account != null && account.getTenant() != null
+        && tenantId.equals(account.getTenant().getId())) {
+      account.setTenant(null);
+      account.setUpdatedBy(updatedBy.toString());
+      userAccountRepository.save(account);
+    }
+
+    return DriverTenantResponseDto.fromEntity(savedMapping);
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  @Override
   public DriverTenantResponseDto updateDriverByTenant(
       Tenant tokenTenant,
       UUID driverId,
@@ -531,17 +563,27 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
   }
 
   private DriverTenantMapping createMappingIfRequired(Driver driver, Tenant tenant, UUID createdBy) {
-    return driverTenantMappingRepository.findByDriver_IdAndTenant_Id(driver.getId(), tenant.getId())
-        .orElseGet(() -> {
-          DriverTenantMapping mapping = new DriverTenantMapping();
-          mapping.setDriver(driver);
-          mapping.setTenant(tenant);
-          mapping.setActive(true);
-          mapping.setLinkedAt(Instant.now().toEpochMilli());
-          mapping.setCreatedBy(createdBy.toString());
-          mapping.setUpdatedBy(createdBy.toString());
-          return driverTenantMappingRepository.save(mapping);
-        });
+    Optional<DriverTenantMapping> existingMapping = driverTenantMappingRepository
+        .findByDriver_IdAndTenant_Id(driver.getId(), tenant.getId());
+    if (existingMapping.isPresent()) {
+      DriverTenantMapping mapping = existingMapping.get();
+      if (!Boolean.TRUE.equals(mapping.getActive())) {
+        mapping.setActive(true);
+        mapping.setLinkedAt(Instant.now().toEpochMilli());
+        mapping.setUpdatedBy(createdBy.toString());
+        return driverTenantMappingRepository.save(mapping);
+      }
+      return mapping;
+    }
+
+    DriverTenantMapping mapping = new DriverTenantMapping();
+    mapping.setDriver(driver);
+    mapping.setTenant(tenant);
+    mapping.setActive(true);
+    mapping.setLinkedAt(Instant.now().toEpochMilli());
+    mapping.setCreatedBy(createdBy.toString());
+    mapping.setUpdatedBy(createdBy.toString());
+    return driverTenantMappingRepository.save(mapping);
   }
 
   private DriverTenantMapping getTenantDriverMapping(Tenant tokenTenant, UUID driverId) {
