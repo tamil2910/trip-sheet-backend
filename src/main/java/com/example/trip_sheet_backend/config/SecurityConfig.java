@@ -58,7 +58,7 @@ public class SecurityConfig {
       .authorizeHttpRequests(auth -> auth
         // Let the CORS filter answer browser preflight requests without authentication.
         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-        .requestMatchers("/","/auth/register", "/auth/google-signup", "/auth/login", "/ping", "/api/ping", "/auth/**", "/feedback/**", "/ws/**").permitAll() // "/roles/**", "/accounts",
+        .requestMatchers("/", "/auth/register", "/auth/google-signup", "/auth/login", "/ping", "/api/ping", "/auth/**", "/feedback/**", "/webhooks/whatsapp", "/ws/**").permitAll() // "/roles/**", "/accounts",
         .anyRequest().authenticated()
         )
         .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class)
