@@ -21,7 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/webhooks/whatsapp")
+@RequestMapping({"/whatsapp/webhook", "/webhooks/whatsapp"})
 public class WhatsAppWebhookController {
 
     private static final String SIGNATURE_PREFIX = "sha256=";
