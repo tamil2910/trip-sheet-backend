@@ -31,7 +31,7 @@ public class TripCreateRequestDTO {
     private String dutyTypeId;
     private String vehicleTypeId;
     private TypeAirportTransfer airportTransferType;
-    private String labelId;
+    private List<String> labelIds;
 
     // private String bookerId;
     // private String savedPassengerId;

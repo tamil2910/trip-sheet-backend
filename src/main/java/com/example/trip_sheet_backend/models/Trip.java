@@ -58,8 +58,18 @@ public class Trip extends BaseModel implements TenantScoped {
   @Column(name = "trip_code")
   private String tripCode;
 
+  @Deprecated
   @Column(name = "label_id")
   private UUID labelId;
+
+  @ManyToMany(fetch = FetchType.LAZY)
+  @JoinTable(
+    name = "trip_labels",
+    joinColumns = @JoinColumn(name = "trip_id"),
+    inverseJoinColumns = @JoinColumn(name = "label_id")
+  )
+  @BatchSize(size = 50)
+  private List<Label> labels = new ArrayList<>();
 
   @Enumerated(EnumType.STRING)
   @Column(name = "trip_status")

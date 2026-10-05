@@ -38,6 +38,14 @@ public final class TripResponseMapper {
         }
 
         dto.setTripCode(trip.getTripCode());
+        if (trip.getLabels() != null) {
+            dto.setLabelIds(trip.getLabels().stream()
+                .filter(label -> label != null && label.getId() != null)
+                .map(label -> label.getId().toString())
+                .toList());
+        } else {
+            dto.setLabelIds(Collections.emptyList());
+        }
         if (trip.getLabelId() != null) {
             dto.setLabelId(trip.getLabelId().toString());
         }

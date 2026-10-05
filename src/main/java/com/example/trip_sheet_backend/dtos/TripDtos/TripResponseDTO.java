@@ -15,6 +15,8 @@ public class TripResponseDTO {
     private String parentTripId;
     private String tripSummaryId;
     private String tripCode;
+    private List<String> labelIds;
+    @Deprecated
     private String labelId;
 
     private Trip.TripStatus tripStatus;

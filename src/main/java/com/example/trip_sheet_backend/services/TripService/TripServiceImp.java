@@ -41,6 +41,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignReque
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStopRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripLabelAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
 import com.example.trip_sheet_backend.models.CustomField;
 import com.example.trip_sheet_backend.models.DispatchCenter;
@@ -203,11 +204,10 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
   trip.setRecurrenceFrequency(createTripDto.getRecurrenceFrequency());
   trip.setOrganisation(organisation);
   trip.setTenant(tenant);
-  if (createTripDto.getLabelId() != null && !createTripDto.getLabelId().isBlank()) {
-    UUID labelId = UUID.fromString(createTripDto.getLabelId());
-    Label label = labelRepository.findByIdAndTenant_IdAndIsDeletedFalse(labelId, tenant.getId())
-        .orElseThrow(() -> new RuntimeException("Invalid label"));
-    trip.setLabelId(label.getId());
+  if (createTripDto.getLabelIds() != null && !createTripDto.getLabelIds().isEmpty()) {
+    List<Label> labels = resolveTripLabels(tenant.getId(), createTripDto.getLabelIds());
+    trip.setLabels(labels);
+    trip.setLabelId(labels.getFirst().getId());
   }
   trip.setDutyType(dutyType);
   trip.setVehicleType(vehicleType);
@@ -424,6 +424,16 @@ public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdat
   if (updateDto.getVehicleTypeId() != null) {
     trip.setVehicleType(resolveVehicleType(updateDto.getVehicleTypeId()));
   }
+  if (!partnerVendorRestrictedUpdate && updateDto.getLabelIds() != null) {
+    if (updateDto.getLabelIds().isEmpty()) {
+      trip.setLabels(new ArrayList<>());
+      trip.setLabelId(null);
+    } else {
+      List<Label> labels = resolveTripLabels(tenantId, updateDto.getLabelIds());
+      trip.setLabels(labels);
+      trip.setLabelId(labels.getFirst().getId());
+    }
+  }
   if (!partnerVendorRestrictedUpdate && updateDto.getDutyTypeId() != null) {
     applyAirportTransferType(trip, trip.getDutyType(), updateDto.getAirportTransferType(), true);
   } else if (updateDto.getAirportTransferType() != null) {
@@ -487,6 +497,42 @@ public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdat
 public Trip markTripAsManual(UUID tenantId, UUID tripId, UUID updatedBy) {
   Trip trip = findTripForTenant(tenantId, tripId);
   trip.setIsManualTrip(true);
+  if (updatedBy != null) {
+    trip.setUpdatedBy(updatedBy.toString());
+  }
+
+  Trip savedTrip = repository.save(trip);
+  tripRealtimePublisher.publishUpdated(savedTrip);
+  return savedTrip;
+}
+
+@Override
+@Transactional(rollbackFor = Exception.class)
+public Trip assignLabelToTrip(
+    Tenant tokenTenant,
+    UUID tokenTenantId,
+    UUID tripId,
+    TripLabelAssignRequestDTO payload,
+    UUID updatedBy
+) {
+  if (tokenTenant == null || tokenTenantId == null) {
+    throw new RuntimeException("Tenant not found in token");
+  }
+
+  Trip trip = findTripForTenant(tokenTenantId, tripId);
+
+  if (payload == null || payload.getLabelIds() == null) {
+    trip.setLabels(new ArrayList<>());
+    trip.setLabelId(null);
+  } else if (payload.getLabelIds().isEmpty()) {
+    trip.setLabels(new ArrayList<>());
+    trip.setLabelId(null);
+  } else {
+    List<Label> labels = resolveTripLabels(tokenTenantId, payload.getLabelIds());
+    trip.setLabels(labels);
+    trip.setLabelId(labels.getFirst().getId());
+  }
+
   if (updatedBy != null) {
     trip.setUpdatedBy(updatedBy.toString());
   }
@@ -1979,6 +2025,29 @@ public Trip dispatchTrip(UUID tokenTenantId, UUID tripID, Map<String, Object> di
   dto.setDispatchLng(toDouble(dispatchData.get("dispatchLng")));
   dto.setGarageStartTime(toLong(dispatchData.get("garageStartTime")));
   return dispatchTrip(tokenTenantId, null, null, tripID, dto);
+}
+
+private List<Label> resolveTripLabels(UUID tenantId, List<String> labelIds) {
+  if (labelIds == null || labelIds.isEmpty()) {
+    return new ArrayList<>();
+  }
+
+  List<Label> labels = new ArrayList<>();
+  for (String labelIdValue : labelIds) {
+    if (labelIdValue == null || labelIdValue.isBlank()) {
+      continue;
+    }
+    UUID labelId = UUID.fromString(labelIdValue);
+    Label label = labelRepository.findByIdAndTenant_IdAndIsDeletedFalse(labelId, tenantId)
+        .orElseThrow(() -> new RuntimeException("Invalid label: " + labelIdValue));
+    labels.add(label);
+  }
+
+  if (labels.isEmpty()) {
+    return new ArrayList<>();
+  }
+
+  return labels;
 }
 
 private Trip findTripForTenant(UUID tenantId, UUID tripId) {

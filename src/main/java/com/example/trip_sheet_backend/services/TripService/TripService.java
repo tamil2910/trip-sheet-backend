@@ -16,6 +16,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.ManualTripExecuteRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripLabelAssignRequestDTO;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
 import com.example.trip_sheet_backend.models.TripSummary;
@@ -44,6 +45,14 @@ public interface TripService extends BaseService<Trip, UUID> {
 
   Trip executeManualTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripId,
       ManualTripExecuteRequestDTO executeData);
+
+  Trip assignLabelToTrip(
+      Tenant tokenTenant,
+      UUID tokenTenantId,
+      UUID tripId,
+      TripLabelAssignRequestDTO payload,
+      UUID updatedBy
+  );
 
   Trip assignTripToPartnerVendor(
       Tenant tokenTenant,

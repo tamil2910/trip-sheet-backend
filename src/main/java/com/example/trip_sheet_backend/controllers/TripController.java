@@ -29,6 +29,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.ManualTripExecuteRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripLabelAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
@@ -480,6 +481,26 @@ public class TripController {
           "Manual trip executed and completed successfully!",
           TripResponseMapper.toDTO(completedTrip)
       ));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
+  @PutMapping("/assign-label/{tripId}")
+  public ResponseEntity<ApiResponse<?>> assignLabelToTrip(
+      @PathVariable @NotNull UUID tripId,
+      @Valid @RequestBody TripLabelAssignRequestDTO payload,
+      HttpServletRequest request
+  ) {
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UUID tokenTenantId = (UUID) request.getAttribute("tenantId");
+    UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+
+    try {
+      Trip trip = tripServiceImp.assignLabelToTrip(tokenTenant, tokenTenantId, tripId, payload, updatedBy);
+      TripResponseDTO response = TripResponseMapper.toDTO(trip);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Labels assigned to trip successfully", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
     }

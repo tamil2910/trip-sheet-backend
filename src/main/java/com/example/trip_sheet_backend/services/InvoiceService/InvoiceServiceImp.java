@@ -23,6 +23,7 @@ import jakarta.persistence.criteria.Predicate;
 import com.example.trip_sheet_backend.models.Invoice;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.repositories.InvoiceRepository;
+import com.example.trip_sheet_backend.dtos.InvoiceDtos.InvoiceUpdateRequestDTO;
 import com.example.trip_sheet_backend.dtos.InvoiceDtos.VendorInvoiceOutstandingResponseDTO;
 import com.example.trip_sheet_backend.dtos.InvoiceDtos.OrganisationVendorPayableResponseDTO;
 import com.example.trip_sheet_backend.dtos.InvoiceDtos.InvoiceOutstandingTotalsResponseDTO;
@@ -113,6 +114,44 @@ public class InvoiceServiceImp implements InvoiceService {
         .orElseThrow(() -> new RuntimeException("Invoice not found for this purchase order"));
     validateInvoiceAccess(invoice, tokenTenant);
     return invoice;
+  }
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public Invoice update(UUID invoiceId, InvoiceUpdateRequestDTO body, Tenant tokenTenant, UUID actorId) {
+    if (body == null) {
+      throw new RuntimeException("Invoice update details are required");
+    }
+    if (body.getInvoiceNumber() == null && body.getInvoiceDate() == null && body.getDueDate() == null
+        && body.getInvoicePeriodStart() == null && body.getInvoicePeriodEnd() == null) {
+      throw new RuntimeException("At least one invoice field must be provided");
+    }
+    if (body.getInvoiceNumber() != null && body.getInvoiceNumber().isBlank()) {
+      throw new RuntimeException("invoiceNumber cannot be blank");
+    }
+
+    Invoice invoice = findAccessibleInvoice(invoiceId, tokenTenant);
+    Long invoiceDate = body.getInvoiceDate() == null ? invoice.getInvoiceDate() : body.getInvoiceDate();
+    Long dueDate = body.getDueDate() == null ? invoice.getDueDate() : body.getDueDate();
+    Long periodStart = body.getInvoicePeriodStart() == null
+        ? invoice.getInvoicePeriodStart() : body.getInvoicePeriodStart();
+    Long periodEnd = body.getInvoicePeriodEnd() == null
+        ? invoice.getInvoicePeriodEnd() : body.getInvoicePeriodEnd();
+
+    if (invoiceDate != null && dueDate != null && dueDate < invoiceDate) {
+      throw new RuntimeException("dueDate must be on or after invoiceDate");
+    }
+    if (periodStart != null && periodEnd != null && periodStart > periodEnd) {
+      throw new RuntimeException("invoicePeriodStart must be before or equal to invoicePeriodEnd");
+    }
+
+    if (body.getInvoiceNumber() != null) invoice.setInvoiceNumber(body.getInvoiceNumber().trim());
+    if (body.getInvoiceDate() != null) invoice.setInvoiceDate(invoiceDate);
+    if (body.getDueDate() != null) invoice.setDueDate(dueDate);
+    if (body.getInvoicePeriodStart() != null) invoice.setInvoicePeriodStart(periodStart);
+    if (body.getInvoicePeriodEnd() != null) invoice.setInvoicePeriodEnd(periodEnd);
+    setUpdatedBy(invoice, actorId);
+    return invoiceRepository.save(invoice);
   }
 
   @Override

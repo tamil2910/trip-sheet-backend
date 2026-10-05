@@ -9,6 +9,7 @@ import java.util.Map;
 
 import com.example.trip_sheet_backend.models.Invoice;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.dtos.InvoiceDtos.InvoiceUpdateRequestDTO;
 import com.example.trip_sheet_backend.dtos.InvoiceDtos.VendorInvoiceOutstandingResponseDTO;
 import com.example.trip_sheet_backend.dtos.InvoiceDtos.OrganisationVendorPayableResponseDTO;
 import com.example.trip_sheet_backend.dtos.InvoiceDtos.InvoiceOutstandingTotalsResponseDTO;
@@ -18,6 +19,8 @@ public interface InvoiceService {
   Page<Invoice> getInvoices(Tenant tokenTenant, Map<String, Object> filters, Pageable pageable);
 
   Invoice getByPurchaseOrderId(UUID purchaseOrderId, Tenant tokenTenant);
+
+  Invoice update(UUID invoiceId, InvoiceUpdateRequestDTO body, Tenant tokenTenant, UUID actorId);
 
   Invoice markPrinted(UUID invoiceId, Tenant tokenTenant, UUID actorId);
 

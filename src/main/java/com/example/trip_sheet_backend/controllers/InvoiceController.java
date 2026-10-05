@@ -26,6 +26,7 @@ import com.example.trip_sheet_backend.dtos.CreditDebitNoteDtos.CreditDebitNoteAp
 import com.example.trip_sheet_backend.dtos.CreditDebitNoteDtos.CreditDebitNoteResponseDTO;
 import com.example.trip_sheet_backend.models.Invoice;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.dtos.InvoiceDtos.InvoiceUpdateRequestDTO;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.InvoiceService.InvoiceService;
 import com.example.trip_sheet_backend.services.CreditDebitNoteService.CreditDebitNoteService;
@@ -133,6 +134,16 @@ public class InvoiceController {
   ) {
     return ResponseEntity.ok(new ApiResponse<>(true, "Invoice fetched successfully",
         InvoiceResponseDTO.fromEntity(invoiceService.getByPurchaseOrderId(purchaseOrderId, tenant(request)))));
+  }
+
+  @PutMapping("/by-id/{id}")
+  public ResponseEntity<ApiResponse<InvoiceResponseDTO>> update(
+      @PathVariable UUID id,
+      @Valid @RequestBody InvoiceUpdateRequestDTO body,
+      HttpServletRequest request
+  ) {
+    return ResponseEntity.ok(new ApiResponse<>(true, "Invoice updated successfully",
+        InvoiceResponseDTO.fromEntity(invoiceService.update(id, body, tenant(request), actorId(request)))));
   }
 
   @PutMapping("/{id}/print")
