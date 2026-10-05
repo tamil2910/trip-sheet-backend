@@ -10,7 +10,13 @@ import java.util.UUID;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.Instant;
+import java.util.Locale;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
@@ -24,6 +30,7 @@ import jakarta.persistence.criteria.Predicate;
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderUpdateRequestDTO;
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.CombinePurchaseOrdersRequestDTO;
 import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderAllocationRequestDTO;
+import com.example.trip_sheet_backend.dtos.PurchaseOrderDtos.PurchaseOrderLineItemUpdateDTO;
 import com.example.trip_sheet_backend.models.CustomField;
 import com.example.trip_sheet_backend.models.Invoice;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
@@ -52,6 +59,7 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
   private final CustomFieldRepository customFieldRepository;
   private final TripPassengerCustomFieldValueRepository tripPassengerCustomFieldValueRepository;
   private final VendorOrganisationRepository vendorOrganisationRepository;
+  private final ObjectMapper objectMapper = new ObjectMapper();
 
   public PurchaseOrderServiceImp(
       PurchaseOrderRepository purchaseOrderRepository,
@@ -119,6 +127,10 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
 
     if (body.getAllocations() != null) {
       replaceAllocations(purchaseOrder, body.getAllocations(), updatedBy);
+    }
+
+    if (body.getLineItems() != null) {
+      replaceCustomLineItems(purchaseOrder, body.getLineItems());
     }
 
     applyUpdateFields(purchaseOrder, body);
@@ -424,6 +436,49 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     return (amount == null ? BigDecimal.ZERO : amount).setScale(2, RoundingMode.HALF_UP);
   }
 
+  private void replaceCustomLineItems(PurchaseOrder purchaseOrder, List<PurchaseOrderLineItemUpdateDTO> lineItems) {
+    ObjectNode snapshot;
+    try {
+      JsonNode existing = purchaseOrder.getLineItemsSnapshot() == null || purchaseOrder.getLineItemsSnapshot().isBlank()
+          ? null
+          : objectMapper.readTree(purchaseOrder.getLineItemsSnapshot());
+      if (existing instanceof ObjectNode existingObject) {
+        snapshot = existingObject;
+      } else {
+        snapshot = objectMapper.createObjectNode();
+        if (existing != null) {
+          snapshot.set("items", existing);
+        }
+      }
+
+      ArrayNode taxableItems = objectMapper.createArrayNode();
+      ArrayNode nonTaxableItems = objectMapper.createArrayNode();
+      for (PurchaseOrderLineItemUpdateDTO item : lineItems) {
+        if (item == null || item.getName() == null || item.getName().isBlank()
+            || item.getType() == null || item.getRate() == null || item.getQty() == null || item.getAmount() == null) {
+          throw new RuntimeException("Each line item requires name, type, rate, qty, and amount");
+        }
+
+        String type = item.getType().trim().toLowerCase(Locale.ROOT);
+        ObjectNode lineItem = objectMapper.valueToTree(item);
+        lineItem.put("type", type);
+        if ("taxable".equals(type)) {
+          taxableItems.add(lineItem);
+        } else if ("non-taxable".equals(type)) {
+          nonTaxableItems.add(lineItem);
+        } else {
+          throw new RuntimeException("Line item type must be taxable or non-taxable");
+        }
+      }
+
+      snapshot.set("taxableItems", taxableItems);
+      snapshot.set("nonTaxableItems", nonTaxableItems);
+      purchaseOrder.setLineItemsSnapshot(objectMapper.writeValueAsString(snapshot));
+    } catch (JsonProcessingException exception) {
+      throw new RuntimeException("Unable to update purchase order line items", exception);
+    }
+  }
+
   private PurchaseOrder findByIdAndTenant(UUID purchaseOrderId, Tenant tokenTenant) {
     PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId)
         .filter(value -> !Boolean.TRUE.equals(value.getIsDeleted()))
@@ -527,7 +582,9 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     if (body.getSupplierPhone() != null) purchaseOrder.setSupplierPhone(body.getSupplierPhone());
     if (body.getSupplierAddress() != null) purchaseOrder.setSupplierAddress(body.getSupplierAddress());
     if (body.getLineItemCount() != null) purchaseOrder.setLineItemCount(body.getLineItemCount());
-    if (body.getLineItemsSnapshot() != null) purchaseOrder.setLineItemsSnapshot(body.getLineItemsSnapshot());
+    if (body.getLineItemsSnapshot() != null && body.getLineItems() == null) {
+      purchaseOrder.setLineItemsSnapshot(body.getLineItemsSnapshot());
+    }
     if (body.getGarageStartTime() != null) purchaseOrder.setGarageStartTime(body.getGarageStartTime());
     if (body.getGarageEndTime() != null) purchaseOrder.setGarageEndTime(body.getGarageEndTime());
     if (body.getTripStartTime() != null) purchaseOrder.setTripStartTime(body.getTripStartTime());

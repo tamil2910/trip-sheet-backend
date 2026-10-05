@@ -26,6 +26,7 @@ public class PurchaseOrderUpdateRequestDTO {
   private String supplierAddress;
   private Integer lineItemCount;
   private String lineItemsSnapshot;
+  private List<PurchaseOrderLineItemUpdateDTO> lineItems;
   private UUID tripSummaryId;
   private List<PurchaseOrderAllocationRequestDTO> allocations;
   private com.example.trip_sheet_backend.models.PurchaseOrder.PurchaseOrderStatus status;
