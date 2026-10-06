@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.List;
 
 import com.example.trip_sheet_backend.dtos.TripDtos.TripBasicRelationResponseDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripLabelResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPassengerCustomFieldValueResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripRelationResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
@@ -39,11 +40,19 @@ public final class TripResponseMapper {
 
         dto.setTripCode(trip.getTripCode());
         if (trip.getLabels() != null) {
+            dto.setLabels(trip.getLabels().stream()
+                .filter(label -> label != null && label.getId() != null)
+                .map(label -> new TripLabelResponseDTO(
+                    label.getId().toString(),
+                    label.getName(),
+                    label.getColor()))
+                .toList());
             dto.setLabelIds(trip.getLabels().stream()
                 .filter(label -> label != null && label.getId() != null)
                 .map(label -> label.getId().toString())
                 .toList());
         } else {
+            dto.setLabels(Collections.emptyList());
             dto.setLabelIds(Collections.emptyList());
         }
         if (trip.getLabelId() != null) {
