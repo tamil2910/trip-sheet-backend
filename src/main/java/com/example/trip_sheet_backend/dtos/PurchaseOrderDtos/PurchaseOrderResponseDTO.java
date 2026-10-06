@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.UUID;
 import java.util.List;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.example.trip_sheet_backend.models.PurchaseOrder;
 import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Trip;
@@ -116,6 +117,7 @@ public class PurchaseOrderResponseDTO {
   private String notes;
 
   public static PurchaseOrderResponseDTO fromEntity(PurchaseOrder entity) {
+    entity.refreshLineItems();
     return new PurchaseOrderResponseDTO(
         entity.getId(),
         entity.getOrderNumber(),
