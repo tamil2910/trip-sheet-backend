@@ -4,6 +4,8 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
 import jakarta.persistence.Column;
@@ -17,6 +19,8 @@ import jakarta.persistence.CascadeType;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
+import jakarta.persistence.PostLoad;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -32,6 +36,7 @@ import jakarta.persistence.JoinColumn;
 @Entity
 @Table(name = "purchase_orders")
 public class PurchaseOrder extends BaseModel implements TenantScoped {
+  private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
   private String orderNumber;
   private String documentType;
@@ -60,6 +65,9 @@ public class PurchaseOrder extends BaseModel implements TenantScoped {
   @Lob
   @Column(columnDefinition = "LONGTEXT")
   private String lineItemsSnapshot;
+
+  @Transient
+  private List<JsonNode> lineItems = new ArrayList<>();
 
   /** A completed trip can have the organisation PO and one PO per vendor delegation hop. */
   @ManyToOne(fetch = FetchType.LAZY)
@@ -202,5 +210,30 @@ public class PurchaseOrder extends BaseModel implements TenantScoped {
 
   public void setTenant(Tenant tenant) {
     this.tenant = tenant;
+  }
+
+  @PostLoad
+  public void refreshLineItems() {
+    lineItems = new ArrayList<>();
+    if (lineItemsSnapshot == null || lineItemsSnapshot.isBlank()) {
+      return;
+    }
+    try {
+      JsonNode snapshot = OBJECT_MAPPER.readTree(lineItemsSnapshot);
+      if (snapshot.has("taxableItems") || snapshot.has("nonTaxableItems")) {
+        appendItems(snapshot.path("taxableItems"));
+        appendItems(snapshot.path("nonTaxableItems"));
+      } else {
+        appendItems(snapshot.path("items"));
+      }
+    } catch (com.fasterxml.jackson.core.JsonProcessingException ignored) {
+      lineItems = new ArrayList<>();
+    }
+  }
+
+  private void appendItems(JsonNode items) {
+    if (items.isArray()) {
+      items.forEach(lineItems::add);
+    }
   }
 }

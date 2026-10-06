@@ -32,6 +32,7 @@ public class PurchaseOrderResponseDTO {
   private String supplierAddress;
   private Integer lineItemCount;
   private String lineItemsSnapshot;
+  private List<JsonNode> lineItems;
   private UUID tripSummaryId;
   private String tripCode;
   private List<TripRelationResponseDTO> passengers;
@@ -133,6 +134,7 @@ public class PurchaseOrderResponseDTO {
         entity.getSupplierAddress(),
         entity.getLineItemCount(),
         entity.getLineItemsSnapshot(),
+        entity.getLineItems(),
         entity.getTripSummary() == null ? null : entity.getTripSummary().getId(),
         tripCode(entity),
         passengers(entity),

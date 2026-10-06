@@ -131,6 +131,7 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
 
     if (body.getLineItems() != null) {
       replaceCustomLineItems(purchaseOrder, body.getLineItems());
+      purchaseOrder.refreshLineItems();
       applyLineItemAmounts(purchaseOrder, body.getLineItems());
     }
 
