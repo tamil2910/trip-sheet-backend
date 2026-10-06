@@ -131,9 +131,13 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
 
     if (body.getLineItems() != null) {
       replaceCustomLineItems(purchaseOrder, body.getLineItems());
+      applyLineItemAmounts(purchaseOrder, body.getLineItems());
     }
 
     applyUpdateFields(purchaseOrder, body);
+    if (body.getLineItems() != null) {
+      recalculateLineItemTotals(purchaseOrder, body.getLineItems());
+    }
     if (updatedBy != null) {
       purchaseOrder.setUpdatedBy(updatedBy.toString());
     }
@@ -479,6 +483,107 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     }
   }
 
+  private void applyLineItemAmounts(PurchaseOrder purchaseOrder, List<PurchaseOrderLineItemUpdateDTO> lineItems) {
+    for (PurchaseOrderLineItemUpdateDTO item : lineItems) {
+      if (item == null || item.getName() == null || item.getRate() == null || item.getQty() == null || item.getAmount() == null) {
+        continue;
+      }
+
+      String name = item.getName().replaceAll("[^A-Za-z0-9]", "").toLowerCase(Locale.ROOT);
+      switch (name) {
+        case "basefare" -> {
+          purchaseOrder.setBaseFareAmount(item.getRate());
+          purchaseOrder.setBaseFareQty(item.getQty());
+          purchaseOrder.setBaseFareTotal(item.getAmount());
+        }
+        case "extrakm" -> {
+          purchaseOrder.setExtraKmChargeAmount(item.getRate());
+          purchaseOrder.setExtraKmQty(item.getQty());
+          purchaseOrder.setExtraKmTotal(item.getAmount());
+        }
+        case "extrahr" -> {
+          purchaseOrder.setExtraHrChargeAmount(item.getRate());
+          purchaseOrder.setExtraHrQty(item.getQty());
+          purchaseOrder.setExtraHrTotal(item.getAmount());
+        }
+        case "dailyallowance" -> {
+          purchaseOrder.setDailyAllowanceChargeAmount(item.getRate());
+          purchaseOrder.setDailyAllowanceQty(item.getQty());
+          purchaseOrder.setDailyAllowanceTotal(item.getAmount());
+        }
+        case "earlyallowance" -> {
+          purchaseOrder.setEarlyAllowanceChargeAmount(item.getRate());
+          purchaseOrder.setEarlyAllowanceQty(item.getQty());
+          purchaseOrder.setEarlyAllowanceTotal(item.getAmount());
+        }
+        case "lateallowance" -> {
+          purchaseOrder.setLateAllowanceChargeAmount(item.getRate());
+          purchaseOrder.setLateAllowanceQty(item.getQty());
+          purchaseOrder.setLateAllowanceTotal(item.getAmount());
+        }
+        case "hourlyallowance" -> {
+          purchaseOrder.setHourlyAllowanceCharge(item.getRate());
+          purchaseOrder.setHourlyAllowanceQty(item.getQty());
+          purchaseOrder.setHourlyAllowanceAmount(item.getAmount());
+        }
+        case "toll" -> {
+          purchaseOrder.setTollChargeAmount(item.getRate());
+          purchaseOrder.setTollQty(item.getQty());
+          purchaseOrder.setTollTotal(item.getAmount());
+        }
+        case "parking" -> {
+          purchaseOrder.setParkingChargeAmount(item.getRate());
+          purchaseOrder.setParkingQty(item.getQty());
+          purchaseOrder.setParkingTotal(item.getAmount());
+        }
+        case "other", "othercharge" -> {
+          purchaseOrder.setOtherChargeAmount(item.getRate());
+          purchaseOrder.setOtherQty(item.getQty());
+          purchaseOrder.setOtherTotal(item.getAmount());
+        }
+        default -> { /* Custom line items remain in the snapshot. */ }
+      }
+    }
+  }
+
+  private void recalculateLineItemTotals(PurchaseOrder purchaseOrder, List<PurchaseOrderLineItemUpdateDTO> lineItems) {
+    BigDecimal taxableSubTotal = BigDecimal.ZERO;
+    BigDecimal nonTaxableTotal = BigDecimal.ZERO;
+    for (PurchaseOrderLineItemUpdateDTO item : lineItems) {
+      if (item == null || item.getType() == null || item.getAmount() == null) {
+        continue;
+      }
+      String type = item.getType().trim().toLowerCase(Locale.ROOT);
+      if ("taxable".equals(type)) {
+        taxableSubTotal = taxableSubTotal.add(item.getAmount());
+      } else if ("non-taxable".equals(type)) {
+        nonTaxableTotal = nonTaxableTotal.add(item.getAmount());
+      }
+    }
+
+    taxableSubTotal = currency(taxableSubTotal);
+    nonTaxableTotal = currency(nonTaxableTotal);
+    BigDecimal gstPercentage = currency(purchaseOrder.getGstPercentage());
+    BigDecimal gstAmount = currency(taxableSubTotal.multiply(gstPercentage)
+        .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP));
+
+    purchaseOrder.setTaxableSubTotal(taxableSubTotal);
+    purchaseOrder.setCgstAmount(calculateLineItemTax(taxableSubTotal, purchaseOrder.getCgstPercentage()));
+    purchaseOrder.setSgstAmount(calculateLineItemTax(taxableSubTotal, purchaseOrder.getSgstPercentage()));
+    purchaseOrder.setIgstAmount(calculateLineItemTax(taxableSubTotal, purchaseOrder.getIgstPercentage()));
+    purchaseOrder.setGstAmount(gstAmount);
+    purchaseOrder.setTaxableTotalWithGst(taxableSubTotal.add(gstAmount));
+    purchaseOrder.setNonTaxableTotal(nonTaxableTotal);
+    purchaseOrder.setTotalAmount(taxableSubTotal.add(gstAmount).add(nonTaxableTotal)
+        .add(currency(purchaseOrder.getRoundOffAmount())));
+    purchaseOrder.setLineItemCount(lineItems.size());
+  }
+
+  private BigDecimal calculateLineItemTax(BigDecimal taxableSubTotal, BigDecimal percentage) {
+    return currency(taxableSubTotal.multiply(currency(percentage))
+        .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP));
+  }
+
   private PurchaseOrder findByIdAndTenant(UUID purchaseOrderId, Tenant tokenTenant) {
     PurchaseOrder order = purchaseOrderRepository.findById(purchaseOrderId)
         .filter(value -> !Boolean.TRUE.equals(value.getIsDeleted()))
@@ -656,6 +761,10 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     if (body.getIgstPercentage() != null) purchaseOrder.setIgstPercentage(body.getIgstPercentage());
     if (body.getIgstAmount() != null) purchaseOrder.setIgstAmount(body.getIgstAmount());
     if (body.getTaxableTotalWithGst() != null) purchaseOrder.setTaxableTotalWithGst(body.getTaxableTotalWithGst());
+    else if (body.getTaxableSubTotal() != null || body.getGstAmount() != null) {
+      purchaseOrder.setTaxableTotalWithGst(currency(purchaseOrder.getTaxableSubTotal())
+          .add(currency(purchaseOrder.getGstAmount())));
+    }
     if (body.getNonTaxableTotal() != null) purchaseOrder.setNonTaxableTotal(body.getNonTaxableTotal());
     if (body.getRoundOffAmount() != null) purchaseOrder.setRoundOffAmount(body.getRoundOffAmount());
     if (body.getTotalAmount() != null) purchaseOrder.setTotalAmount(body.getTotalAmount());
