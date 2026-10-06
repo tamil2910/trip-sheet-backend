@@ -458,14 +458,16 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
       ArrayNode taxableItems = objectMapper.createArrayNode();
       ArrayNode nonTaxableItems = objectMapper.createArrayNode();
       for (PurchaseOrderLineItemUpdateDTO item : lineItems) {
-        if (item == null || item.getName() == null || item.getName().isBlank()
-            || item.getType() == null || item.getRate() == null || item.getQty() == null || item.getAmount() == null) {
+        if (item == null || item.getDisplayName() == null || item.getDisplayName().isBlank()
+            || item.getType() == null || item.getRate() == null || item.getQty() == null || item.getLineTotal() == null) {
           throw new RuntimeException("Each line item requires name, type, rate, qty, and amount");
         }
 
-        String type = item.getType().trim().toLowerCase(Locale.ROOT);
+        String type = normalizeLineItemType(item.getType());
         ObjectNode lineItem = objectMapper.valueToTree(item);
+        lineItem.put("name", item.getDisplayName());
         lineItem.put("type", type);
+        lineItem.put("amount", item.getLineTotal());
         if ("taxable".equals(type)) {
           taxableItems.add(lineItem);
         } else if ("non-taxable".equals(type)) {
@@ -485,61 +487,61 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
 
   private void applyLineItemAmounts(PurchaseOrder purchaseOrder, List<PurchaseOrderLineItemUpdateDTO> lineItems) {
     for (PurchaseOrderLineItemUpdateDTO item : lineItems) {
-      if (item == null || item.getName() == null || item.getRate() == null || item.getQty() == null || item.getAmount() == null) {
+      if (item == null || item.getDisplayName() == null || item.getRate() == null || item.getQty() == null || item.getLineTotal() == null) {
         continue;
       }
 
-      String name = item.getName().replaceAll("[^A-Za-z0-9]", "").toLowerCase(Locale.ROOT);
+      String name = item.getDisplayName().replaceAll("[^A-Za-z0-9]", "").toLowerCase(Locale.ROOT);
       switch (name) {
         case "basefare" -> {
           purchaseOrder.setBaseFareAmount(item.getRate());
           purchaseOrder.setBaseFareQty(item.getQty());
-          purchaseOrder.setBaseFareTotal(item.getAmount());
+          purchaseOrder.setBaseFareTotal(item.getLineTotal());
         }
         case "extrakm" -> {
           purchaseOrder.setExtraKmChargeAmount(item.getRate());
           purchaseOrder.setExtraKmQty(item.getQty());
-          purchaseOrder.setExtraKmTotal(item.getAmount());
+          purchaseOrder.setExtraKmTotal(item.getLineTotal());
         }
         case "extrahr" -> {
           purchaseOrder.setExtraHrChargeAmount(item.getRate());
           purchaseOrder.setExtraHrQty(item.getQty());
-          purchaseOrder.setExtraHrTotal(item.getAmount());
+          purchaseOrder.setExtraHrTotal(item.getLineTotal());
         }
         case "dailyallowance" -> {
           purchaseOrder.setDailyAllowanceChargeAmount(item.getRate());
           purchaseOrder.setDailyAllowanceQty(item.getQty());
-          purchaseOrder.setDailyAllowanceTotal(item.getAmount());
+          purchaseOrder.setDailyAllowanceTotal(item.getLineTotal());
         }
         case "earlyallowance" -> {
           purchaseOrder.setEarlyAllowanceChargeAmount(item.getRate());
           purchaseOrder.setEarlyAllowanceQty(item.getQty());
-          purchaseOrder.setEarlyAllowanceTotal(item.getAmount());
+          purchaseOrder.setEarlyAllowanceTotal(item.getLineTotal());
         }
         case "lateallowance" -> {
           purchaseOrder.setLateAllowanceChargeAmount(item.getRate());
           purchaseOrder.setLateAllowanceQty(item.getQty());
-          purchaseOrder.setLateAllowanceTotal(item.getAmount());
+          purchaseOrder.setLateAllowanceTotal(item.getLineTotal());
         }
         case "hourlyallowance" -> {
           purchaseOrder.setHourlyAllowanceCharge(item.getRate());
           purchaseOrder.setHourlyAllowanceQty(item.getQty());
-          purchaseOrder.setHourlyAllowanceAmount(item.getAmount());
+          purchaseOrder.setHourlyAllowanceAmount(item.getLineTotal());
         }
         case "toll" -> {
           purchaseOrder.setTollChargeAmount(item.getRate());
           purchaseOrder.setTollQty(item.getQty());
-          purchaseOrder.setTollTotal(item.getAmount());
+          purchaseOrder.setTollTotal(item.getLineTotal());
         }
         case "parking" -> {
           purchaseOrder.setParkingChargeAmount(item.getRate());
           purchaseOrder.setParkingQty(item.getQty());
-          purchaseOrder.setParkingTotal(item.getAmount());
+          purchaseOrder.setParkingTotal(item.getLineTotal());
         }
         case "other", "othercharge" -> {
           purchaseOrder.setOtherChargeAmount(item.getRate());
           purchaseOrder.setOtherQty(item.getQty());
-          purchaseOrder.setOtherTotal(item.getAmount());
+          purchaseOrder.setOtherTotal(item.getLineTotal());
         }
         default -> { /* Custom line items remain in the snapshot. */ }
       }
@@ -550,14 +552,14 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     BigDecimal taxableSubTotal = BigDecimal.ZERO;
     BigDecimal nonTaxableTotal = BigDecimal.ZERO;
     for (PurchaseOrderLineItemUpdateDTO item : lineItems) {
-      if (item == null || item.getType() == null || item.getAmount() == null) {
+      if (item == null || item.getType() == null || item.getLineTotal() == null) {
         continue;
       }
-      String type = item.getType().trim().toLowerCase(Locale.ROOT);
+      String type = normalizeLineItemType(item.getType());
       if ("taxable".equals(type)) {
-        taxableSubTotal = taxableSubTotal.add(item.getAmount());
+        taxableSubTotal = taxableSubTotal.add(item.getLineTotal());
       } else if ("non-taxable".equals(type)) {
-        nonTaxableTotal = nonTaxableTotal.add(item.getAmount());
+        nonTaxableTotal = nonTaxableTotal.add(item.getLineTotal());
       }
     }
 
@@ -582,6 +584,10 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
   private BigDecimal calculateLineItemTax(BigDecimal taxableSubTotal, BigDecimal percentage) {
     return currency(taxableSubTotal.multiply(currency(percentage))
         .divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP));
+  }
+
+  private String normalizeLineItemType(String type) {
+    return type.trim().toLowerCase(Locale.ROOT).replace('_', '-');
   }
 
   private PurchaseOrder findByIdAndTenant(UUID purchaseOrderId, Tenant tokenTenant) {
