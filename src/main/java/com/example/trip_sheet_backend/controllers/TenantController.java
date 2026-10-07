@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.common.controllers.GlobalBaseController;
 import com.example.trip_sheet_backend.dtos.AuthDtos.LoginUserResponseDTO;
 import com.example.trip_sheet_backend.dtos.TenantDtos.MyClientSummaryDTO;
+import com.example.trip_sheet_backend.dtos.TenantDtos.MyClientDetailsDTO;
 import com.example.trip_sheet_backend.dtos.TenantDtos.TenantCodeRequestDto;
 import com.example.trip_sheet_backend.dtos.TenantDtos.TenantCreateWithTaxIdsRequestDto;
 import com.example.trip_sheet_backend.dtos.TenantDtos.TenantLinkResponseDto;
@@ -447,6 +448,58 @@ public ResponseEntity<ApiResponse<?>> getCorporateTenants(
   return ResponseEntity.ok(
       new ApiResponse<>(true, "Client List fetched successfully", response)
   );
+}
+
+@GetMapping("/myclients/details-list")
+public ResponseEntity<ApiResponse<?>> getCorporateTenantDetailsList(
+    @RequestParam Map<String, Object> filters,
+    Pageable pageable,
+    HttpServletRequest request
+) {
+  Tenant tenant = (Tenant) request.getAttribute("tenant");
+  if (tenant == null) {
+    throw new RuntimeException("Tenant not found in token");
+  }
+  if (tenant.getTenantType() != Tenant.TenantType.VENDOR) {
+    throw new RuntimeException("Only vendors can get their clients");
+  }
+
+  List<MyClientDetailsDTO> clients = new ArrayList<>(vendorOrganisationRepository
+      .findByVendorAndOrganisation_TenantType(tenant, Tenant.TenantType.ORGANISATION, Pageable.unpaged())
+      .getContent().stream()
+      .map(MyClientDetailsDTO::fromOrganisation)
+      .toList());
+
+  vendorPartnerRepository.findByPrimaryVendor(tenant).stream()
+      .filter(partner -> !Boolean.TRUE.equals(partner.getIsDeleted()))
+      .filter(partner -> partner.getPartnerVendor() != null)
+      .filter(partner -> Boolean.TRUE.equals(partner.getIsAssociateCustomer()))
+      .map(MyClientDetailsDTO::fromAssociateCustomer)
+      .forEach(clients::add);
+
+  clients.sort(Comparator.comparing(
+      client -> client.getOrganisation() != null
+          ? client.getOrganisation().getTenantName()
+          : client.getAssociateCustomer().getTenantName(),
+      Comparator.nullsFirst(String.CASE_INSENSITIVE_ORDER)));
+
+  int start = (int) Math.min(pageable.getOffset(), clients.size());
+  int end = (int) Math.min(start + pageable.getPageSize(), clients.size());
+  Page<MyClientDetailsDTO> result = new PageImpl<>(clients.subList(start, end), pageable, clients.size());
+
+  Map<String, Object> response = new HashMap<>();
+  response.put("data", result.getContent());
+  response.put("currentPage", result.getNumber());
+  response.put("pageSize", result.getSize());
+  response.put("currentPageCount", result.getNumberOfElements());
+  response.put("totalItems", result.getTotalElements());
+  response.put("totalPages", result.getTotalPages());
+  response.put("isFirst", result.isFirst());
+  response.put("isLast", result.isLast());
+  response.put("hasNext", result.hasNext());
+  response.put("hasPrevious", result.hasPrevious());
+
+  return ResponseEntity.ok(new ApiResponse<>(true, "Client details fetched successfully", response));
 }
 
 @GetMapping("/my-vendors")
