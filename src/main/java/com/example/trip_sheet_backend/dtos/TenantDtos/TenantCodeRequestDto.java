@@ -21,4 +21,8 @@ public class TenantCodeRequestDto {
 
   private List<@NotNull(message = "Tax id cannot be null") UUID> taxIds;
 
+  private Boolean isActive;
+  private Boolean isAssociateSupplier;
+  private Boolean isAssociateCustomer;
+
 }

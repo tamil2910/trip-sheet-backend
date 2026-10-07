@@ -95,6 +95,13 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
   @Transactional(rollbackFor = Exception.class)
   public TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode,
           List<UUID> taxIds, UUID createdBy) {
+          return linkExistingTenantByUniqueCode(loggedInTenant, tenantUniqueCode, taxIds, null, null, null, createdBy);
+  }
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode,
+          List<UUID> taxIds, Boolean isActive, Boolean isAssociateSupplier, Boolean isAssociateCustomer, UUID createdBy) {
           validateVendorTenant(loggedInTenant);
 
           Tenant targetTenant = findByUniqueCode(tenantUniqueCode);
@@ -108,18 +115,28 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
                           .findByPrimaryVendorAndPartnerVendor(loggedInTenant, targetTenant);
 
                   if (existingPartner.isPresent()) {
-                          return new TenantLinkResponseDto("VENDOR_PARTNER", existingPartner.get().getId(), targetTenant, true);
+                          VendorPartner partner = existingPartner.get();
+                          applyAssociateFlags(partner, isActive, isAssociateSupplier, isAssociateCustomer);
+                          if (isActive != null || isAssociateSupplier != null || isAssociateCustomer != null) {
+                                  partner = vendorPartnerRepository.save(partner);
+                          }
+                          return partnerLinkResponse(partner, true);
                   }
 
                   VendorPartner partner = new VendorPartner();
                   partner.setPrimaryVendor(loggedInTenant);
                   partner.setPartnerVendor(targetTenant);
                   partner.setContractStatus(null);
+                  applyAssociateFlags(partner, isActive, isAssociateSupplier, isAssociateCustomer);
                   partner.setOnboardedAt(Instant.now().getEpochSecond());
                   partner.setCreatedBy(createdBy != null ? createdBy.toString() : null);
 
                    VendorPartner savedPartner = vendorPartnerRepository.save(partner);
-                  return new TenantLinkResponseDto("VENDOR_PARTNER", savedPartner.getId(), targetTenant, false);
+                  return partnerLinkResponse(savedPartner, false);
+          }
+
+          if (isActive != null || isAssociateSupplier != null || isAssociateCustomer != null) {
+                  throw new RuntimeException("Partner active/associate settings can only be used when linking a vendor");
           }
 
           Optional<VendorOrganisation> existingOrganisation = vendorOrganisationRepository
@@ -155,6 +172,18 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
           Tenant primaryVendor,
           UUID createdBy
   ) {
+      return createOrGetPartnerVendor(requestTenant, primaryVendor, createdBy, null, null, null);
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  public TenantOnboardingResult createOrGetPartnerVendor(
+          Tenant requestTenant,
+          Tenant primaryVendor,
+          UUID createdBy,
+          Boolean isActive,
+          Boolean isAssociateSupplier,
+          Boolean isAssociateCustomer
+  ) {
 
           boolean newlyCreated = false;
           boolean onboardingUserCreated = false;
@@ -181,22 +210,21 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
       }
 
       // 3️⃣ Check existing partnership
-      boolean alreadyLinked = vendorPartnerRepository
-              .existsByPrimaryVendorAndPartnerVendor(
-                      primaryVendor,
-                      partnerTenant
-              );
-
-      if (!alreadyLinked) {
-          VendorPartner partner = new VendorPartner();
+      Optional<VendorPartner> existingLink = vendorPartnerRepository
+              .findByPrimaryVendorAndPartnerVendor(primaryVendor, partnerTenant);
+      VendorPartner partner;
+      if (existingLink.isPresent()) {
+          partner = existingLink.get();
+      } else {
+          partner = new VendorPartner();
           partner.setPrimaryVendor(primaryVendor);
           partner.setPartnerVendor(partnerTenant);
           partner.setContractStatus(null);
           partner.setOnboardedAt(Instant.now().getEpochSecond());
-          partner.setCreatedBy(createdBy.toString());
-
-           vendorPartnerRepository.save(partner);
+          partner.setCreatedBy(createdBy == null ? null : createdBy.toString());
       }
+      applyAssociateFlags(partner, isActive, isAssociateSupplier, isAssociateCustomer);
+      partner = vendorPartnerRepository.save(partner);
 
                   return new TenantOnboardingResult(
                           partnerTenant,
@@ -341,6 +369,23 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
           if (loggedInTenant.getTenantType() != Tenant.TenantType.VENDOR) {
                   throw new RuntimeException("Only vendors can add tenants by unique code");
           }
+  }
+
+  private void applyAssociateFlags(VendorPartner partner, Boolean isActive, Boolean isAssociateSupplier, Boolean isAssociateCustomer) {
+    if (isActive != null) {
+      partner.setIsActive(isActive);
+    }
+    if (isAssociateSupplier != null) {
+      partner.setIsAssociateSupplier(isAssociateSupplier);
+    }
+    if (isAssociateCustomer != null) {
+      partner.setIsAssociateCustomer(isAssociateCustomer);
+    }
+  }
+
+  private TenantLinkResponseDto partnerLinkResponse(VendorPartner partner, boolean alreadyLinked) {
+    return new TenantLinkResponseDto("VENDOR_PARTNER", partner.getId(), partner.getPartnerVendor(), alreadyLinked,
+        partner.getIsActive(), partner.getIsAssociateSupplier(), partner.getIsAssociateCustomer());
   }
 
   private String normalizeTenantUniqueCode(String tenantUniqueCode) {

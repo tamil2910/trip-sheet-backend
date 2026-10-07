@@ -17,6 +17,9 @@ import lombok.Setter;
 public class VendorPartnerSummaryDTO {
   private UUID vendorPartnerId;
   private VendorPartner.ContractStatus contractStatus;
+  private Boolean isActive;
+  private Boolean isAssociateSupplier;
+  private Boolean isAssociateCustomer;
   private Tenant partnerVendor;
 
   public static VendorPartnerSummaryDTO fromEntity(VendorPartner vendorPartner, Tenant currentVendor) {
@@ -27,6 +30,9 @@ public class VendorPartnerSummaryDTO {
     return new VendorPartnerSummaryDTO(
         vendorPartner.getId(),
         vendorPartner.getContractStatus(),
+        vendorPartner.getIsActive(),
+        vendorPartner.getIsAssociateSupplier(),
+        vendorPartner.getIsAssociateCustomer(),
         connectedVendor
     );
   }

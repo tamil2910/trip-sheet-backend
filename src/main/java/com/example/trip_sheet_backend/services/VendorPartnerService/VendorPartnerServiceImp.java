@@ -34,6 +34,20 @@ public class VendorPartnerServiceImp implements VendorPartnerService {
         .orElseThrow(() -> new RuntimeException("Vendor partner relationship not found"));
 
     validateLinkedTenant(loggedInTenant, vendorPartner);
+    if (body.getIsActive() != null || body.getIsAssociateSupplier() != null || body.getIsAssociateCustomer() != null) {
+      if (!loggedInTenant.getId().equals(vendorPartner.getPrimaryVendor().getId())) {
+        throw new RuntimeException("Only the primary vendor can change partner active/associate settings");
+      }
+      if (body.getIsActive() != null) {
+        vendorPartner.setIsActive(body.getIsActive());
+      }
+      if (body.getIsAssociateSupplier() != null) {
+        vendorPartner.setIsAssociateSupplier(body.getIsAssociateSupplier());
+      }
+      if (body.getIsAssociateCustomer() != null) {
+        vendorPartner.setIsAssociateCustomer(body.getIsAssociateCustomer());
+      }
+    }
     if (body.getTaxIds() != null) {
       vendorPartner.setTaxList(resolveTaxes(body.getTaxIds()));
     }

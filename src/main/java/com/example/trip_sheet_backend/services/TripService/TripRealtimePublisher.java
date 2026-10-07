@@ -87,14 +87,13 @@ public class TripRealtimePublisher {
       return;
     }
 
-    TripResponseDTO tripBody = includeTripBody ? TripResponseMapper.toDTO(trip) : null;
-    TripRealtimeEventDTO payload = new TripRealtimeEventDTO(
-        eventType,
-        trip.getId().toString(),
-        tripBody,
-        Instant.now().toEpochMilli());
-
     for (UUID tenantId : resolveAudienceTenantIds(trip)) {
+      TripResponseDTO tripBody = includeTripBody ? TripResponseMapper.toDTO(trip, tenantId) : null;
+      TripRealtimeEventDTO payload = new TripRealtimeEventDTO(
+          eventType,
+          trip.getId().toString(),
+          tripBody,
+          Instant.now().toEpochMilli());
       messagingTemplate.convertAndSend("/topic/trips/" + tenantId, payload);
     }
   }
@@ -106,6 +105,7 @@ public class TripRealtimePublisher {
     addTenantId(tenantIds, trip.getVendor());
     addTenantId(tenantIds, trip.getAssignedByVendor());
     addTenantId(tenantIds, trip.getPreviousVendor());
+    addTenantId(tenantIds, trip.getClientVendor());
     return tenantIds;
   }
 

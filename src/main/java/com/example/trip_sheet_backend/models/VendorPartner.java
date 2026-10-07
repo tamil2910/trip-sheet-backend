@@ -7,6 +7,8 @@ import com.fasterxml.jackson.annotation.JsonManagedReference;
 
 import jakarta.annotation.Nullable;
 import jakarta.persistence.Entity;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
@@ -84,5 +86,25 @@ public class VendorPartner extends BaseModel {
   @JsonManagedReference
   @OneToMany(mappedBy = "vendorPartner")
   private List<VendorPartnerRateCard> rateCards = new ArrayList<>();
+
+  private Boolean isActive = true;
+  private Boolean isAssociateSupplier = false;
+  private Boolean isAssociateCustomer = false;
+
+  /** Keep the cached active flag aligned with the approved contract state. */
+  public void setContractStatus(ContractStatus contractStatus) {
+    this.contractStatus = contractStatus;
+    if (contractStatus == ContractStatus.ACTIVE) {
+      this.isActive = true;
+    }
+  }
+
+  @PrePersist
+  @PreUpdate
+  private void syncActiveWithContractStatus() {
+    if (contractStatus == ContractStatus.ACTIVE) {
+      this.isActive = true;
+    }
+  }
 
 }

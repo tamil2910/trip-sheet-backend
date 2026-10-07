@@ -20,6 +20,7 @@ public class TripUpdateRequestDTO {
     private Trip.RecurrenceFrequency recurrenceFrequency;
 
     private String organisationId;
+    private String associateCustomerId;
     private String vendorId;  
     private String driverId;
     private String vehicleId;

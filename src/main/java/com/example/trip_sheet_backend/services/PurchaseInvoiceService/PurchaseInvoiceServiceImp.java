@@ -70,6 +70,10 @@ public class PurchaseInvoiceServiceImp implements PurchaseInvoiceService {
     requireTenant(tenant);
     if (tenant.getTenantType() != Tenant.TenantType.VENDOR) return List.of();
     return invoiceRepository.findVendorInvoicesPayableBy(tenant.getId()).stream()
+        .filter(invoice -> invoice.getPurchaseOrder() == null
+            || invoice.getPurchaseOrder().getTripSummary() == null
+            || invoice.getPurchaseOrder().getTripSummary().getTripId() == null
+            || invoice.getPurchaseOrder().getTripSummary().getTripId().getClientVendor() == null)
         .filter(invoice -> repository.findBySourceInvoice_IdAndIsDeletedFalse(invoice.getId()).isEmpty())
         .toList();
   }
@@ -91,6 +95,10 @@ public class PurchaseInvoiceServiceImp implements PurchaseInvoiceService {
 
   private PurchaseInvoice createFromVendorInvoice(Invoice sourceInvoice, Tenant tenant, UUID approvedBy) {
     PurchaseOrder order = sourceInvoice.getPurchaseOrder();
+    if (order != null && order.getTripSummary() != null && order.getTripSummary().getTripId() != null
+        && order.getTripSummary().getTripId().getClientVendor() != null) {
+      throw new RuntimeException("Purchase invoices are not generated for associate-customer trips");
+    }
     if (order == null || !sameTenant(tenant, order.getTenant()) || tenant.getTenantType() != Tenant.TenantType.VENDOR
         || order.getSupplierVendor() == null || order.getSupplierVendor().getTenantType() != Tenant.TenantType.VENDOR) {
       throw new RuntimeException("Only the paying vendor can approve this vendor invoice");

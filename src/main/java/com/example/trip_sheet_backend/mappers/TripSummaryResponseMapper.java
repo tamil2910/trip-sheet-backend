@@ -7,11 +7,11 @@ public final class TripSummaryResponseMapper {
   private TripSummaryResponseMapper() {
   }
 
-  public static TripSummaryResponseDTO toDTO(TripSummary summary) {
+  public static TripSummaryResponseDTO toDTO(TripSummary summary, java.util.UUID viewerTenantId) {
     TripSummaryResponseDTO dto = new TripSummaryResponseDTO();
     if (summary.getId() != null) dto.setId(summary.getId().toString());
     if (summary.getTripId() != null && summary.getTripId().getId() != null) dto.setTripId(summary.getTripId().getId().toString());
-    if (summary.getTripId() != null) dto.setTrip(TripResponseMapper.toDTO(summary.getTripId()));
+    if (summary.getTripId() != null) dto.setTrip(TripResponseMapper.toDTO(summary.getTripId(), viewerTenantId));
     dto.setGarageStartTime(summary.getGarageStartTime());
     dto.setGarageEndTime(summary.getGarageEndTime());
     dto.setTripArrivedTime(summary.getTripArrivedTime());

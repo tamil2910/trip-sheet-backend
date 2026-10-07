@@ -108,7 +108,9 @@ public class TripBillingService {
     // The organisation PO belongs to the vendor that accepted the booking,
     // never to the final executing/delegated vendor.
     Tenant purchaseOrderVendor = resolveOriginalBookingVendor(trip);
-    PricingContext pricingContext = resolveOrganisationPricingContext(trip, purchaseOrderVendor);
+    PricingContext pricingContext = trip.getClientVendor() != null
+        ? resolveAssociateCustomerPricingContext(trip, purchaseOrderVendor)
+        : resolveOrganisationPricingContext(trip, purchaseOrderVendor);
     ChargeSnapshot chargeSnapshot = buildChargeSnapshot(tripSummary, pricingContext);
 
     if (purchaseOrderRepository.existsByTripSummary_IdAndIsDeletedFalse(tripSummary.getId())) {
@@ -131,6 +133,26 @@ public class TripBillingService {
 
     PurchaseOrder purchaseOrder = buildPurchaseOrder(trip, tripSummary, pricingContext, chargeSnapshot);
     return List.of(purchaseOrderRepository.save(purchaseOrder));
+  }
+
+  /** Validates that the authenticated vendor may create a client trip for this associated customer. */
+  @Transactional(readOnly = true)
+  public Tenant resolveAssociateCustomer(Tenant primaryVendor, UUID associateCustomerId) {
+    if (primaryVendor == null || primaryVendor.getTenantType() != Tenant.TenantType.VENDOR || associateCustomerId == null) {
+      throw new RuntimeException("A vendor and associateCustomerId are required");
+    }
+    Tenant associateCustomer = tenantRepository.findById(associateCustomerId)
+        .orElseThrow(() -> new RuntimeException("Associate customer not found"));
+    if (associateCustomer.getTenantType() != Tenant.TenantType.VENDOR) {
+      throw new RuntimeException("Associate customer must be a vendor");
+    }
+    VendorPartner relationship = vendorPartnerRepository
+        .findByPrimaryVendorAndPartnerVendor(primaryVendor, associateCustomer)
+        .filter(link -> !Boolean.TRUE.equals(link.getIsDeleted()))
+        .filter(link -> !Boolean.FALSE.equals(link.getIsActive()))
+        .filter(link -> Boolean.TRUE.equals(link.getIsAssociateCustomer()))
+        .orElseThrow(() -> new RuntimeException("Vendor is not linked to this associate customer"));
+    return relationship.getPartnerVendor();
   }
 
   private Tenant resolveOriginalBookingVendor(Trip trip) {
@@ -278,7 +300,8 @@ public class TripBillingService {
   ) {
     PurchaseOrder purchaseOrder = new PurchaseOrder();
     purchaseOrder.setTripSummary(tripSummary);
-    purchaseOrder.setTenant(trip.getOrganisation() != null ? trip.getOrganisation() : trip.getTenant());
+    purchaseOrder.setTenant(trip.getClientVendor() != null ? trip.getClientVendor()
+        : trip.getOrganisation() != null ? trip.getOrganisation() : trip.getTenant());
     purchaseOrder.setStatus(PurchaseOrder.PurchaseOrderStatus.GENERATED);
 
     purchaseOrder.setOrderNumber(buildOrderNumber(pricingContext.supplier()));
@@ -532,6 +555,9 @@ public class TripBillingService {
     if (trip.getVendor() == null) {
       throw new RuntimeException("Trip vendor is required for billing");
     }
+    if (trip.getClientVendor() != null) {
+      return resolveAssociateCustomerPricingContext(trip, resolveOriginalBookingVendor(trip));
+    }
     if (trip.getAssignedByVendor() != null
         && trip.getAssignedByVendor().getId() != null
         && !Objects.equals(trip.getAssignedByVendor().getId(), trip.getVendor().getId())) {
@@ -593,6 +619,41 @@ public class TripBillingService {
         buildRateCardPackageName(rateCard.getCity(), trip.getVehicleType(), trip.getDutyType()),
         "Vendor to organisation billing"
     );
+  }
+
+  private PricingContext resolveAssociateCustomerPricingContext(Trip trip, Tenant supplierVendor) {
+    if (trip.getClientVendor() == null || supplierVendor == null) {
+      throw new RuntimeException("Associate customer and supplier vendor are required for billing");
+    }
+    VendorPartner relationship = vendorPartnerRepository
+        .findByPrimaryVendorAndPartnerVendor(supplierVendor, trip.getClientVendor())
+        .filter(link -> !Boolean.TRUE.equals(link.getIsDeleted()))
+        .filter(link -> !Boolean.FALSE.equals(link.getIsActive()))
+        .filter(link -> Boolean.TRUE.equals(link.getIsAssociateCustomer()))
+        .orElseThrow(() -> new RuntimeException("Associate customer relationship not found for trip"));
+    if (relationship.getContractStatus() != VendorPartner.ContractStatus.ACTIVE) {
+      throw new RuntimeException("Associate customer contract is not active for trip billing");
+    }
+    VendorPartnerRateCard rateCard = vendorPartnerRateCardRepository
+        .findByVendorPartnerIdAndIsDeletedFalse(relationship.getId())
+        .stream()
+        .filter(card -> card.getApprovalStatus() == VendorPartnerRateCard.ApprovalStatus.APPROVED)
+        .filter(card -> matchesRateCard(card.getVehicleType(), card.getDutyType(), trip))
+        .findFirst()
+        .orElseThrow(() -> new RuntimeException("No approved associate customer rate card found for trip"));
+
+    return new PricingContext(
+        trip.getClientVendor(), supplierVendor,
+        rateCard.getBaseFare(), rateCard.getExtraKmCharges(), rateCard.getExtraHrCharges(),
+        rateCard.getDailyAllowanceCharges(), rateCard.getEarlyAllowanceCharges(), rateCard.getLateAllowanceCharges(),
+        rateCard.getHourlyAllowance(), Boolean.TRUE.equals(rateCard.getIsHourlyAllowance()),
+        rateCard.getEarlyAllowanceEndTime(), rateCard.getLateAllowanceStartTime(),
+        rateCard.getAllowanceCutOffHrs(), rateCard.getNoOfDaysHourCutoff(),
+        rateCard.getDutyType() == null ? null : rateCard.getDutyType().getTypeOfDuty(),
+        buildTaxRateSummaryForTaxes(relationship.getTaxList()),
+        trip.getDutyType() == null ? null : trip.getDutyType().getName(),
+        buildRateCardPackageName(rateCard.getCity(), trip.getVehicleType(), trip.getDutyType()),
+        "Vendor to associate customer billing");
   }
 
   private PricingContext resolvePartnerPricingContext(Trip trip) {

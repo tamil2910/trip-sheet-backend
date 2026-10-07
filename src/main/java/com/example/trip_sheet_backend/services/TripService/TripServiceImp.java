@@ -159,14 +159,21 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
 public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID createdBy) {
   System.out.println("---- DEBUG TRIP CREATE ----");
 
-  Tenant organisation;
-  if (hasText(createTripDto.getOrganisationId())) {
+  Tenant organisation = null;
+  Tenant associateCustomer = null;
+  if (hasText(createTripDto.getAssociateCustomerId())) {
+    if (hasText(createTripDto.getOrganisationId())) {
+      throw new RuntimeException("Provide either organisationId or associateCustomerId, not both");
+    }
+    associateCustomer = tripBillingService.resolveAssociateCustomer(
+        tenant, UUID.fromString(createTripDto.getAssociateCustomerId()));
+  } else if (hasText(createTripDto.getOrganisationId())) {
     organisation = tenantRepository.findById(UUID.fromString(createTripDto.getOrganisationId()))
         .orElseThrow(() -> new RuntimeException("Invalid organisation"));
   } else if (tenant != null && tenant.getTenantType() == Tenant.TenantType.ORGANISATION) {
     organisation = tenant;
   } else {
-    throw new RuntimeException("organisationId is required");
+    throw new RuntimeException("organisationId or associateCustomerId is required");
   }
 
   if (!hasText(createTripDto.getDutyTypeId())) {
@@ -203,6 +210,7 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
   trip.setDaysOfWeek(createTripDto.getDaysOfWeek());
   trip.setRecurrenceFrequency(createTripDto.getRecurrenceFrequency());
   trip.setOrganisation(organisation);
+  trip.setClientVendor(associateCustomer);
   trip.setTenant(tenant);
   if (createTripDto.getLabelIds() != null && !createTripDto.getLabelIds().isEmpty()) {
     List<Label> labels = resolveTripLabels(tenant.getId(), createTripDto.getLabelIds());
@@ -240,6 +248,10 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
   if (createTripDto.getVendorId() != null) {
     Tenant vendor = tenantRepository.findById(UUID.fromString(createTripDto.getVendorId()))
         .orElseThrow(() -> new RuntimeException("Invalid vendor"));
+
+    if (associateCustomer != null && (tenant == null || !tenant.getId().equals(vendor.getId()))) {
+      throw new RuntimeException("Associate-customer trips must be created by the selected supplier vendor");
+    }
 
     trip.setVendor(vendor);
   }
@@ -328,9 +340,10 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
           .findFirst()
           .orElseThrow(() -> new RuntimeException("Invalid passenger in custom-field values"));
 
+      UUID customFieldTenantId = organisation != null ? organisation.getId() : associateCustomer.getId();
       CustomField customField = customFieldRepository
-          .findByIdAndTenant_Id(customFieldId, organisation.getId())
-          .orElseThrow(() -> new RuntimeException("Invalid custom field for organisation"));
+          .findByIdAndTenant_Id(customFieldId, customFieldTenantId)
+          .orElseThrow(() -> new RuntimeException("Invalid custom field for trip client"));
 
       TripPassengerCustomFieldValue valueRow = new TripPassengerCustomFieldValue();
       valueRow.setTrip(trip);
@@ -408,6 +421,15 @@ public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdat
   }
   if (!partnerVendorRestrictedUpdate && updateDto.getOrganisationId() != null) {
     trip.setOrganisation(resolveTenant(updateDto.getOrganisationId(), "Invalid organisation"));
+    trip.setClientVendor(null);
+  }
+  if (!partnerVendorRestrictedUpdate && updateDto.getAssociateCustomerId() != null) {
+    if (updateDto.getOrganisationId() != null) {
+      throw new RuntimeException("Provide either organisationId or associateCustomerId, not both");
+    }
+    trip.setClientVendor(tripBillingService.resolveAssociateCustomer(
+        tokenTenant, UUID.fromString(updateDto.getAssociateCustomerId())));
+    trip.setOrganisation(null);
   }
   if (!partnerVendorRestrictedUpdate && updateDto.getVendorId() != null) {
     trip.setVendor(resolveOptionalTenant(updateDto.getVendorId(), "Invalid vendor"));
@@ -730,6 +752,9 @@ public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Obj
       try {
         tenantVisibilityPredicates.add(cb.equal(root.join("previousVendor", JoinType.LEFT).get("id"), tenantId));
       } catch (Exception ignored) {}
+      try {
+        tenantVisibilityPredicates.add(cb.equal(root.join("clientVendor", JoinType.LEFT).get("id"), tenantId));
+      } catch (Exception ignored) {}
 
       if (!tenantVisibilityPredicates.isEmpty()) {
         predicates.add(cb.or(tenantVisibilityPredicates.toArray(new Predicate[0])));
@@ -769,6 +794,10 @@ public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Obj
         try {
           Join<Object, Object> orgJoin = root.join("organisation", JoinType.LEFT);
           combinedSearchPredicates.add(cb.like(cb.lower(orgJoin.get("tenantName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> clientVendorJoin = root.join("clientVendor", JoinType.LEFT);
+          combinedSearchPredicates.add(cb.like(cb.lower(clientVendorJoin.get("tenantName").as(String.class)), searchLower));
         } catch (Exception ignored) {}
         try {
           Join<Object, Object> tenantJoin = root.join("tenant", JoinType.LEFT);
@@ -876,6 +905,9 @@ public Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Map<Stri
       try {
         tenantPreds.add(cb.equal(root.join("previousVendor", JoinType.LEFT).get("id"), tenantId));
       } catch (Exception ignored) {}
+      try {
+        tenantPreds.add(cb.equal(root.join("clientVendor", JoinType.LEFT).get("id"), tenantId));
+      } catch (Exception ignored) {}
 
       if (!tenantPreds.isEmpty()) {
         preds.add(cb.or(tenantPreds.toArray(new Predicate[0])));
@@ -900,6 +932,10 @@ public Page<Trip> findByDriverOrCreatedBy(UUID tenantId, UUID driverId, Map<Stri
         try {
           Join<Object, Object> orgJoin = root.join("organisation", JoinType.LEFT);
           searchPredicates.add(cb.like(cb.lower(orgJoin.get("tenantName").as(String.class)), searchLower));
+        } catch (Exception ignored) {}
+        try {
+          Join<Object, Object> clientVendorJoin = root.join("clientVendor", JoinType.LEFT);
+          searchPredicates.add(cb.like(cb.lower(clientVendorJoin.get("tenantName").as(String.class)), searchLower));
         } catch (Exception ignored) {}
         try {
           Join<Object, Object> vendorJoin = root.join("vendor", JoinType.LEFT);
@@ -1329,9 +1365,13 @@ private void replacePassengerCustomFieldValues(
         .findFirst()
         .orElseThrow(() -> new RuntimeException("Invalid passenger in custom-field values"));
 
+    Tenant tripClient = trip.getOrganisation() != null ? trip.getOrganisation() : trip.getClientVendor();
+    if (tripClient == null) {
+      throw new RuntimeException("Trip client is required for custom-field values");
+    }
     CustomField customField = customFieldRepository
-        .findByIdAndTenant_Id(customFieldId, trip.getOrganisation().getId())
-        .orElseThrow(() -> new RuntimeException("Invalid custom field for organisation"));
+        .findByIdAndTenant_Id(customFieldId, tripClient.getId())
+        .orElseThrow(() -> new RuntimeException("Invalid custom field for trip client"));
 
     TripPassengerCustomFieldValue valueRow = new TripPassengerCustomFieldValue();
     valueRow.setTrip(trip);
@@ -1396,6 +1436,9 @@ private List<Trip> getActiveSeriesTrips(UUID tenantId, UUID rootTripId) {
     } catch (Exception ignored) {}
     try {
       tenantVisibilityPredicates.add(cb.equal(root.join("previousVendor", JoinType.LEFT).get("id"), tenantId));
+    } catch (Exception ignored) {}
+    try {
+      tenantVisibilityPredicates.add(cb.equal(root.join("clientVendor", JoinType.LEFT).get("id"), tenantId));
     } catch (Exception ignored) {}
 
     if (!tenantVisibilityPredicates.isEmpty()) {
@@ -1499,6 +1542,7 @@ private void syncTripFromTemplate(Trip target, Trip template, long occurrenceEpo
   target.setOrganisation(template.getOrganisation());
   target.setTenant(template.getTenant());
   target.setVendor(template.getVendor());
+  target.setClientVendor(template.getClientVendor());
   target.setAssignedByVendor(template.getAssignedByVendor());
   target.setPreviousVendor(template.getPreviousVendor());
   target.setNotes(template.getNotes());
@@ -1596,6 +1640,7 @@ private Trip cloneTripTemplate(Trip source) {
   clone.setOrganisation(source.getOrganisation());
   clone.setTenant(source.getTenant());
   clone.setVendor(source.getVendor());
+  clone.setClientVendor(source.getClientVendor());
   clone.setAssignedByVendor(source.getAssignedByVendor());
   clone.setPreviousVendor(source.getPreviousVendor());
   clone.setNotes(source.getNotes());
@@ -2073,12 +2118,14 @@ private boolean isTripVisibleToTenant(Trip trip, UUID tenantId) {
   UUID vendorTenantId = trip.getVendor() != null ? trip.getVendor().getId() : null;
   UUID assignedByVendorTenantId = trip.getAssignedByVendor() != null ? trip.getAssignedByVendor().getId() : null;
   UUID previousVendorTenantId = trip.getPreviousVendor() != null ? trip.getPreviousVendor().getId() : null;
+  UUID clientVendorTenantId = trip.getClientVendor() != null ? trip.getClientVendor().getId() : null;
     UUID organisationTenantId = trip.getOrganisation() != null ? trip.getOrganisation().getId() : null;
 
     return tenantId.equals(contextTenantId)
       || tenantId.equals(organisationTenantId)
       || tenantId.equals(vendorTenantId)
       || tenantId.equals(assignedByVendorTenantId)
+      || tenantId.equals(clientVendorTenantId)
       || tenantId.equals(previousVendorTenantId);
 }
 

@@ -29,6 +29,7 @@ public class TripResponseDTO {
 
     private TripRelationResponseDTO vendor;
     private TripRelationResponseDTO organisation;
+    private TripRelationResponseDTO clientVendor;
     private TripRelationResponseDTO assignedByVendor;
     private TripRelationResponseDTO previousVendor;
 

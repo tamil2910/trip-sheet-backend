@@ -25,6 +25,9 @@ public class TripCreateRequestDTO {
     // Corporate owning the trip
     private String organisationId;
 
+    // Vendor client when creating a trip for an associate customer
+    private String associateCustomerId;
+
     private String driverId;
     private String vehicleId;
 

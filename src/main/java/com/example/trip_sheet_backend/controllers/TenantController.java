@@ -2,6 +2,8 @@ package com.example.trip_sheet_backend.controllers;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -9,6 +11,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -238,7 +241,10 @@ public ResponseEntity<ApiResponse<Tenant>> createPartnerTenant(
     TenantOnboardingResult partnerResult = service.createOrGetPartnerVendor(
             mapTenantRequest(body),
             loggedInTenant,
-            createdBy
+            createdBy,
+            body.getIsActive(),
+            body.getIsAssociateSupplier(),
+            body.getIsAssociateCustomer()
     );
 
     String message;
@@ -324,6 +330,9 @@ public ResponseEntity<ApiResponse<TenantLinkResponseDto>> addTenantByUniqueCode(
             loggedInTenant,
             body.getTenantUniqueCode(),
             body.getTaxIds(),
+            body.getIsActive(),
+            body.getIsAssociateSupplier(),
+            body.getIsAssociateCustomer(),
             createdBy
     );
 
@@ -399,18 +408,27 @@ public ResponseEntity<ApiResponse<?>> getCorporateTenants(
     throw new RuntimeException("Only vendors can get their clients");
   }
 
-  Page<VendorOrganisation> result =
-      vendorOrganisationRepository.findByVendorAndOrganisation_TenantType(
-          tenant,
-          Tenant.TenantType.ORGANISATION,
-          pageable
-      );
-
-  // Include vendor-organisation relationship id for downstream actions
-  List<MyClientSummaryDTO> myClients = result.getContent()
-      .stream()
+  List<MyClientSummaryDTO> clients = new ArrayList<>(vendorOrganisationRepository
+      .findByVendorAndOrganisation_TenantType(tenant, Tenant.TenantType.ORGANISATION, Pageable.unpaged())
+      .getContent().stream()
       .map(MyClientSummaryDTO::fromEntity)
+      .toList());
+
+  List<VendorPartner> associatePartners = vendorPartnerRepository.findByPrimaryVendor(tenant).stream()
+      .filter(partner -> !Boolean.TRUE.equals(partner.getIsDeleted()))
+      .filter(partner -> partner.getPartnerVendor() != null)
+      .filter(partner -> Boolean.TRUE.equals(partner.getIsAssociateCustomer()))
       .toList();
+  associatePartners.stream()
+      .map(MyClientSummaryDTO::fromAssociateCustomer)
+      .forEach(clients::add);
+
+  clients.sort(Comparator.comparing(client -> client.getTenantName() == null ? "" : client.getTenantName(),
+      String.CASE_INSENSITIVE_ORDER));
+  int start = (int) Math.min(pageable.getOffset(), clients.size());
+  int end = (int) Math.min(start + pageable.getPageSize(), clients.size());
+  Page<MyClientSummaryDTO> result = new PageImpl<>(clients.subList(start, end), pageable, clients.size());
+  List<MyClientSummaryDTO> myClients = result.getContent();
 
   Map<String, Object> response = new HashMap<>();
   response.put("data", myClients);

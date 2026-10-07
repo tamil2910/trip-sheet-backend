@@ -15,6 +15,9 @@ public class VendorPartnerResponseDTO {
   private UUID primaryVendorId;
   private UUID partnerVendorId;
   private VendorPartner.ContractStatus contractStatus;
+  private Boolean isActive;
+  private Boolean isAssociateSupplier;
+  private Boolean isAssociateCustomer;
   private Long onboardedAt;
   private Integer paymentTimelineInDays;
   private String localBillingStructure;
@@ -29,7 +32,8 @@ public class VendorPartnerResponseDTO {
   public static VendorPartnerResponseDTO fromEntity(VendorPartner entity) {
     return new VendorPartnerResponseDTO(
         entity.getId(), entity.getPrimaryVendor().getId(), entity.getPartnerVendor().getId(),
-        entity.getContractStatus(), entity.getOnboardedAt(), entity.getPaymentTimelineInDays(),
+        entity.getContractStatus(), entity.getIsActive(), entity.getIsAssociateSupplier(),
+        entity.getIsAssociateCustomer(), entity.getOnboardedAt(), entity.getPaymentTimelineInDays(),
         entity.getLocalBillingStructure(), entity.getMinGtgKmLimit(), entity.getMinGtgHrLimit(),
         entity.getMaxGtgKmLimit(), entity.getMaxGtgHrLimit(), entity.getContractStartDate(),
         entity.getContractEndDate(),

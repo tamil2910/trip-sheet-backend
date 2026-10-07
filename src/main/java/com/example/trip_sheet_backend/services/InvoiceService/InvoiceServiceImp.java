@@ -56,19 +56,22 @@ public class InvoiceServiceImp implements InvoiceService {
 
       Predicate invoiceTenant = cb.equal(root.join("tenant", JoinType.LEFT).get("id"), tokenTenant.getId());
       Predicate organisation = cb.equal(trip.join("organisation", JoinType.LEFT).get("id"), tokenTenant.getId());
+      Predicate clientVendorAccessPredicate = cb.equal(trip.join("clientVendor", JoinType.LEFT).get("id"), tokenTenant.getId());
       Predicate vendor = cb.equal(trip.join("vendor", JoinType.LEFT).get("id"), tokenTenant.getId());
-      predicates.add(cb.or(invoiceTenant, organisation, vendor));
+      predicates.add(cb.or(invoiceTenant, organisation, clientVendorAccessPredicate, vendor));
 
       Join<Object, Object> passengers = trip.join("passengers", JoinType.LEFT);
       Join<Object, Object> driver = trip.join("driver", JoinType.LEFT);
       Join<Object, Object> tripVendor = trip.join("vendor", JoinType.LEFT);
       Join<Object, Object> tripOrganisation = trip.join("organisation", JoinType.LEFT);
+      Join<Object, Object> clientVendorJoin = trip.join("clientVendor", JoinType.LEFT);
 
       addLikeFilter(predicates, cb, trip.get("tripCode"), filters.get("tripCode"));
       addLikeFilter(predicates, cb, passengers.get("name"), filters.get("passengerName"));
       addLikeFilter(predicates, cb, driver.get("fullName"), filters.get("driverName"));
       addLikeFilter(predicates, cb, tripVendor.get("tenantName"), filters.get("vendorName"));
       addLikeFilter(predicates, cb, tripOrganisation.get("tenantName"), filters.get("organisationName"));
+      addLikeFilter(predicates, cb, clientVendorJoin.get("tenantName"), filters.get("clientVendorName"));
 
       String searchFilter = firstNonBlank(filters.get("searchFilter"), filters.get("searchValue"));
       if (searchFilter != null) {
@@ -78,7 +81,8 @@ public class InvoiceServiceImp implements InvoiceService {
             cb.like(cb.lower(passengers.get("name")), pattern),
             cb.like(cb.lower(driver.get("fullName")), pattern),
             cb.like(cb.lower(tripVendor.get("tenantName")), pattern),
-            cb.like(cb.lower(tripOrganisation.get("tenantName")), pattern)
+            cb.like(cb.lower(tripOrganisation.get("tenantName")), pattern),
+            cb.like(cb.lower(clientVendorJoin.get("tenantName")), pattern)
         ));
       }
 
@@ -234,7 +238,9 @@ public class InvoiceServiceImp implements InvoiceService {
   private VendorInvoiceOutstandingResponseDTO buildVendorOutstanding(UUID vendorId, List<Invoice> invoices) {
     LinkedHashMap<UUID, OrganisationAccumulator> organisations = new LinkedHashMap<>();
     for (Invoice invoice : invoices) {
-      Tenant organisation = invoice.getPurchaseOrder().getTripSummary().getTripId().getOrganisation();
+      var trip = invoice.getPurchaseOrder().getTripSummary().getTripId();
+      Tenant organisation = trip.getOrganisation() != null ? trip.getOrganisation() : trip.getClientVendor();
+      if (organisation == null) continue;
       OrganisationAccumulator group = organisations.computeIfAbsent(organisation.getId(),
           ignored -> new OrganisationAccumulator(organisation));
       BigDecimal invoiceAmount = amount(invoice.getPurchaseOrder().getTotalAmount());
@@ -405,6 +411,11 @@ public class InvoiceServiceImp implements InvoiceService {
     if (invoice.getPurchaseOrder() != null && invoice.getPurchaseOrder().getTripSummary() != null
         && invoice.getPurchaseOrder().getTripSummary().getTripId() != null
         && sameTenant(tokenTenant, invoice.getPurchaseOrder().getTripSummary().getTripId().getOrganisation())) {
+      return;
+    }
+    if (invoice.getPurchaseOrder() != null && invoice.getPurchaseOrder().getTripSummary() != null
+        && invoice.getPurchaseOrder().getTripSummary().getTripId() != null
+        && sameTenant(tokenTenant, invoice.getPurchaseOrder().getTripSummary().getTripId().getClientVendor())) {
       return;
     }
     throw new RuntimeException("Invoice is not accessible for this tenant");

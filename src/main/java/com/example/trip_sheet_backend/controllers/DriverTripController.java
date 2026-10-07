@@ -52,7 +52,7 @@ public class DriverTripController {
 
   @PreAuthorize("hasAuthority('DRIVER_CREATE_TRIP')")
   @PostMapping("/create")
-  public ResponseEntity<ApiResponse<Trip>> createTrip(HttpServletRequest request,
+  public ResponseEntity<ApiResponse<TripResponseDTO>> createTrip(HttpServletRequest request,
       @Valid @RequestBody TripCreateRequestDTO createTripDto) {
     UUID createdBy = (UUID) request.getAttribute("createdBy");
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
@@ -68,7 +68,7 @@ public class DriverTripController {
     createTripDto.setDriverId(createdBy.toString());
 
     Trip trip = tripServiceImp.createTrip(createTripDto, tokenTenant, createdBy);
-    return ResponseEntity.ok(new ApiResponse<>(true, "Trip created successfully", trip));
+    return ResponseEntity.ok(new ApiResponse<>(true, "Trip created successfully", TripResponseMapper.toDTO(trip, tokenTenant.getId())));
   }
 
   @PreAuthorize("hasAuthority('CAN_READ_TRIP') or hasRole('DRIVER')")
@@ -110,7 +110,7 @@ public class DriverTripController {
     Page<Trip> result = tripServiceImp.findByDriverOrCreatedBy(tenantId, driver.getId(), filters, searchValues, effectivePageable);
 
     List<TripResponseDTO> data = result.getContent().stream()
-        .map(TripResponseMapper::toDTO)
+        .map(trip -> TripResponseMapper.toDTO(trip, tenantId))
         .toList();
 
     Map<String, Object> response = new java.util.HashMap<>();
@@ -132,7 +132,7 @@ public class DriverTripController {
 
   @PreAuthorize("hasAuthority('DRIVER_UPDATE_TRIP')")
   @PutMapping("/{id}")
-  public ApiResponse<Trip> updateTrip(@PathVariable UUID id, @Valid @RequestBody TripUpdateRequestDTO payload,
+  public ApiResponse<TripResponseDTO> updateTrip(@PathVariable UUID id, @Valid @RequestBody TripUpdateRequestDTO payload,
       HttpServletRequest request) {
     UUID tenantId = (UUID) request.getAttribute("tenantId");
     Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
@@ -148,7 +148,7 @@ public class DriverTripController {
     }
 
     Trip updated = tripServiceImp.updateTrip(tenantId, tokenTenant, id, payload, updatedBy);
-    return new ApiResponse<>(true, "Trip updated successfully", updated);
+    return new ApiResponse<>(true, "Trip updated successfully", TripResponseMapper.toDTO(updated, tenantId));
   }
 
   @PreAuthorize("hasAuthority('DRIVER_DISPATCH_TRIP')")
@@ -160,7 +160,7 @@ public class DriverTripController {
     UserAccount user = (UserAccount) request.getAttribute("user");
 
     Trip dispatched = tripServiceImp.dispatchTrip(tenantId, tokenTenant, user, id, dto);
-    return new ApiResponse<>(true, "Trip dispatched successfully", TripResponseMapper.toDTO(dispatched));
+    return new ApiResponse<>(true, "Trip dispatched successfully", TripResponseMapper.toDTO(dispatched, tenantId));
   }
 
   @PreAuthorize("hasAuthority('DRIVER_DISPATCH_TRIP')")
@@ -172,7 +172,7 @@ public class DriverTripController {
     UserAccount user = (UserAccount) request.getAttribute("user");
 
     Trip arrived = tripServiceImp.arrivedTrip(tenantId, tokenTenant, user, id, dto);
-    return new ApiResponse<>(true, "Trip marked arrived", arrived);
+    return new ApiResponse<>(true, "Trip marked arrived", TripResponseMapper.toDTO(arrived, tenantId));
   }
 
   @PreAuthorize("hasAuthority('DRIVER_START_TRIP')")
@@ -184,7 +184,7 @@ public class DriverTripController {
     UserAccount user = (UserAccount) request.getAttribute("user");
 
     Trip started = tripServiceImp.startTrip(tenantId, tokenTenant, user, id, dto);
-    return new ApiResponse<>(true, "Trip started", started);
+    return new ApiResponse<>(true, "Trip started", TripResponseMapper.toDTO(started, tenantId));
   }
 
   @PreAuthorize("hasAuthority('DRIVER_END_TRIP')")
@@ -196,7 +196,7 @@ public class DriverTripController {
     UserAccount user = (UserAccount) request.getAttribute("user");
 
     Trip ended = tripServiceImp.dropTrip(tenantId, tokenTenant, user, id, dto);
-    return new ApiResponse<>(true, "Trip completed", ended);
+    return new ApiResponse<>(true, "Trip completed", TripResponseMapper.toDTO(ended, tenantId));
   }
 
   private Integer parseInt(Object value, Integer defaultValue) {

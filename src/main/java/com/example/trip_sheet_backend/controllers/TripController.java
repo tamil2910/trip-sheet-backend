@@ -3,7 +3,6 @@ package com.example.trip_sheet_backend.controllers;
 import java.util.UUID;
 import java.util.Map;
 import java.util.List;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import java.time.Instant;
 
 import org.springframework.data.domain.Page;
@@ -57,12 +56,10 @@ public class TripController {
 
   private final TripServiceImp tripServiceImp;
   private final JwtTokenUtil jwtTokenUtil;
-  private final SimpMessagingTemplate messagingTemplate;
 
-  public TripController(TripServiceImp tripServiceImp, JwtTokenUtil jwtTokenUtil, SimpMessagingTemplate messagingTemplate) {
+  public TripController(TripServiceImp tripServiceImp, JwtTokenUtil jwtTokenUtil) {
     this.tripServiceImp = tripServiceImp;
     this.jwtTokenUtil = jwtTokenUtil;
-    this.messagingTemplate = messagingTemplate;
   }
 
   @PreAuthorize("hasAuthority('CAN_CREATE_TRIP')")
@@ -79,7 +76,7 @@ public class TripController {
     }
 
     Trip trip = tripServiceImp.createTrip(createTripDto, tokenTenant, createdBy);
-    TripResponseDTO response = TripResponseMapper.toDTO(trip);
+    TripResponseDTO response = mapTripForViewer(trip, request);
 
     return ResponseEntity.ok(
         new ApiResponse<>(true, "Trip created successfully!", response)
@@ -101,7 +98,7 @@ public class TripController {
     }
 
     List<Trip> trips = tripServiceImp.createBulkTrips(createTripDtos, tokenTenant, createdBy);
-    List<TripResponseDTO> response = trips.stream().map(TripResponseMapper::toDTO).toList();
+    List<TripResponseDTO> response = trips.stream().map(trip -> mapTripForViewer(trip, request)).toList();
 
     return ResponseEntity.ok(
         new ApiResponse<>(true, "Bulk trips created successfully!", response)
@@ -120,7 +117,7 @@ public class TripController {
     if (summary == null) {
       return ResponseEntity.ok(new ApiResponse<>(false, "Trip summary not found", null));
     }
-    return ResponseEntity.ok(new ApiResponse<>(true, "Trip summary fetched successfully!", TripSummaryResponseMapper.toDTO(summary)));
+    return ResponseEntity.ok(new ApiResponse<>(true, "Trip summary fetched successfully!", TripSummaryResponseMapper.toDTO(summary, tenantId)));
   }
 
   @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
@@ -137,7 +134,7 @@ public class TripController {
       return ResponseEntity.ok(new ApiResponse<>(false, "Trip not found", null));
     }
 
-    TripResponseDTO response = TripResponseMapper.toDTO(trip);
+    TripResponseDTO response = mapTripForViewer(trip, request);
     // return (ApiResponse<Trip>) (ApiResponse) new ApiResponse<>(true, "Trip fetched successfully!", response);
     return ResponseEntity.ok(new ApiResponse<>(true, "Trip fetched successfully!", response));
 
@@ -187,7 +184,7 @@ public class TripController {
     Page<Trip> result = tripServiceImp.searchResourcesWithGlobalSearch(tenantId, effectiveFilters, globalSearchValues, effectivePageable);
 
     List<TripResponseDTO> data = result.getContent().stream()
-        .map(TripResponseMapper::toDTO)
+        .map(trip -> mapTripForViewer(trip, request))
         .toList();
 
     Map<String, Object> response = new java.util.HashMap<>();
@@ -271,7 +268,7 @@ public class TripController {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, "Trip updation failed", null));
     }
 
-    TripResponseDTO response = TripResponseMapper.toDTO(updatedTrip);
+    TripResponseDTO response = mapTripForViewer(updatedTrip, request);
     return ResponseEntity.ok(new ApiResponse<>(true, "Trip updated successfully!", response));
   }
 
@@ -289,7 +286,7 @@ public class TripController {
       return ResponseEntity.ok(new ApiResponse<>(
           true,
           "Trip marked as manual successfully!",
-          TripResponseMapper.toDTO(updatedTrip)
+          mapTripForViewer(updatedTrip, request)
       ));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
@@ -322,7 +319,7 @@ public class TripController {
 
     List<Trip> trips = tripServiceImp.getParentAndChildTrips(tenantId, id);
     List<TripResponseDTO> response = trips.stream()
-        .map(TripResponseMapper::toDTO)
+        .map(trip -> mapTripForViewer(trip, request))
         .toList();
 
     return ResponseEntity.ok(new ApiResponse<>(
@@ -342,7 +339,7 @@ public class TripController {
 
     try {
       Trip splitTrip = tripServiceImp.splitChildTrip(tenantId, id);
-      TripResponseDTO response = TripResponseMapper.toDTO(splitTrip);
+      TripResponseDTO response = mapTripForViewer(splitTrip, request);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip split from parent successfully!", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
@@ -372,15 +369,12 @@ public class TripController {
         return ResponseEntity.status(400).body(new ApiResponse<>(false, "Driver must be assigned before dispatching the trip", null));
       }
 
-      TripResponseDTO response = TripResponseMapper.toDTO(dispatchedTrip);
+      TripResponseDTO response = mapTripForViewer(dispatchedTrip, request);
       String trackingToken = jwtTokenUtil.generateTripTrackingToken(dispatchedTrip.getId(), dispatchedTrip.getDriver().getId());
 
       TripDispatchResponseDTO dispatchResponse = new TripDispatchResponseDTO();
       dispatchResponse.setTrip(response);
       dispatchResponse.setTrackingToken(trackingToken);
-
-      // Broadcast update to all subscribers on the general topic
-      messagingTemplate.convertAndSend("/topic/trips", response);
 
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip dispatched successfully!", dispatchResponse));
     } catch (RuntimeException ex) {
@@ -406,7 +400,7 @@ public class TripController {
 
     try {
       Trip arrivedTrip = tripServiceImp.arrivedTrip(tenantId, tokenTenant, user, id, arrivedData);
-      TripResponseDTO response = TripResponseMapper.toDTO(arrivedTrip);
+      TripResponseDTO response = mapTripForViewer(arrivedTrip, request);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip marked as arrived successfully!", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
@@ -431,7 +425,7 @@ public class TripController {
 
     try {
       Trip startedTrip = tripServiceImp.startTrip(tenantId, tokenTenant, user, id, startData);
-      TripResponseDTO response = TripResponseMapper.toDTO(startedTrip);
+      TripResponseDTO response = mapTripForViewer(startedTrip, request);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip started successfully!", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
@@ -456,7 +450,7 @@ public class TripController {
 
     try {
       Trip droppedTrip = tripServiceImp.dropTrip(tenantId, tokenTenant, user, id, dropData);
-      TripResponseDTO response = TripResponseMapper.toDTO(droppedTrip);
+      TripResponseDTO response = mapTripForViewer(droppedTrip, request);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip completed successfully!", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
@@ -479,7 +473,7 @@ public class TripController {
       return ResponseEntity.ok(new ApiResponse<>(
           true,
           "Manual trip executed and completed successfully!",
-          TripResponseMapper.toDTO(completedTrip)
+          mapTripForViewer(completedTrip, request)
       ));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
@@ -499,7 +493,7 @@ public class TripController {
 
     try {
       Trip trip = tripServiceImp.assignLabelToTrip(tokenTenant, tokenTenantId, tripId, payload, updatedBy);
-      TripResponseDTO response = TripResponseMapper.toDTO(trip);
+      TripResponseDTO response = mapTripForViewer(trip, request);
       return ResponseEntity.ok(new ApiResponse<>(true, "Labels assigned to trip successfully", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
@@ -524,7 +518,7 @@ public class TripController {
     }
     try {
       Trip reassignedTrip = tripServiceImp.allotDriverVehicle(tokenTenant, tokenTenantId, user, tripId, allotData);
-      TripResponseDTO response = TripResponseMapper.toDTO(reassignedTrip);
+      TripResponseDTO response = mapTripForViewer(reassignedTrip, request);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip reassigned successfully!", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
@@ -550,7 +544,7 @@ public class TripController {
 
     try {
       Trip trip = tripServiceImp.assignTripToPartnerVendor(tokenTenant, tokenTenantId, tripId, payload, updatedBy);
-      TripResponseDTO response = TripResponseMapper.toDTO(trip);
+      TripResponseDTO response = mapTripForViewer(trip, request);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip assigned to partner vendor successfully", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
@@ -576,7 +570,7 @@ public class TripController {
 
     try {
       Trip trip = tripServiceImp.assignVendorToTrip(tokenTenant, tokenTenantId, tripId, payload, updatedBy);
-      TripResponseDTO response = TripResponseMapper.toDTO(trip);
+      TripResponseDTO response = mapTripForViewer(trip, request);
       return ResponseEntity.ok(new ApiResponse<>(true, "Vendor assigned to trip successfully", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
@@ -599,10 +593,15 @@ public class TripController {
     }
     try {
       Trip trip = tripServiceImp.confirmTrip(tokenTenant, tripId, updatedBy);
-      TripResponseDTO response = TripResponseMapper.toDTO(trip);
+      TripResponseDTO response = mapTripForViewer(trip, request);
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip confirmed successfully", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
     }
+  }
+
+  private TripResponseDTO mapTripForViewer(Trip trip, HttpServletRequest request) {
+    UUID viewerTenantId = (UUID) request.getAttribute("tenantId");
+    return TripResponseMapper.toDTO(trip, viewerTenantId);
   }
 }

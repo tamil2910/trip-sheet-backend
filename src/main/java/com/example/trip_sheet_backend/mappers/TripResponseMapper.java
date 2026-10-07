@@ -2,6 +2,8 @@ package com.example.trip_sheet_backend.mappers;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
+import java.util.UUID;
 
 import com.example.trip_sheet_backend.dtos.TripDtos.TripBasicRelationResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripLabelResponseDTO;
@@ -25,7 +27,7 @@ public final class TripResponseMapper {
     private TripResponseMapper() {
     }
 
-    public static TripResponseDTO toDTO(Trip trip) {
+    public static TripResponseDTO toDTO(Trip trip, UUID viewerTenantId) {
         TripResponseDTO dto = new TripResponseDTO();
 
         if (trip.getId() != null) {
@@ -66,7 +68,13 @@ public final class TripResponseMapper {
         dto.setAirportTransferType(trip.getAirportTransferType());
 
         dto.setVendor(toTenantRelation(trip.getVendor()));
-        dto.setOrganisation(toTenantRelation(trip.getOrganisation()));
+        boolean hideOrganisation = viewerTenantId != null
+            && trip.getVendor() != null && trip.getVendor().getId() != null
+            && Objects.equals(viewerTenantId, trip.getVendor().getId())
+            && trip.getAssignedByVendor() != null && trip.getAssignedByVendor().getId() != null
+            && !Objects.equals(viewerTenantId, trip.getAssignedByVendor().getId());
+        dto.setOrganisation(hideOrganisation ? null : toTenantRelation(trip.getOrganisation()));
+        dto.setClientVendor(toTenantRelation(trip.getClientVendor()));
         dto.setAssignedByVendor(toTenantRelation(trip.getAssignedByVendor()));
         dto.setPreviousVendor(toTenantRelation(trip.getPreviousVendor()));
 

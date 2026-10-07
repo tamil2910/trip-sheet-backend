@@ -96,8 +96,9 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
         predicates.add(cb.equal(root.join("tenant", JoinType.LEFT).get("id"), tokenTenant.getId()));
       } else {
         Predicate supplierId = cb.equal(root.join("supplierVendor", JoinType.LEFT).get("id"), tokenTenant.getId());
+        Predicate buyerId = cb.equal(root.join("tenant", JoinType.LEFT).get("id"), tokenTenant.getId());
         Predicate legacySupplierName = cb.equal(root.get("supplierName"), tokenTenant.getTenantName());
-        predicates.add(cb.or(supplierId, legacySupplierName));
+        predicates.add(cb.or(supplierId, buyerId, legacySupplierName));
       }
 
       return cb.and(predicates.toArray(new Predicate[0]));
@@ -598,7 +599,8 @@ public class PurchaseOrderServiceImp implements PurchaseOrderService {
     boolean organisationAccess = tokenTenant.getTenantType() == Tenant.TenantType.ORGANISATION
         && sameTenant(order.getTenant(), tokenTenant);
     boolean vendorAccess = tokenTenant.getTenantType() == Tenant.TenantType.VENDOR
-        && (sameTenant(order.getSupplierVendor(), tokenTenant)
+        && (sameTenant(order.getTenant(), tokenTenant)
+            || sameTenant(order.getSupplierVendor(), tokenTenant)
             || (order.getSupplierVendor() == null && tokenTenant.getTenantName().equals(order.getSupplierName())));
     if (!organisationAccess && !vendorAccess) {
       throw new RuntimeException("Purchase order not found");

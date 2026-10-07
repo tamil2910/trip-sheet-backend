@@ -116,6 +116,9 @@ public class VendorPartnerRateCardResponseDTO {
   public static class VendorPartnerSummaryDTO {
     private UUID id;
     private VendorPartner.ContractStatus contractStatus;
+    private Boolean isActive;
+    private Boolean isAssociateSupplier;
+    private Boolean isAssociateCustomer;
     private Long onboardedAt;
     private Integer paymentTimelineInDays;
     private String localBillingStructure;
@@ -134,6 +137,9 @@ public class VendorPartnerRateCardResponseDTO {
       return new VendorPartnerSummaryDTO(
           vendorPartner.getId(),
           vendorPartner.getContractStatus(),
+          vendorPartner.getIsActive(),
+          vendorPartner.getIsAssociateSupplier(),
+          vendorPartner.getIsAssociateCustomer(),
           vendorPartner.getOnboardedAt(),
           vendorPartner.getPaymentTimelineInDays(),
           vendorPartner.getLocalBillingStructure(),

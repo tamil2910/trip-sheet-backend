@@ -41,6 +41,7 @@ import jakarta.persistence.Index;
   indexes = {
     @Index(name = "idx_trip_code", columnList = "trip_code"),
     @Index(name = "idx_trip_status", columnList = "trip_status"),
+    @Index(name = "idx_trip_client_vendor_id", columnList = "client_vendor_id"),
     @Index(name = "idx_trip_tenant_deleted_pickup", columnList = "tenant_id, is_deleted, pickup_time"),
     @Index(name = "idx_trip_tenant_deleted_start_end", columnList = "tenant_id, is_deleted, start_date, end_date"),
     @Index(name = "idx_vendor_id", columnList = "vendor_id"),
@@ -95,8 +96,12 @@ public class Trip extends BaseModel implements TenantScoped {
   private Tenant previousVendor;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "organisation_id", nullable = false)
+  @JoinColumn(name = "organisation_id")
   private Tenant organisation; // the corporate owning the trip
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "client_vendor_id")
+  private Tenant clientVendor; // associate customer for vendor-to-vendor client trips
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "tenant_id")

@@ -14,4 +14,7 @@ public interface TenantService extends GlobalBaseService<Tenant, UUID> {
 
   TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode,
       List<UUID> taxIds, UUID createdBy);
+
+  TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode,
+      List<UUID> taxIds, Boolean isActive, Boolean isAssociateSupplier, Boolean isAssociateCustomer, UUID createdBy);
 }

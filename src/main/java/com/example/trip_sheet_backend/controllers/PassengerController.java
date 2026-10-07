@@ -49,14 +49,14 @@ public class PassengerController {
     public ResponseEntity<ApiResponse<TripResponseDTO>> createTrip(HttpServletRequest request, @RequestBody TripCreateRequestDTO dto) {
         UserAccount user = (UserAccount) request.getAttribute("user");
         Trip trip = passengerService.createPassengerTrip(dto, user);
-        return ResponseEntity.ok(new ApiResponse<>(true, "Trip request created", TripResponseMapper.toDTO(trip)));
+        return ResponseEntity.ok(new ApiResponse<>(true, "Trip request created", mapTripForViewer(trip, request)));
     }
 
     @GetMapping("/trips")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getTrips(HttpServletRequest request, @RequestParam Map<String, Object> filters, Pageable pageable) {
         UserAccount user = (UserAccount) request.getAttribute("user");
         Page<Trip> trips = passengerService.getMyTrips(user, filters, pageable);
-        var data = trips.map(TripResponseMapper::toDTO).getContent();
+        var data = trips.map(trip -> mapTripForViewer(trip, request)).getContent();
 
         Map<String, Object> response = new java.util.HashMap<>();
         response.put("data", data);
@@ -79,14 +79,14 @@ public class PassengerController {
     public ResponseEntity<ApiResponse<TripResponseDTO>> getTrip(HttpServletRequest request, @PathVariable UUID id) {
         UserAccount user = (UserAccount) request.getAttribute("user");
         Trip trip = passengerService.getTripDetails(id, user);
-        return ResponseEntity.ok(new ApiResponse<>(true, "Trip details fetched", TripResponseMapper.toDTO(trip)));
+        return ResponseEntity.ok(new ApiResponse<>(true, "Trip details fetched", mapTripForViewer(trip, request)));
     }
 
     @PutMapping("/trips/{id}")
     public ResponseEntity<ApiResponse<TripResponseDTO>> updateTrip(HttpServletRequest request, @PathVariable UUID id, @RequestBody TripUpdateRequestDTO dto) {
         UserAccount user = (UserAccount) request.getAttribute("user");
         Trip trip = passengerService.updateMyTrip(id, dto, user);
-        return ResponseEntity.ok(new ApiResponse<>(true, "Trip updated successfully", TripResponseMapper.toDTO(trip)));
+        return ResponseEntity.ok(new ApiResponse<>(true, "Trip updated successfully", mapTripForViewer(trip, request)));
     }
 
     @DeleteMapping("/trips/{id}")
@@ -94,5 +94,10 @@ public class PassengerController {
         UserAccount user = (UserAccount) request.getAttribute("user");
         passengerService.deleteMyTrip(id, user);
         return ResponseEntity.ok(new ApiResponse<>(true, "Trip cancelled successfully", null));
+    }
+
+    private TripResponseDTO mapTripForViewer(Trip trip, HttpServletRequest request) {
+        UUID viewerTenantId = (UUID) request.getAttribute("tenantId");
+        return TripResponseMapper.toDTO(trip, viewerTenantId);
     }
 }
