@@ -38,6 +38,7 @@ public class TripResponseDTO {
     private TripBasicRelationResponseDTO dispatchCenter;
     private TripBasicRelationResponseDTO vehicleType;
     private TripBasicRelationResponseDTO dutyType;
+    private String city;
     private TripRelationResponseDTO booker;
     private List<TripRelationResponseDTO> passengers;
     private List<TripPassengerCustomFieldValueResponseDTO> passengerCustomFieldValues;

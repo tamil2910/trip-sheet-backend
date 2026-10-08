@@ -595,7 +595,7 @@ public class TripBillingService {
         .findByVendorOrganisationIdAndIsDeletedFalse(vendorOrganisation.getId())
         .stream()
         .filter(card -> card.getApprovalStatus() == VendorOrganisationRateCard.ApprovalStatus.APPROVED)
-        .filter(card -> matchesRateCard(card.getVehicleType(), card.getDutyType(), trip))
+        .filter(card -> matchesRateCard(card.getVehicleType(), card.getDutyType(), card.getCity(), trip))
         .max(Comparator.comparing(card -> card.getApprovedAt() == null ? 0L : card.getApprovedAt()))
         .orElseThrow(() -> new RuntimeException("No approved vendor organisation rate card found for trip"));
 
@@ -643,7 +643,7 @@ public class TripBillingService {
         .findByVendorPartnerIdAndIsDeletedFalse(relationship.getId())
         .stream()
         .filter(card -> card.getApprovalStatus() == VendorPartnerRateCard.ApprovalStatus.APPROVED)
-        .filter(card -> matchesRateCard(card.getVehicleType(), card.getDutyType(), trip))
+        .filter(card -> matchesRateCard(card.getVehicleType(), card.getDutyType(), card.getCity(), trip))
         .findFirst()
         .orElseThrow(() -> new RuntimeException("No approved associate customer rate card found for trip"));
 
@@ -681,7 +681,7 @@ public class TripBillingService {
         .findByVendorPartnerIdAndIsDeletedFalse(vendorPartner.getId())
         .stream()
         .filter(card -> card.getApprovalStatus() == VendorPartnerRateCard.ApprovalStatus.APPROVED)
-        .filter(card -> matchesRateCard(card.getVehicleType(), card.getDutyType(), trip))
+        .filter(card -> matchesRateCard(card.getVehicleType(), card.getDutyType(), card.getCity(), trip))
         .findFirst()
         .orElseThrow(() -> new RuntimeException("No approved vendor partner rate card found for trip"));
 
@@ -703,12 +703,15 @@ public class TripBillingService {
     );
   }
 
-  private boolean matchesRateCard(com.example.trip_sheet_backend.models.VehicleType rateCardVehicleType, DutyType rateCardDutyType, Trip trip) {
+  private boolean matchesRateCard(com.example.trip_sheet_backend.models.VehicleType rateCardVehicleType,
+      DutyType rateCardDutyType, String rateCardCity, Trip trip) {
     if (trip.getVehicleType() == null || trip.getDutyType() == null) {
       return false;
     }
     return rateCardVehicleType != null
         && rateCardDutyType != null
+        && trip.getCity() != null && !trip.getCity().isBlank()
+        && rateCardCity != null && rateCardCity.trim().equalsIgnoreCase(trip.getCity().trim())
         && Objects.equals(rateCardVehicleType.getId(), trip.getVehicleType().getId())
         && Objects.equals(rateCardDutyType.getId(), trip.getDutyType().getId());
   }

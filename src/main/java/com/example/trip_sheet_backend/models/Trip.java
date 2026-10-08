@@ -133,6 +133,8 @@ public class Trip extends BaseModel implements TenantScoped {
   @JoinColumn(name = "vehicle_type_id")
   private VehicleType vehicleType;
 
+  private String city;
+
   @OneToMany(mappedBy = "trip", cascade = CascadeType.ALL, orphanRemoval = true)
   @BatchSize(size = 50)
   private List<TripStop> stops = new ArrayList<>();

@@ -36,6 +36,7 @@ public class PurchaseOrderResponseDTO {
   private List<JsonNode> lineItems;
   private UUID tripSummaryId;
   private String tripCode;
+  private String city;
   private List<TripRelationResponseDTO> passengers;
   private List<PurchaseOrderAllocationResponseDTO> allocations;
   private UUID tenantId;
@@ -139,6 +140,7 @@ public class PurchaseOrderResponseDTO {
         entity.getLineItems(),
         entity.getTripSummary() == null ? null : entity.getTripSummary().getId(),
         tripCode(entity),
+        tripCity(entity),
         passengers(entity),
         entity.getAllocations() == null ? List.of() : entity.getAllocations().stream()
             .filter(allocation -> !Boolean.TRUE.equals(allocation.getIsDeleted()))
@@ -227,6 +229,11 @@ public class PurchaseOrderResponseDTO {
   private static String tripCode(PurchaseOrder entity) {
     Trip trip = trip(entity);
     return trip == null ? null : trip.getTripCode();
+  }
+
+  private static String tripCity(PurchaseOrder entity) {
+    Trip trip = trip(entity);
+    return trip == null ? null : trip.getCity();
   }
 
   private static List<TripRelationResponseDTO> passengers(PurchaseOrder entity) {

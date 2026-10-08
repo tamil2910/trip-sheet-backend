@@ -20,6 +20,7 @@ public class PurchaseInvoiceResponseDTO {
   private UUID purchaseOrderId;
   private Boolean isSourceInvoice;
   private UUID tripSummaryId;
+  private String city;
   private BigDecimal amountPayable;
   private BigDecimal creditDebitNoteAppliedAmount;
   private BigDecimal currentPayableAmount;
@@ -101,6 +102,8 @@ public class PurchaseInvoiceResponseDTO {
     response.taxableTotalWithGst = value.getTaxableTotalWithGst(); response.nonTaxableTotal = value.getNonTaxableTotal(); response.roundOffAmount = value.getRoundOffAmount(); response.totalAmount = value.getTotalAmount();
     response.tripStartKmOdo = value.getTripStartKmOdo();
     response.tripEndKmOdo = value.getTripEndKmOdo();
+    response.city = value.getTripSummary() == null || value.getTripSummary().getTripId() == null
+        ? null : value.getTripSummary().getTripId().getCity();
     response.creditDebitNoteAppliedAmount = value.getCreditDebitNoteAppliedAmount();
     response.currentPayableAmount = value.getCurrentPayableAmount();
     return response;
@@ -114,6 +117,8 @@ public class PurchaseInvoiceResponseDTO {
         order.getTotalAmount(), null, null, order.getCurrencyCode(), order.getRateCardPackageName(), order.getNotes(),
         PurchaseInvoice.PurchaseInvoiceStatus.GENERATED, vendor(order.getTenant()), vendor(order.getSupplierVendor()));
     response.isSourceInvoice = true;
+    response.city = order.getTripSummary() == null || order.getTripSummary().getTripId() == null
+        ? null : order.getTripSummary().getTripId().getCity();
     response.totalAmount = order.getTotalAmount();
     response.tripStartKmOdo = order.getTripStartKmOdo();
     response.tripEndKmOdo = order.getTripEndKmOdo();

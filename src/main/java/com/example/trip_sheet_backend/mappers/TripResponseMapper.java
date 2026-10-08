@@ -66,6 +66,7 @@ public final class TripResponseMapper {
         dto.setDaysOfWeek(trip.getDaysOfWeek());
         dto.setRecurrenceFrequency(trip.getRecurrenceFrequency());
         dto.setAirportTransferType(trip.getAirportTransferType());
+        dto.setCity(trip.getCity());
 
         dto.setVendor(toTenantRelation(trip.getVendor()));
         boolean hideOrganisation = viewerTenantId != null

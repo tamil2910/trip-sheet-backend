@@ -26,6 +26,7 @@ public class TripUpdateRequestDTO {
     private String vehicleId;
     private String dutyTypeId;
     private String vehicleTypeId;
+    private String city;
     private List<String> labelIds;
     private TypeAirportTransfer airportTransferType;
 

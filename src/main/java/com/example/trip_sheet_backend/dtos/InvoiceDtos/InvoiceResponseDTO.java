@@ -24,6 +24,7 @@ public class InvoiceResponseDTO {
   private Long invoicePeriodEnd;
   private PurchaseOrderResponseDTO purchaseOrder;
   private String tripCode;
+  private String city;
   private List<TripRelationResponseDTO> passengers;
   private UUID tenantId;
   private Invoice.InvoiceStatus status;
@@ -47,6 +48,7 @@ public class InvoiceResponseDTO {
         invoice.getInvoicePeriodEnd(),
         invoice.getPurchaseOrder() == null ? null : PurchaseOrderResponseDTO.fromEntity(invoice.getPurchaseOrder()),
         tripCode(invoice),
+        city(invoice),
         passengers(invoice),
         invoice.getTenant() == null ? null : invoice.getTenant().getId(),
         invoice.getStatus(),
@@ -79,6 +81,11 @@ public class InvoiceResponseDTO {
   private static String tripCode(Invoice invoice) {
     Trip trip = trip(invoice);
     return trip == null ? null : trip.getTripCode();
+  }
+
+  private static String city(Invoice invoice) {
+    Trip trip = trip(invoice);
+    return trip == null ? null : trip.getCity();
   }
 
   private static List<TripRelationResponseDTO> passengers(Invoice invoice) {

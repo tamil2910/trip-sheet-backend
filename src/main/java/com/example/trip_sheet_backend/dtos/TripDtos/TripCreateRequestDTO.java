@@ -33,6 +33,7 @@ public class TripCreateRequestDTO {
 
     private String dutyTypeId;
     private String vehicleTypeId;
+    private String city;
     private TypeAirportTransfer airportTransferType;
     private List<String> labelIds;
 

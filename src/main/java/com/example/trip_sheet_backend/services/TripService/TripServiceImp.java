@@ -160,6 +160,10 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
 public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID createdBy) {
   System.out.println("---- DEBUG TRIP CREATE ----");
 
+  if (createTripDto.getCity() == null || createTripDto.getCity().isBlank()) {
+    throw new RuntimeException("city is required because trip billing uses city-specific rate cards");
+  }
+
   Tenant organisation = null;
   Tenant associateCustomer = null;
   VendorPartner associateCustomerLink = null;
@@ -222,6 +226,7 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
   }
   trip.setDutyType(dutyType);
   trip.setVehicleType(vehicleType);
+  trip.setCity(normalizeCity(createTripDto.getCity()));
   trip.setDriver(driver);
   trip.setVehicle(vehicle);
   applyAirportTransferType(trip, dutyType, createTripDto.getAirportTransferType(), true);
@@ -456,6 +461,12 @@ public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdat
   }
   if (updateDto.getVehicleTypeId() != null) {
     trip.setVehicleType(resolveVehicleType(updateDto.getVehicleTypeId()));
+  }
+  if (!partnerVendorRestrictedUpdate && updateDto.getCity() != null) {
+    if (updateDto.getCity().isBlank()) {
+      throw new RuntimeException("city cannot be blank");
+    }
+    trip.setCity(normalizeCity(updateDto.getCity()));
   }
   if (!partnerVendorRestrictedUpdate && updateDto.getLabelIds() != null) {
     if (updateDto.getLabelIds().isEmpty()) {
@@ -1423,6 +1434,10 @@ private boolean hasText(String value) {
   return value != null && !value.isBlank();
 }
 
+private String normalizeCity(String city) {
+  return city == null || city.isBlank() ? null : city.trim();
+}
+
 private Long parseLongValue(Object value) {
   if (value == null) {
     return null;
@@ -1585,6 +1600,7 @@ private void syncTripFromTemplate(Trip target, Trip template, long occurrenceEpo
   target.setDispatchCenter(template.getDispatchCenter());
   target.setDutyType(template.getDutyType());
   target.setVehicleType(template.getVehicleType());
+  target.setCity(template.getCity());
   target.setAirportTransferType(template.getAirportTransferType());
   target.setBooker(template.getBooker());
   target.setPassengers(template.getPassengers() == null ? new ArrayList<>() : new ArrayList<>(template.getPassengers()));
@@ -1683,6 +1699,7 @@ private Trip cloneTripTemplate(Trip source) {
   clone.setDispatchCenter(source.getDispatchCenter());
   clone.setDutyType(source.getDutyType());
   clone.setVehicleType(source.getVehicleType());
+  clone.setCity(source.getCity());
   clone.setAirportTransferType(source.getAirportTransferType());
   clone.setPassengers(source.getPassengers() == null ? null : new ArrayList<>(source.getPassengers()));
   clone.setPassengerCustomFieldValues(new ArrayList<>());
