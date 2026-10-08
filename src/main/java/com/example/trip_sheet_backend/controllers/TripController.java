@@ -501,6 +501,56 @@ public class TripController {
   }
 
   @PreAuthorize("hasRole('ADMIN')")
+  @PutMapping("/clear-alotment/{tripId}")
+  public ResponseEntity<ApiResponse<?>> clearTripAllotment(
+      @PathVariable @NotNull UUID tripId,
+      HttpServletRequest request
+  ) {
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+    UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+    try {
+      Trip trip = tripServiceImp.clearTripAllotment(tenantId, tripId, updatedBy);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip allotment cleared successfully!", mapTripForViewer(trip, request)));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PreAuthorize("hasRole('ADMIN')")
+  @PutMapping("/cancel/{tripId}")
+  public ResponseEntity<ApiResponse<?>> cancelTrip(
+      @PathVariable @NotNull UUID tripId,
+      HttpServletRequest request
+  ) {
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+    UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+    try {
+      Trip trip = tripServiceImp.cancelTrip(tenantId, tripId, updatedBy);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip cancelled successfully!", mapTripForViewer(trip, request)));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PreAuthorize("hasRole('ADMIN')")
+  @PutMapping("/re-allot/{tripId}")
+  public ResponseEntity<ApiResponse<?>> reallotTrip(
+      @PathVariable @NotNull UUID tripId,
+      HttpServletRequest request,
+      @Valid @RequestBody TripAllotRequestDTO allotData
+  ) {
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+    UserAccount user = (UserAccount) request.getAttribute("user");
+    try {
+      Trip trip = tripServiceImp.reallotDriverVehicle(tokenTenant, tenantId, user, tripId, allotData);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip re-allotted successfully!", mapTripForViewer(trip, request)));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PreAuthorize("hasRole('ADMIN')")
   @PutMapping("/allot/{tripId}")
   public ResponseEntity<ApiResponse<?>> reassignTrip(
       @PathVariable @NotNull UUID tripId,

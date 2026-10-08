@@ -2340,6 +2340,51 @@ public Trip allotDriverVehicle(Tenant tokenTenant, UUID tokenTenantId, UserAccou
 
 }
 
+public Trip reallotDriverVehicle(Tenant tokenTenant, UUID tokenTenantId, UserAccount user, UUID tripID,
+    TripAllotRequestDTO allotData) {
+    Trip trip = findTripForTenant(tokenTenantId, tripID);
+    ensureTripStatus(trip, Trip.TripStatus.CREATED, Trip.TripStatus.CONFIRMED,
+        Trip.TripStatus.ALLOTTED, Trip.TripStatus.REALLOCATED, Trip.TripStatus.DRIVER_REJECTED);
+
+    trip.setDriver(resolveOptionalDriver(allotData.getDriverId()));
+    trip.setVehicle(resolveOptionalVehicle(allotData.getVehicleId()));
+    trip.setDispatchCenter(resolveOptionalDispatchCenter(allotData.getDispatchCenterId()));
+    trip.setTripStatus(Trip.TripStatus.REALLOCATED);
+    Trip savedTrip = repository.save(trip);
+    tripRealtimePublisher.publishUpdated(savedTrip);
+    return savedTrip;
+}
+
+public Trip clearTripAllotment(UUID tokenTenantId, UUID tripId, UUID updatedBy) {
+    Trip trip = findTripForTenant(tokenTenantId, tripId);
+    ensureTripStatus(trip, Trip.TripStatus.ALLOTTED, Trip.TripStatus.REALLOCATED,
+        Trip.TripStatus.DRIVER_REJECTED);
+    trip.setDriver(null);
+    trip.setVehicle(null);
+    trip.setDispatchCenter(null);
+    trip.setTripStatus(Trip.TripStatus.CONFIRMED);
+    if (updatedBy != null) {
+      trip.setUpdatedBy(updatedBy.toString());
+    }
+    Trip savedTrip = repository.save(trip);
+    tripRealtimePublisher.publishUpdated(savedTrip);
+    return savedTrip;
+}
+
+public Trip cancelTrip(UUID tokenTenantId, UUID tripId, UUID updatedBy) {
+    Trip trip = findTripForTenant(tokenTenantId, tripId);
+    ensureTripStatus(trip, Trip.TripStatus.CREATED, Trip.TripStatus.REQUESTING,
+        Trip.TripStatus.CONFIRMED, Trip.TripStatus.ALLOTTED, Trip.TripStatus.REALLOCATED,
+        Trip.TripStatus.DRIVER_ACCEPTED, Trip.TripStatus.DRIVER_REJECTED);
+    trip.setTripStatus(Trip.TripStatus.CANCELLED);
+    if (updatedBy != null) {
+      trip.setUpdatedBy(updatedBy.toString());
+    }
+    Trip savedTrip = repository.save(trip);
+    tripRealtimePublisher.publishUpdated(savedTrip);
+    return savedTrip;
+}
+
 private DispatchCenter resolveOptionalDispatchCenter(String dispatchCenterId) {
   if (!hasText(dispatchCenterId)) {
     return null;

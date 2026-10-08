@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.Tax;
 import com.example.trip_sheet_backend.models.VehicleType;
 import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
@@ -128,6 +129,7 @@ public class VendorPartnerRateCardResponseDTO {
     private Integer maxGtgHrLimit;
     private Long contractStartDate;
     private Long contractEndDate;
+    private List<TaxSummaryDTO> taxList;
 
     public static VendorPartnerSummaryDTO fromEntity(VendorPartner vendorPartner) {
       if (vendorPartner == null) {
@@ -148,7 +150,35 @@ public class VendorPartnerRateCardResponseDTO {
           vendorPartner.getMaxGtgKmLimit(),
           vendorPartner.getMaxGtgHrLimit(),
           vendorPartner.getContractStartDate(),
-          vendorPartner.getContractEndDate()
+          vendorPartner.getContractEndDate(),
+          vendorPartner.getTaxList() == null ? List.of() : vendorPartner.getTaxList().stream()
+              .map(TaxSummaryDTO::fromEntity)
+              .toList()
+      );
+    }
+  }
+
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  @AllArgsConstructor
+  public static class TaxSummaryDTO {
+    private UUID id;
+    private String taxName;
+    private BigDecimal taxPercentage;
+    private Tax.TaxType taxType;
+    private Boolean isActive;
+
+    public static TaxSummaryDTO fromEntity(Tax tax) {
+      if (tax == null) {
+        return null;
+      }
+      return new TaxSummaryDTO(
+          tax.getId(),
+          tax.getTaxName(),
+          tax.getTaxPercentage(),
+          tax.getTaxType(),
+          tax.getIsActive()
       );
     }
   }

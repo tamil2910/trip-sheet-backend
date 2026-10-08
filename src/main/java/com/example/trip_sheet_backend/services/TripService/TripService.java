@@ -9,6 +9,7 @@ import org.springframework.data.domain.Pageable;
 
 import com.example.trip_sheet_backend.common.services.BaseService;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
@@ -36,6 +37,13 @@ public interface TripService extends BaseService<Trip, UUID> {
   TripSummary findTripSummaryByIdResource(UUID tenantId, UUID tripSummaryId);
 
   Trip dispatchTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripDispatchRequestDTO dispatchData);
+
+  Trip clearTripAllotment(UUID tokenTenantId, UUID tripId, UUID updatedBy);
+
+  Trip cancelTrip(UUID tokenTenantId, UUID tripId, UUID updatedBy);
+
+  Trip reallotDriverVehicle(Tenant tokenTenant, UUID tokenTenantId, UserAccount user, UUID tripID,
+      TripAllotRequestDTO allotData);
 
   Trip arrivedTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, UUID tripID, TripArrivedRequestDTO arrivedData);
 
