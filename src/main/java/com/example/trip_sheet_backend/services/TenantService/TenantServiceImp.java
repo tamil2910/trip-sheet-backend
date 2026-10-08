@@ -80,9 +80,20 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
 
   @Override
   public Tenant findByUniqueCode(String tenantUniqueCode) {
-      String normalizedCode = normalizeTenantUniqueCode(tenantUniqueCode);
-      return tenantRepository.findByTenantUniqueCodeIgnoreCase(normalizedCode)
-              .orElseThrow(() -> new RuntimeException("Tenant not found for unique code: " + normalizedCode));
+      String identifier = normalizeTenantUniqueCode(tenantUniqueCode);
+
+      if (identifier.contains("@")) {
+          return tenantRepository.findByContactEmailIgnoreCase(identifier)
+                  .orElseThrow(() -> new RuntimeException("Tenant not found for contact email: " + identifier));
+      }
+
+      if (identifier.startsWith("VEN") || identifier.startsWith("ORG")) {
+          return tenantRepository.findByTenantUniqueCodeIgnoreCase(identifier)
+                  .orElseThrow(() -> new RuntimeException("Tenant not found for unique code: " + identifier));
+      }
+
+      return tenantRepository.findByGstNumberIgnoreCase(identifier)
+              .orElseThrow(() -> new RuntimeException("Tenant not found for GST number: " + identifier));
   }
 
   @Override

@@ -16,6 +16,7 @@ import lombok.Setter;
 @AllArgsConstructor
 public class VendorPartnerSummaryDTO {
   private UUID vendorPartnerId;
+  private String type;
   private VendorPartner.ContractStatus contractStatus;
   private Boolean isActive;
   private Boolean isAssociateSupplier;
@@ -26,9 +27,15 @@ public class VendorPartnerSummaryDTO {
     Tenant connectedVendor = vendorPartner.getPrimaryVendor().getId().equals(currentVendor.getId())
         ? vendorPartner.getPartnerVendor()
         : vendorPartner.getPrimaryVendor();
+    String type = Boolean.TRUE.equals(vendorPartner.getIsAssociateCustomer())
+        ? "ASSOCIATE_CUSTOMER"
+        : Boolean.TRUE.equals(vendorPartner.getIsAssociateSupplier())
+            ? "ASSOCIATE_SUPPLIER"
+            : "VENDOR";
 
     return new VendorPartnerSummaryDTO(
         vendorPartner.getId(),
+        type,
         vendorPartner.getContractStatus(),
         vendorPartner.getIsActive(),
         vendorPartner.getIsAssociateSupplier(),

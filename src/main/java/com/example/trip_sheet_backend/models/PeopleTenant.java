@@ -2,10 +2,8 @@ package com.example.trip_sheet_backend.models;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.ArrayList;
-import java.util.List;
-import com.example.trip_sheet_backend.models.PeopleTenantCustomFieldValue;
 import com.example.trip_sheet_backend.common.models.BaseModel;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -46,6 +44,11 @@ public class PeopleTenant extends BaseModel implements TenantScoped {
   @JoinColumn(name = "organisation_id")
   private Tenant organisation;
 
+  @JsonIgnore
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "owner_vendor_partner_id")
+  private VendorPartner ownerVendorPartner;
+
   @ManyToMany
   @JoinTable(name = "people_vendor_mapping",
     joinColumns = @JoinColumn(name = "people_id"),
@@ -57,7 +60,8 @@ public class PeopleTenant extends BaseModel implements TenantScoped {
   private PeopleTenantType tenantType;
 
   public enum PeopleTenantType {
-    WALKIN
+    WALKIN,
+    ORGANISATION
   }
 
   @Enumerated(EnumType.STRING)

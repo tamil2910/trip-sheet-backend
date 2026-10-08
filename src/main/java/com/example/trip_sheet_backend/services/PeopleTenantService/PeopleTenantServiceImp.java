@@ -19,9 +19,11 @@ import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.PeopleTenant.CreatorType;
 import com.example.trip_sheet_backend.models.Tenant.TenantType;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.repositories.CustomFieldRepository;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
+import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
 
 import jakarta.transaction.Transactional;
 
@@ -29,15 +31,18 @@ import jakarta.transaction.Transactional;
 public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> implements PeopleTenantService {
   private final PeopleTenantRepository repository;
   private final TenantRepository tenantRepository;
+  private final VendorPartnerRepository vendorPartnerRepository;
   private final CustomFieldRepository customFieldRepository;
   private final ModelMapper mapper;
 
   public PeopleTenantServiceImp(PeopleTenantRepository repository,
-    TenantRepository tenantRepository, CustomFieldRepository customFieldRepository, ModelMapper mapper
+    TenantRepository tenantRepository, VendorPartnerRepository vendorPartnerRepository,
+    CustomFieldRepository customFieldRepository, ModelMapper mapper
   ) {
     super(repository);
     this.repository = repository;
     this.tenantRepository = tenantRepository;
+    this.vendorPartnerRepository = vendorPartnerRepository;
     this.customFieldRepository = customFieldRepository;
     this.mapper = mapper;
   }
@@ -58,6 +63,36 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
               .orElseThrow(() -> new RuntimeException("Invalid emergency contact"))
           : null;
 
+    VendorPartner ownerVendorPartner = null;
+    Tenant requestedOrganisation = null;
+    if (dto.getOwnerVendorPartnerId() != null) {
+      if (tokenTenant.getTenantType() != TenantType.VENDOR) {
+        throw new RuntimeException("Only vendors can save people under an associate customer");
+      }
+      ownerVendorPartner = vendorPartnerRepository.findById(UUID.fromString(dto.getOwnerVendorPartnerId()))
+          .filter(link -> !Boolean.TRUE.equals(link.getIsDeleted()))
+          .filter(link -> !Boolean.FALSE.equals(link.getIsActive()))
+          .filter(link -> Boolean.TRUE.equals(link.getIsAssociateCustomer()))
+          .filter(link -> link.getPrimaryVendor() != null
+              && tokenTenant.getId().equals(link.getPrimaryVendor().getId()))
+          .orElseThrow(() -> new RuntimeException("Invalid associate-customer partner link"));
+      requestedOrganisation = ownerVendorPartner.getPartnerVendor();
+      if (dto.getOrganisationId() != null
+          && !requestedOrganisation.getId().equals(UUID.fromString(dto.getOrganisationId()))) {
+        throw new RuntimeException("organisationId does not match the selected associate customer");
+      }
+    } else if (dto.getOrganisationId() != null) {
+      requestedOrganisation = tenantRepository.findById(UUID.fromString(dto.getOrganisationId()))
+          .orElseThrow(() -> new RuntimeException("Invalid organisation"));
+    }
+
+    if (tokenTenant.getTenantType() == TenantType.VENDOR
+        && requestedOrganisation != null
+        && requestedOrganisation.getTenantType() == TenantType.VENDOR
+        && ownerVendorPartner == null) {
+      throw new RuntimeException("ownerVendorPartnerId is required when saving people under an associate customer");
+    }
+
     // Organisation creates
     if (tokenTenant.getTenantType() == TenantType.ORGANISATION) {
 
@@ -76,7 +111,7 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
     }
 
     // CASE 3: WALK-IN (no organisationId)
-    if (dto.getOrganisationId() == null) {
+    if (requestedOrganisation == null) {
 
       return repository
           .findByPhoneAndTenantType(dto.getPhone(), PeopleTenant.PeopleTenantType.WALKIN)
@@ -90,18 +125,22 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
     }
 
     // CASE 2: Vendor adding for organisation
-    Tenant organisation = this.tenantRepository.findById(UUID.fromString(dto.getOrganisationId()))
-        .orElseThrow(() -> new RuntimeException("Invalid organisation"));
+    Tenant organisation = requestedOrganisation;
 
-    Optional<PeopleTenant> existing =
-        repository.findByNameAndPhoneAndOrganisation_Id(dto.getName(),dto.getPhone(), organisation.getId());
+    Optional<PeopleTenant> existing = ownerVendorPartner != null
+        ? repository.findByNameAndPhoneAndOrganisation_IdAndOwnerVendorPartner_Id(
+            dto.getName(), dto.getPhone(), organisation.getId(), ownerVendorPartner.getId())
+        : repository.findByNameAndPhoneAndOrganisation_Id(dto.getName(), dto.getPhone(), organisation.getId());
 
     if (existing.isPresent()) {
         PeopleTenant person = existing.get();
 
         // attach vendor if not already attached
-        if (!person.getAttachedVendors().contains(tokenTenant)) {
+        boolean alreadyAttached = person.getAttachedVendors().stream()
+            .anyMatch(vendor -> vendor.getId().equals(tokenTenant.getId()));
+        if (!alreadyAttached) {
             person.getAttachedVendors().add(tokenTenant);
+            return repository.save(person);
         }
         return person;
     }
@@ -109,6 +148,7 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
     // create new person for organisation
     PeopleTenant person = mapper.map(dto, PeopleTenant.class);
     person.setOrganisation(organisation);
+    person.setOwnerVendorPartner(ownerVendorPartner);
     person.getAttachedVendors().add(tokenTenant);
     person.setCreatedBy(createdBy.toString());
     person.setCreatorType(CreatorType.VENDOR);

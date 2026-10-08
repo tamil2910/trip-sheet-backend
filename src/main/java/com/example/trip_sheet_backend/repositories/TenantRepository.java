@@ -16,6 +16,8 @@ import jakarta.persistence.LockModeType;
 public interface TenantRepository extends BaseRepository<Tenant, UUID> {
   Optional<Tenant> findByTenantName(String tenantName);
   List<Tenant> findByTenantNameContainingIgnoreCase(String tenantName);
+  Optional<Tenant> findByGstNumberIgnoreCase(String gstNumber);
+  Optional<Tenant> findByContactEmailIgnoreCase(String contactEmail);
   Optional<Tenant> findByGstNumber(String gstNumber);
   Optional<Tenant> findByContactEmail(String contactEmail);
   Optional<Tenant> findByAdmin_UserAccount_Id(UUID userAccountId);

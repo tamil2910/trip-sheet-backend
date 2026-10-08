@@ -25,7 +25,9 @@ import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.PeopleTenant.CreatorType;
+import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
+import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.PeopleTenantService.PeopleTenantServiceImp;
 
@@ -39,11 +41,14 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
   private final PeopleTenantRepository peopleTenantRepository;
 
   private final PeopleTenantServiceImp peopleTenantServiceImp;
+  private final VendorPartnerRepository vendorPartnerRepository;
 
-  public PeopleTenantController(PeopleTenantServiceImp peopleTenantServiceImp, PeopleTenantRepository peopleTenantRepository) {
+  public PeopleTenantController(PeopleTenantServiceImp peopleTenantServiceImp,
+      PeopleTenantRepository peopleTenantRepository, VendorPartnerRepository vendorPartnerRepository) {
     super(peopleTenantServiceImp);
     this.peopleTenantServiceImp = peopleTenantServiceImp;
     this.peopleTenantRepository = peopleTenantRepository;
+    this.vendorPartnerRepository = vendorPartnerRepository;
   }
 
   @PostMapping("/create")
@@ -62,6 +67,7 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
     // Vendor must send organisationId OR it becomes WALKIN
     if (tokenTenant.getTenantType() == Tenant.TenantType.VENDOR &&
         body.getOrganisationId() == null &&
+        body.getOwnerVendorPartnerId() == null &&
         body.getTenantType() != PeopleTenant.PeopleTenantType.WALKIN) {
 
       throw new RuntimeException(
@@ -110,18 +116,35 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
 
       UUID vendorId = tenant.getId();
 
-      boolean hasOrgFilter = filters.containsKey("organisation_id");
+      Object partnerFilter = filters.containsKey("ownerVendorPartnerId")
+          ? filters.get("ownerVendorPartnerId") : filters.get("owner_vendor_partner_id");
+      if (partnerFilter == null) {
+        partnerFilter = filters.get("vendorPartnerId");
+      }
+      boolean hasPartnerFilter = partnerFilter != null && !partnerFilter.toString().isBlank();
 
-      // Vendor filtered by organisation
-      if (hasOrgFilter) {
+      if (hasPartnerFilter) {
+        UUID vendorPartnerId = UUID.fromString(partnerFilter.toString());
+        VendorPartner partner = vendorPartnerRepository.findById(vendorPartnerId)
+            .filter(link -> !Boolean.TRUE.equals(link.getIsDeleted()))
+            .filter(link -> !Boolean.FALSE.equals(link.getIsActive()))
+            .filter(link -> Boolean.TRUE.equals(link.getIsAssociateCustomer()))
+            .filter(link -> link.getPrimaryVendor() != null && vendorId.equals(link.getPrimaryVendor().getId()))
+            .orElseThrow(() -> new RuntimeException("Invalid associate-customer partner link"));
+
+        Object orgFilter = filters.get("organisation_id");
+        if (orgFilter != null && !partner.getPartnerVendor().getId().equals(UUID.fromString(orgFilter.toString()))) {
+          throw new RuntimeException("organisation_id does not match the selected associate customer");
+        }
+        peoplePage = peopleTenantRepository.findByOwnerVendorPartner_Id(vendorPartnerId, pageable);
+      } else if (filters.containsKey("organisation_id")) {
+        // Vendor filtered by organisation
         UUID orgId = UUID.fromString(filters.get("organisation_id").toString());
 
         peoplePage = peopleTenantRepository
             .findByOrganisation_IdAndAttachedVendors_Id(orgId, vendorId, pageable);
-      }
-
-      // Vendor wants WALKIN guests
-      else {
+      } else {
+        // Vendor wants WALKIN guests
         peoplePage = peopleTenantRepository
             .findByTenantTypeAndAttachedVendors_Id(
                 PeopleTenant.PeopleTenantType.WALKIN,

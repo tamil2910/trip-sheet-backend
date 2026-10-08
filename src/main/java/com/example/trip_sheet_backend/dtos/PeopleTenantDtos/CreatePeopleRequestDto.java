@@ -21,6 +21,7 @@ public class CreatePeopleRequestDto {
   private String designation;
   private PeopleTenant.GenderType gender;
   private String organisationId;
+  private String ownerVendorPartnerId;
 
   private PeopleTenant.PeopleTenantType tenantType;
   private PeopleTenant.PeopleType peopleType;

@@ -22,6 +22,13 @@ public interface PeopleTenantRepository extends BaseRepository<PeopleTenant, UUI
     UUID organisationId
   );
 
+  Optional<PeopleTenant> findByNameAndPhoneAndOrganisation_IdAndOwnerVendorPartner_Id(
+      String name,
+      String phone,
+      UUID organisationId,
+      UUID ownerVendorPartnerId
+  );
+
   // -------- Vendor-added people for organisation --------
   Optional<PeopleTenant> findByNameAndPhoneAndOrganisation_IdAndAttachedVendors_Id(
     String name,
@@ -37,6 +44,8 @@ public interface PeopleTenantRepository extends BaseRepository<PeopleTenant, UUI
   );
 
   Page<PeopleTenant> findByOrganisation_Id(UUID organisationId, Pageable pageable);
+
+  Page<PeopleTenant> findByOwnerVendorPartner_Id(UUID ownerVendorPartnerId, Pageable pageable);
 
   Page<PeopleTenant> findByOrganisation_IdAndAttachedVendors_Id(
       UUID organisationId,

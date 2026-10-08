@@ -138,6 +138,11 @@ public class TripBillingService {
   /** Validates that the authenticated vendor may create a client trip for this associated customer. */
   @Transactional(readOnly = true)
   public Tenant resolveAssociateCustomer(Tenant primaryVendor, UUID associateCustomerId) {
+    return resolveAssociateCustomerPartner(primaryVendor, associateCustomerId).getPartnerVendor();
+  }
+
+  @Transactional(readOnly = true)
+  public VendorPartner resolveAssociateCustomerPartner(Tenant primaryVendor, UUID associateCustomerId) {
     if (primaryVendor == null || primaryVendor.getTenantType() != Tenant.TenantType.VENDOR || associateCustomerId == null) {
       throw new RuntimeException("A vendor and associateCustomerId are required");
     }
@@ -152,7 +157,7 @@ public class TripBillingService {
         .filter(link -> !Boolean.FALSE.equals(link.getIsActive()))
         .filter(link -> Boolean.TRUE.equals(link.getIsAssociateCustomer()))
         .orElseThrow(() -> new RuntimeException("Vendor is not linked to this associate customer"));
-    return relationship.getPartnerVendor();
+    return relationship;
   }
 
   private Tenant resolveOriginalBookingVendor(Trip trip) {

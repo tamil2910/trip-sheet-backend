@@ -58,6 +58,7 @@ import com.example.trip_sheet_backend.models.TripSummary;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VendorDelegationHistory;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
+import com.example.trip_sheet_backend.models.VendorPartner;
 // import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleType;
@@ -161,12 +162,14 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
 
   Tenant organisation = null;
   Tenant associateCustomer = null;
+  VendorPartner associateCustomerLink = null;
   if (hasText(createTripDto.getAssociateCustomerId())) {
     if (hasText(createTripDto.getOrganisationId())) {
       throw new RuntimeException("Provide either organisationId or associateCustomerId, not both");
     }
-    associateCustomer = tripBillingService.resolveAssociateCustomer(
+    associateCustomerLink = tripBillingService.resolveAssociateCustomerPartner(
         tenant, UUID.fromString(createTripDto.getAssociateCustomerId()));
+    associateCustomer = associateCustomerLink.getPartnerVendor();
   } else if (hasText(createTripDto.getOrganisationId())) {
     organisation = tenantRepository.findById(UUID.fromString(createTripDto.getOrganisationId()))
         .orElseThrow(() -> new RuntimeException("Invalid organisation"));
@@ -271,6 +274,10 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
       throw new RuntimeException("One or more passengers not found");
     }
 
+    if (associateCustomerLink != null) {
+      validateAssociateCustomerPeople(people, associateCustomerLink, "passengers");
+    }
+
     // Optional safety: ensure name exists
     people.forEach(p -> {
       if (p.getName() == null) {
@@ -290,6 +297,10 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
 
     if (booker.getName() == null) {
       throw new RuntimeException("Booker name cannot be null");
+    }
+
+    if (associateCustomerLink != null) {
+      validateAssociateCustomerPeople(List.of(booker), associateCustomerLink, "booker");
     }
 
     trip.setBooker(booker);
@@ -499,6 +510,15 @@ public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdat
   if (!partnerVendorRestrictedUpdate && updateDto.getPassengerIds() != null) {
     effectivePassengers = resolvePassengers(updateDto.getPassengerIds());
     trip.setPassengers(effectivePassengers);
+  }
+
+  if (trip.getClientVendor() != null && trip.getTenant() != null) {
+    VendorPartner associateCustomerLink = tripBillingService.resolveAssociateCustomerPartner(
+        trip.getTenant(), trip.getClientVendor().getId());
+    validateAssociateCustomerPeople(effectivePassengers, associateCustomerLink, "passengers");
+    if (trip.getBooker() != null) {
+      validateAssociateCustomerPeople(List.of(trip.getBooker()), associateCustomerLink, "booker");
+    }
   }
 
   if (!partnerVendorRestrictedUpdate && updateDto.getPassengerCustomFieldValues() != null) {
@@ -1304,6 +1324,20 @@ private List<PeopleTenant> resolvePassengers(List<String> passengerIds) {
   });
 
   return new ArrayList<>(people);
+}
+
+private void validateAssociateCustomerPeople(
+    List<PeopleTenant> people,
+    VendorPartner associateCustomerLink,
+    String fieldName
+) {
+  UUID expectedPartnerId = associateCustomerLink.getId();
+  for (PeopleTenant person : people) {
+    VendorPartner ownerLink = person.getOwnerVendorPartner();
+    if (ownerLink == null || !expectedPartnerId.equals(ownerLink.getId())) {
+      throw new RuntimeException("Selected " + fieldName + " must be saved under the selected associate customer");
+    }
+  }
 }
 
 private void replaceStops(Trip trip, List<TripStopRequestDTO> stopDtos) {
