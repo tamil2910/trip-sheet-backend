@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -26,6 +27,8 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchResponseDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripLocationRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripLocationResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.ManualTripExecuteRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripLabelAssignRequestDTO;
@@ -44,6 +47,7 @@ import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.TripService.TripServiceImp;
+import com.example.trip_sheet_backend.services.TripService.TripLocationService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,10 +60,38 @@ public class TripController {
 
   private final TripServiceImp tripServiceImp;
   private final JwtTokenUtil jwtTokenUtil;
+  private final TripLocationService tripLocationService;
 
-  public TripController(TripServiceImp tripServiceImp, JwtTokenUtil jwtTokenUtil) {
+  public TripController(TripServiceImp tripServiceImp, JwtTokenUtil jwtTokenUtil, TripLocationService tripLocationService) {
     this.tripServiceImp = tripServiceImp;
     this.jwtTokenUtil = jwtTokenUtil;
+    this.tripLocationService = tripLocationService;
+  }
+
+  @PostMapping("/{id}/location")
+  public ResponseEntity<ApiResponse<TripLocationResponseDTO>> recordLocation(
+      @PathVariable UUID id,
+      @RequestHeader(name = "X-Trip-Tracking-Token", required = false) String trackingToken,
+      @Valid @RequestBody TripLocationRequestDTO location) {
+    try {
+      TripLocationResponseDTO saved = tripLocationService.record(id, trackingToken, location);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip location recorded", saved));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(401).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
+  @GetMapping("/{id}/location")
+  public ResponseEntity<ApiResponse<TripLocationResponseDTO>> getLatestLocation(
+      @PathVariable UUID id, HttpServletRequest request) {
+    try {
+      UUID tenantId = (UUID) request.getAttribute("tenantId");
+      TripLocationResponseDTO latest = tripLocationService.latest(id, tenantId);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Latest trip location fetched", latest));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(404).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
   }
 
   @PreAuthorize("hasAuthority('CAN_CREATE_TRIP')")

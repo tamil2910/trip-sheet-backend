@@ -219,6 +219,14 @@ public class JwtTokenUtil {
         return getAllClaimsFromToken(token).get("trip_id", String.class);
     }
 
+    public String getTripTrackingDriverIdFromToken(String token) {
+        return getAllClaimsFromToken(token).get("driver_id", String.class);
+    }
+
+    public String getTokenType(String token) {
+        return getAllClaimsFromToken(token).get("type", String.class);
+    }
+
     public String getPassengerIdFromToken(String token) {
         return getAllClaimsFromToken(token).get("passenger_id", String.class);
     }
