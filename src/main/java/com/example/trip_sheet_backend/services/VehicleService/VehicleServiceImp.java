@@ -31,6 +31,7 @@ import com.example.trip_sheet_backend.repositories.VehicleRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTenantMappingRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeCustomNamesRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeRepository;
+import com.example.trip_sheet_backend.services.RailwayBucketStorageService;
 
 import jakarta.persistence.criteria.Path;
 import jakarta.persistence.criteria.Predicate;
@@ -46,6 +47,7 @@ public class VehicleServiceImp extends GlobalBaseServiceImp<Vehicle, UUID> imple
   private final VehicleTypeRepository vehicleTypeRepository;
   private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
   private final ModelMapper mapper;
+  private final RailwayBucketStorageService bucketStorage;
 
   public VehicleServiceImp(
       VehicleRepository repository,
@@ -53,7 +55,8 @@ public class VehicleServiceImp extends GlobalBaseServiceImp<Vehicle, UUID> imple
       VehicleTypeCustomNamesRepository vehicleTypeCustomNamesRepository,
       VehicleTypeRepository vehicleTypeRepository,
       UniqueCodeGeneratorService uniqueCodeGeneratorService,
-      ModelMapper mapper
+      ModelMapper mapper,
+      RailwayBucketStorageService bucketStorage
   ) {
     super(repository);
     this.repository = repository;
@@ -62,6 +65,7 @@ public class VehicleServiceImp extends GlobalBaseServiceImp<Vehicle, UUID> imple
     this.vehicleTypeRepository = vehicleTypeRepository;
     this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
     this.mapper = mapper;
+    this.bucketStorage = bucketStorage;
   }
 
   @Override
@@ -151,11 +155,11 @@ public class VehicleServiceImp extends GlobalBaseServiceImp<Vehicle, UUID> imple
     if (body.getFuelType() != null) vehicle.setFuelType(body.getFuelType());
     if (body.getColour() != null) vehicle.setColour(body.getColour());
     if (body.getDescription() != null) vehicle.setDescription(body.getDescription());
-    if (body.getLeftSideUrl() != null) vehicle.setLeftSideUrl(body.getLeftSideUrl());
-    if (body.getRightSideUrl() != null) vehicle.setRightSideUrl(body.getRightSideUrl());
-    if (body.getBackSideUrl() != null) vehicle.setBackSideUrl(body.getBackSideUrl());
-    if (body.getFrontSideUrl() != null) vehicle.setFrontSideUrl(body.getFrontSideUrl());
-    if (body.getVehProfileUrl() != null) vehicle.setVehProfileUrl(body.getVehProfileUrl());
+    if (body.getLeftSideUrl() != null) vehicle.setLeftSideUrl(bucketStorage.storeIfBase64("vehicle-photos", body.getLeftSideUrl()));
+    if (body.getRightSideUrl() != null) vehicle.setRightSideUrl(bucketStorage.storeIfBase64("vehicle-photos", body.getRightSideUrl()));
+    if (body.getBackSideUrl() != null) vehicle.setBackSideUrl(bucketStorage.storeIfBase64("vehicle-photos", body.getBackSideUrl()));
+    if (body.getFrontSideUrl() != null) vehicle.setFrontSideUrl(bucketStorage.storeIfBase64("vehicle-photos", body.getFrontSideUrl()));
+    if (body.getVehProfileUrl() != null) vehicle.setVehProfileUrl(bucketStorage.storeIfBase64("vehicle-photos", body.getVehProfileUrl()));
     if (body.getRegisteredOwnerName() != null) vehicle.setRegisteredOwnerName(body.getRegisteredOwnerName());
     if (body.getRegistrationDate() != null) vehicle.setRegistrationDate(body.getRegistrationDate());
     if (body.getChassisNumber() != null) vehicle.setChassisNumber(body.getChassisNumber());
@@ -236,6 +240,11 @@ public class VehicleServiceImp extends GlobalBaseServiceImp<Vehicle, UUID> imple
     }
 
     Vehicle vehicle = mapper.map(body, Vehicle.class);
+    vehicle.setLeftSideUrl(bucketStorage.storeIfBase64("vehicle-photos", body.getLeftSideUrl()));
+    vehicle.setRightSideUrl(bucketStorage.storeIfBase64("vehicle-photos", body.getRightSideUrl()));
+    vehicle.setBackSideUrl(bucketStorage.storeIfBase64("vehicle-photos", body.getBackSideUrl()));
+    vehicle.setFrontSideUrl(bucketStorage.storeIfBase64("vehicle-photos", body.getFrontSideUrl()));
+    vehicle.setVehProfileUrl(bucketStorage.storeIfBase64("vehicle-photos", body.getVehProfileUrl()));
     vehicle.setTenant(tokenTenant);
     vehicle.setVehicleNumber(normalizedVehicleNumber);
     vehicle.setVehicleType(resolveVehicleType(body.getVehicleTypeId(), tokenTenant));

@@ -34,6 +34,7 @@ import com.example.trip_sheet_backend.repositories.TaxRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
+import com.example.trip_sheet_backend.services.RailwayBucketStorageService;
 
 @Service
 public class CreditDebitNoteServiceImp implements CreditDebitNoteService {
@@ -48,13 +49,14 @@ public class CreditDebitNoteServiceImp implements CreditDebitNoteService {
     private final VendorPartnerRepository vendorPartnerRepository;
     private final VendorOrganisationRepository vendorOrganisationRepository;
     private final TaxRepository taxRepository;
+    private final RailwayBucketStorageService bucketStorage;
 
     public CreditDebitNoteServiceImp(CreditDebitNoteRepository noteRepository,
             CreditDebitNoteInvoiceApplicationRepository invoiceApplicationRepository,
             CreditDebitNotePurchaseInvoiceApplicationRepository purchaseInvoiceApplicationRepository,
             InvoiceRepository invoiceRepository, PurchaseInvoiceRepository purchaseInvoiceRepository, TenantRepository tenantRepository,
             VendorPartnerRepository vendorPartnerRepository, VendorOrganisationRepository vendorOrganisationRepository,
-            TaxRepository taxRepository) {
+            TaxRepository taxRepository, RailwayBucketStorageService bucketStorage) {
         this.noteRepository = noteRepository;
         this.invoiceApplicationRepository = invoiceApplicationRepository;
         this.purchaseInvoiceApplicationRepository = purchaseInvoiceApplicationRepository;
@@ -64,6 +66,7 @@ public class CreditDebitNoteServiceImp implements CreditDebitNoteService {
         this.vendorPartnerRepository = vendorPartnerRepository;
         this.vendorOrganisationRepository = vendorOrganisationRepository;
         this.taxRepository = taxRepository;
+        this.bucketStorage = bucketStorage;
     }
 
     @Override
@@ -344,7 +347,7 @@ public class CreditDebitNoteServiceImp implements CreditDebitNoteService {
         note.setTaxAmount(nonTaxable ? null : body.getTaxAmount());
         note.setTaxableSubTotal(nonTaxable ? null : body.getTaxableSubTotal());
         note.setTotalAmount(body.getTotalAmount());
-        note.setAttachmentUrl(trimToNull(body.getAttachmentUrl()));
+        note.setAttachmentUrl(bucketStorage.storeIfBase64("credit-debit-notes", trimToNull(body.getAttachmentUrl())));
         note.setComments(trimToNull(body.getComments()));
     }
 

@@ -43,6 +43,7 @@ import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.UserAccountService.UserAccountServiceImp;
+import com.example.trip_sheet_backend.services.RailwayBucketStorageService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -59,6 +60,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final DriverTenantMappingRepository driverTenantMappingRepository;
   private final ObjectMapper objectMapper;
   private final PeopleTenantRepository peopleTenantRepository;
+  private final RailwayBucketStorageService bucketStorage;
 
   @Autowired
   private PasswordEncoder passwordEncoder;
@@ -66,13 +68,14 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
   private final JwtTokenUtil jwtTokenUtil;
   
   public UserAccountController(UserAccountServiceImp service, UserAccountRepository userAccountRepository, 
-    ModelMapper mapper, JwtTokenUtil jwtTokenUtil, RoleGroupRepository roleGroupRepository, RoleRepository roleRepository, DriverRepository driverRepository, DriverTenantMappingRepository driverTenantMappingRepository, ObjectMapper objectMapper, PeopleTenantRepository peopleTenantRepository) {
+    ModelMapper mapper, JwtTokenUtil jwtTokenUtil, RoleGroupRepository roleGroupRepository, RoleRepository roleRepository, DriverRepository driverRepository, DriverTenantMappingRepository driverTenantMappingRepository, ObjectMapper objectMapper, PeopleTenantRepository peopleTenantRepository, RailwayBucketStorageService bucketStorage) {
     super(service);
     this.service = service;
     this.mapper =  mapper;
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
     this.peopleTenantRepository = peopleTenantRepository;
+    this.bucketStorage = bucketStorage;
     this.roleGroupRepository = roleGroupRepository;
     this.roleRepository = roleRepository;
     this.driverRepository = driverRepository;
@@ -100,6 +103,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     }
 
     UserAccount payload = mapper.map(body, UserAccount.class);
+    payload.setProfilePicture(bucketStorage.storeIfBase64("user-profiles", body.getProfilePicture()));
 
     if ("ADMIN".equals(body.getRole().getName()) || "SUPER_ADMIN".equals(body.getRole().getName())) {
       throw new RuntimeException("Admin/ Super admin can not be added in this route!");
@@ -311,7 +315,7 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
     }
 
     if (body.getProfilePicture() != null) {
-      existingUser.setProfilePicture(body.getProfilePicture());
+      existingUser.setProfilePicture(bucketStorage.storeIfBase64("user-profiles", body.getProfilePicture()));
     }
 
     existingUser.setUpdatedBy(user.getId().toString());

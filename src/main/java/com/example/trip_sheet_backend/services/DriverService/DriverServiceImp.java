@@ -33,6 +33,7 @@ import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.services.EmailService;
+import com.example.trip_sheet_backend.services.RailwayBucketStorageService;
 
 @Service
 public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> implements DriverService {
@@ -47,6 +48,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
   private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
   private final PasswordEncoder passwordEncoder;
   private final EmailService emailService;
+  private final RailwayBucketStorageService bucketStorage;
 
   public DriverServiceImp(
       DriverRepository repository,
@@ -56,7 +58,8 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
       RoleGroupRepository roleGroupRepository,
       UniqueCodeGeneratorService uniqueCodeGeneratorService,
         PasswordEncoder passwordEncoder,
-        EmailService emailService
+        EmailService emailService,
+        RailwayBucketStorageService bucketStorage
   ) {
     super(repository);
     this.repository = repository;
@@ -67,6 +70,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
     this.passwordEncoder = passwordEncoder;
     this.emailService = emailService;
+    this.bucketStorage = bucketStorage;
   }
 
   @Transactional(rollbackFor = Exception.class)
@@ -124,7 +128,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
         uniqueCodeGeneratorService.generateUniqueCode(DRIVER_CODE_PREFIX, repository::existsByDriverCode)
     );
     driver.setFullName(body.getFullName().trim());
-    driver.setProfilePicture(body.getProfilePicture());
+    driver.setProfilePicture(bucketStorage.storeIfBase64("driver-profiles", body.getProfilePicture()));
     driver.setLicenseNumber(body.getLicenseNumber());
     driver.setLicenseExpiry(body.getLicenseExpiry());
     driver.setInsuranceNumber(body.getInsuranceNumber());
@@ -608,7 +612,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
       driver.setFullName(body.getFullName().trim());
     }
     if (body.getProfilePicture() != null) {
-      driver.setProfilePicture(body.getProfilePicture());
+      driver.setProfilePicture(bucketStorage.storeIfBase64("driver-profiles", body.getProfilePicture()));
     }
     if (normalize(body.getLicenseNumber()) != null) {
       driver.setLicenseNumber(body.getLicenseNumber().trim());

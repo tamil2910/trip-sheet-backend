@@ -25,6 +25,7 @@ import com.example.trip_sheet_backend.repositories.TripChargesRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.services.TripBillingService.TripBillingService;
+import com.example.trip_sheet_backend.services.RailwayBucketStorageService;
 
 
 @Service
@@ -34,17 +35,20 @@ public class TripChargeService {
   private final TripRepository tripRepository;
   private final DriverRepository driverRepository;
   private final TripBillingService tripBillingService;
+  private final RailwayBucketStorageService bucketStorage;
 
   public TripChargeService(
       TripChargesRepository tripChargesRepository,
       TripRepository tripRepository,
       DriverRepository driverRepository,
-      TripBillingService tripBillingService
+      TripBillingService tripBillingService,
+      RailwayBucketStorageService bucketStorage
   ) {
     this.tripChargesRepository = tripChargesRepository;
     this.tripRepository = tripRepository;
     this.driverRepository = driverRepository;
     this.tripBillingService = tripBillingService;
+    this.bucketStorage = bucketStorage;
 
   }
 
@@ -92,7 +96,7 @@ public class TripChargeService {
       tripCharge.setTrip(trip);
       tripCharge.setTenant(tenant);
       tripCharge.setType(parseChargeType(chargeItem.getType()));
-      tripCharge.setReceiptImageUrl(chargeItem.getReceiptImageUrl());
+      tripCharge.setReceiptImageUrl(bucketStorage.storeIfBase64("trip-charges", chargeItem.getReceiptImageUrl()));
       tripCharge.setAmount(chargeItem.getAmount());
       tripCharge.setDescription(chargeItem.getDescription());
       tripCharge.setCreatedBy(user != null ? user.getId().toString() : null);
@@ -156,6 +160,9 @@ public class TripChargeService {
     ModelMapper mapper = new ModelMapper();
     mapper.getConfiguration().setSkipNullEnabled(true); // only maps non-null fields from payload to existingTripCharge
     mapper.map(payload, existingTripCharge);
+    if (bucketStorage.isBase64(payload.getReceiptImageUrl())) {
+      existingTripCharge.setReceiptImageUrl(bucketStorage.storeBase64("trip-charges", payload.getReceiptImageUrl()));
+    }
 
     // existingTripCharge.setTrip(trip);
 
