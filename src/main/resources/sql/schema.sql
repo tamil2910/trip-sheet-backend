@@ -604,3 +604,22 @@ CREATE TABLE IF NOT EXISTS receipt_invoice_applications (
   CONSTRAINT fk_receipt_invoice_application_receipt FOREIGN KEY (receipt_id) REFERENCES receipts (id),
   CONSTRAINT fk_receipt_invoice_application_invoice FOREIGN KEY (invoice_id) REFERENCES invoices (id)
 );
+CREATE TABLE IF NOT EXISTS chat_booking_drafts (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT,
+  updated_at BIGINT,
+  deleted_at BIGINT,
+  created_by VARCHAR(255),
+  updated_by VARCHAR(255),
+  deleted_by VARCHAR(255),
+  is_deleted BIT,
+  tenant_id BINARY(16) NOT NULL,
+  request_text TEXT NOT NULL,
+  booking_json TEXT NOT NULL,
+  status VARCHAR(20) NOT NULL,
+  expires_at BIGINT,
+  trip_id VARCHAR(255),
+  PRIMARY KEY (id),
+  INDEX idx_chat_booking_draft_tenant (tenant_id, status),
+  CONSTRAINT fk_chat_booking_draft_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)
+);
