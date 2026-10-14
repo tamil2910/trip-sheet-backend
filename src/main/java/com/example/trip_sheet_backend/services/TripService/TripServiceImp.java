@@ -1963,9 +1963,29 @@ public Trip executeManualTrip(
     throw new RuntimeException("dispatchData, arrivedData, startData, and dropData are required");
   }
 
-  dispatchTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getDispatchData());
-  arrivedTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getArrivedData());
-  startTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getStartData());
+  // Manual close is also the recovery path when the driver app has already
+  // advanced the trip. Continue from its current lifecycle state instead of
+  // replaying dispatch and failing the status guard.
+  Trip.TripStatus currentStatus = trip.getTripStatus();
+  if (currentStatus == Trip.TripStatus.CREATED
+      || currentStatus == Trip.TripStatus.CONFIRMED
+      || currentStatus == Trip.TripStatus.ALLOTTED
+      || currentStatus == Trip.TripStatus.DRIVER_ACCEPTED
+      || currentStatus == Trip.TripStatus.REALLOCATED) {
+    dispatchTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getDispatchData());
+    currentStatus = Trip.TripStatus.DISPATCHED;
+  }
+  if (currentStatus == Trip.TripStatus.DISPATCHED) {
+    arrivedTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getArrivedData());
+    currentStatus = Trip.TripStatus.ARRIVED;
+  }
+  if (currentStatus == Trip.TripStatus.ARRIVED) {
+    startTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getStartData());
+    currentStatus = Trip.TripStatus.STARTED;
+  }
+  if (currentStatus != Trip.TripStatus.STARTED) {
+    throw new RuntimeException("Manual trip cannot be closed from status " + currentStatus);
+  }
   Trip completedTrip = dropTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getDropData());
   if (executeData.getTripRouteUrl() != null) {
     TripSummary summary = getOrCreateTripSummary(completedTrip);
