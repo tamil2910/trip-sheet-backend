@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
@@ -34,6 +35,7 @@ import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.TripService.TripServiceImp;
+import com.example.trip_sheet_backend.security.JwtTokenUtil;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -44,10 +46,12 @@ public class DriverTripController {
 
   private final TripServiceImp tripServiceImp;
   private final DriverRepository driverRepository;
+  private final JwtTokenUtil jwtTokenUtil;
 
-  public DriverTripController(TripServiceImp tripServiceImp, DriverRepository driverRepository) {
+  public DriverTripController(TripServiceImp tripServiceImp, DriverRepository driverRepository, JwtTokenUtil jwtTokenUtil) {
     this.tripServiceImp = tripServiceImp;
     this.driverRepository = driverRepository;
+    this.jwtTokenUtil = jwtTokenUtil;
   }
 
   @PreAuthorize("hasAuthority('DRIVER_CREATE_TRIP')")
@@ -160,7 +164,14 @@ public class DriverTripController {
     UserAccount user = (UserAccount) request.getAttribute("user");
 
     Trip dispatched = tripServiceImp.dispatchTrip(tenantId, tokenTenant, user, id, dto);
-    return new ApiResponse<>(true, "Trip dispatched successfully", TripResponseMapper.toDTO(dispatched, tenantId));
+    if (dispatched.getDriver() == null || dispatched.getDriver().getId() == null) {
+      throw new IllegalArgumentException("Driver must be assigned before dispatching the trip");
+    }
+
+    TripDispatchResponseDTO response = new TripDispatchResponseDTO();
+    response.setTrip(TripResponseMapper.toDTO(dispatched, tenantId));
+    response.setTrackingToken(jwtTokenUtil.generateTripTrackingToken(dispatched.getId(), dispatched.getDriver().getId()));
+    return new ApiResponse<>(true, "Trip dispatched successfully", response);
   }
 
   @PreAuthorize("hasAuthority('DRIVER_DISPATCH_TRIP')")

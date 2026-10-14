@@ -26,7 +26,6 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripArrivedRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchRequestDTO;
-import com.example.trip_sheet_backend.dtos.TripDtos.TripDispatchResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripLocationRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripLocationResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
@@ -45,7 +44,6 @@ import com.example.trip_sheet_backend.models.Trip;
 import com.example.trip_sheet_backend.models.TripSummary;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
-import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.TripService.TripServiceImp;
 import com.example.trip_sheet_backend.services.TripService.TripLocationService;
 
@@ -59,12 +57,10 @@ import jakarta.validation.constraints.NotNull;
 public class TripController {
 
   private final TripServiceImp tripServiceImp;
-  private final JwtTokenUtil jwtTokenUtil;
   private final TripLocationService tripLocationService;
 
-  public TripController(TripServiceImp tripServiceImp, JwtTokenUtil jwtTokenUtil, TripLocationService tripLocationService) {
+  public TripController(TripServiceImp tripServiceImp, TripLocationService tripLocationService) {
     this.tripServiceImp = tripServiceImp;
-    this.jwtTokenUtil = jwtTokenUtil;
     this.tripLocationService = tripLocationService;
   }
 
@@ -402,13 +398,7 @@ public class TripController {
       }
 
       TripResponseDTO response = mapTripForViewer(dispatchedTrip, request);
-      String trackingToken = jwtTokenUtil.generateTripTrackingToken(dispatchedTrip.getId(), dispatchedTrip.getDriver().getId());
-
-      TripDispatchResponseDTO dispatchResponse = new TripDispatchResponseDTO();
-      dispatchResponse.setTrip(response);
-      dispatchResponse.setTrackingToken(trackingToken);
-
-      return ResponseEntity.ok(new ApiResponse<>(true, "Trip dispatched successfully!", dispatchResponse));
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip dispatched successfully!", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
     }
