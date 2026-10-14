@@ -5,6 +5,9 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -92,6 +95,22 @@ public class TripLocationService {
     }
     return locationRepository.findFirstByTrip_IdOrderByRecordedAtDesc(tripId)
         .map(TripLocationResponseDTO::from).orElse(null);
+  }
+
+  @Transactional(readOnly = true)
+  public Page<TripLocationResponseDTO> history(UUID tripId, UUID tenantId, Long fromTime, Long toTime,
+      int page, int size) {
+    Trip trip = tripRepository.findById(tripId).orElseThrow(() -> new IllegalArgumentException("Trip not found"));
+    if (Boolean.TRUE.equals(trip.getIsDeleted()) || !visibleToTenant(trip, tenantId)) {
+      throw new IllegalArgumentException("Trip not found or not accessible");
+    }
+    if (fromTime != null && toTime != null && fromTime > toTime) {
+      throw new IllegalArgumentException("from must be less than or equal to to");
+    }
+    int safePage = Math.max(page, 0);
+    int safeSize = Math.min(Math.max(size, 1), 1000);
+    return locationRepository.findHistory(tripId, fromTime, toTime,
+        PageRequest.of(safePage, safeSize, Sort.unsorted())).map(TripLocationResponseDTO::from);
   }
 
   private boolean visibleToTenant(Trip trip, UUID tenantId) {

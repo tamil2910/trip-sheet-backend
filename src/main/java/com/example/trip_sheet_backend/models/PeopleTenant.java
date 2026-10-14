@@ -6,6 +6,7 @@ import com.example.trip_sheet_backend.common.models.BaseModel;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
@@ -86,7 +87,8 @@ public class PeopleTenant extends BaseModel implements TenantScoped {
   @JoinColumn(name = "emergency_contact_id")
   private PeopleTenant emergencyContact;
 
-  @OneToMany(mappedBy = "peopleTenant", fetch = FetchType.LAZY)
+  @OneToMany(mappedBy = "peopleTenant", fetch = FetchType.LAZY,
+      cascade = { CascadeType.PERSIST, CascadeType.MERGE })
   private List<PeopleTenantCustomFieldValue> customFieldValues = new ArrayList<>();
 
   @Override

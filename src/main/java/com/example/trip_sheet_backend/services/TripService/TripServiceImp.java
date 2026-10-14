@@ -383,6 +383,7 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
       CustomField customField = customFieldRepository
           .findByIdAndTenant_Id(customFieldId, customFieldTenantId)
           .orElseThrow(() -> new RuntimeException("Invalid custom field for trip client"));
+      validateCustomFieldScope(customField, tenant, associateCustomerLink);
 
       TripPassengerCustomFieldValue valueRow = new TripPassengerCustomFieldValue();
       valueRow.setTrip(trip);
@@ -1406,9 +1407,8 @@ private void replacePassengerCustomFieldValues(
   if (passengers == null || passengers.isEmpty()) {
     throw new RuntimeException("passengerIds are required when passengerCustomFieldValues are provided");
   }
-  if (trip.getOrganisation() == null) {
-    throw new RuntimeException("Organisation is required for passenger custom field values");
-  }
+  VendorPartner associateCustomerLink = trip.getClientVendor() == null ? null
+      : tripBillingService.resolveAssociateCustomerPartner(trip.getTenant(), trip.getClientVendor().getId());
 
   Set<UUID> validPassengerIds = passengers.stream()
       .map(PeopleTenant::getId)
@@ -1440,6 +1440,7 @@ private void replacePassengerCustomFieldValues(
     CustomField customField = customFieldRepository
         .findByIdAndTenant_Id(customFieldId, tripClient.getId())
         .orElseThrow(() -> new RuntimeException("Invalid custom field for trip client"));
+    validateCustomFieldScope(customField, trip.getTenant(), associateCustomerLink);
 
     TripPassengerCustomFieldValue valueRow = new TripPassengerCustomFieldValue();
     valueRow.setTrip(trip);
@@ -1450,6 +1451,24 @@ private void replacePassengerCustomFieldValues(
     valueRow.setUpdatedBy(trip.getUpdatedBy());
 
     trip.getPassengerCustomFieldValues().add(valueRow);
+  }
+}
+
+private void validateCustomFieldScope(CustomField customField, Tenant actingVendor, VendorPartner associateCustomerLink) {
+  if (associateCustomerLink != null) {
+    if (customField.getOwnerVendorPartner() == null
+        || !associateCustomerLink.getId().equals(customField.getOwnerVendorPartner().getId())
+        || customField.getCreatedByVendor() == null
+        || !actingVendor.getId().equals(customField.getCreatedByVendor().getId())) {
+      throw new RuntimeException("Custom field is not available in this associate-customer context");
+    }
+    return;
+  }
+
+  if (customField.getOwnerVendorPartner() != null
+      || (customField.getCreatedByVendor() != null
+          && !actingVendor.getId().equals(customField.getCreatedByVendor().getId()))) {
+    throw new RuntimeException("Custom field is not available to this vendor");
   }
 }
 

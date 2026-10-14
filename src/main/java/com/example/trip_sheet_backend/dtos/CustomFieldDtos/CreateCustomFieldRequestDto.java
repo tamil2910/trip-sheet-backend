@@ -18,4 +18,6 @@ public class CreateCustomFieldRequestDto {
   private String name;
 
   private UUID organisationId;
+
+  private UUID ownerVendorPartnerId;
 }

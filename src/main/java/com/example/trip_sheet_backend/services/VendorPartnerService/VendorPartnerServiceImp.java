@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
+import java.util.Locale;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,6 +35,19 @@ public class VendorPartnerServiceImp implements VendorPartnerService {
         .orElseThrow(() -> new RuntimeException("Vendor partner relationship not found"));
 
     validateLinkedTenant(loggedInTenant, vendorPartner);
+    boolean updatesPartnerDetails = body.getTenantName() != null || body.getContactEmail() != null
+        || body.getGstNumber() != null || body.getAddress() != null || body.getType() != null;
+    if (updatesPartnerDetails) {
+      if (!loggedInTenant.getId().equals(vendorPartner.getPrimaryVendor().getId())) {
+        throw new RuntimeException("Only the primary vendor can update partner details");
+      }
+      Tenant partnerTenant = vendorPartner.getPartnerVendor();
+      if (body.getTenantName() != null) partnerTenant.setTenantName(body.getTenantName());
+      if (body.getContactEmail() != null) partnerTenant.setContactEmail(body.getContactEmail());
+      if (body.getGstNumber() != null) partnerTenant.setGstNumber(body.getGstNumber());
+      if (body.getAddress() != null) partnerTenant.setAddress(body.getAddress());
+      if (body.getType() != null) applyType(vendorPartner, body.getType());
+    }
     if (body.getIsActive() != null || body.getIsAssociateSupplier() != null || body.getIsAssociateCustomer() != null) {
       if (!loggedInTenant.getId().equals(vendorPartner.getPrimaryVendor().getId())) {
         throw new RuntimeException("Only the primary vendor can change partner active/associate settings");
@@ -55,6 +69,20 @@ public class VendorPartnerServiceImp implements VendorPartnerService {
       vendorPartner.setUpdatedBy(updatedBy.toString());
     }
     return vendorPartnerRepository.save(vendorPartner);
+  }
+
+  private void applyType(VendorPartner vendorPartner, String type) {
+    switch (type.trim().toUpperCase(Locale.ROOT)) {
+      case "ASSOCIATE_CUSTOMER" -> {
+        vendorPartner.setIsAssociateCustomer(true);
+        vendorPartner.setIsAssociateSupplier(false);
+      }
+      case "ASSOCIATE_SUPPLIER" -> {
+        vendorPartner.setIsAssociateSupplier(true);
+        vendorPartner.setIsAssociateCustomer(false);
+      }
+      default -> throw new RuntimeException("type must be ASSOCIATE_CUSTOMER or ASSOCIATE_SUPPLIER");
+    }
   }
 
   private void validateLinkedTenant(Tenant loggedInTenant, VendorPartner vendorPartner) {

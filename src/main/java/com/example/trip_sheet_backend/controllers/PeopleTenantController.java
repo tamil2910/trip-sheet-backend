@@ -3,6 +3,8 @@ package com.example.trip_sheet_backend.controllers;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +24,7 @@ import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.CreatePeopleRequestD
 import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.UpdatePeopleTenantRequestDto;
 import com.example.trip_sheet_backend.dtos.TripChargesDtos.UpdatePhoneRequestDto;
 import com.example.trip_sheet_backend.models.PeopleTenant;
+import com.example.trip_sheet_backend.models.PeopleTenantCustomFieldValue;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.PeopleTenant.CreatorType;
@@ -81,6 +84,7 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
         tokenTenant,
         createdBy
     );
+    filterCustomFieldValues(person, tokenTenant);
 
     return ResponseEntity.ok(
         new ApiResponse<>(
@@ -155,6 +159,7 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
     }
 
     Map<String, Object> response = new HashMap<>();
+    peoplePage.getContent().forEach(person -> filterCustomFieldValues(person, tenant));
     response.put("data", peoplePage.getContent());
 
     response.put("currentPage", peoplePage.getNumber());
@@ -201,28 +206,106 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
       if (person.getCreatorType() == CreatorType.ORGANISATION) {
         applyUpdates(person, body);
       }
+      peopleTenantServiceImp.replaceCustomFieldValues(person, body.getCustomFields(), tenant, createdBy);
 
     }
 
     // VENDOR UPDATE RULE
     else {
-      // Vendor can only attach themselves — not modify core data
-      if (!person.getAttachedVendors().contains(tenant)) {
-        person.getAttachedVendors().add(tenant);
+      if (person.getOwnerVendorPartner() != null) {
+        if (person.getOwnerVendorPartner().getPrimaryVendor() == null
+            || !tenant.getId().equals(person.getOwnerVendorPartner().getPrimaryVendor().getId())) {
+          throw new RuntimeException("You cannot update another vendor's associate-customer people");
+        }
+      } else if (person.getAttachedVendors() == null || person.getAttachedVendors().stream()
+          .noneMatch(vendor -> tenant.getId().equals(vendor.getId()))) {
+        throw new RuntimeException("You are not linked to this passenger");
       }
       // Vendor can only update their own data
       if (person.getCreatorType() == CreatorType.VENDOR) {
         applyUpdates(person, body);
       }
+      peopleTenantServiceImp.replaceCustomFieldValues(person, body.getCustomFields(), tenant, createdBy);
     }
 
     person.setUpdatedBy(createdBy.toString());
 
     PeopleTenant updated = peopleTenantRepository.save(person);
+    filterCustomFieldValues(updated, tenant);
 
     return ResponseEntity.ok(
         new ApiResponse<>(true, "Person updated successfully", updated)
     );
+  }
+
+  @Override
+  @GetMapping("/{id}")
+  public ApiResponse<PeopleTenant> getById(@PathVariable UUID id, HttpServletRequest request) {
+    ApiResponse<PeopleTenant> response = super.getById(id, request);
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    if (response.getData() != null) {
+      filterCustomFieldValues(response.getData(), tenant);
+    }
+    return response;
+  }
+
+  @Override
+  @GetMapping
+  public ApiResponse<Map<String, Object>> getAll(@RequestParam Map<String, Object> filters,
+      Pageable pageable, HttpServletRequest request) {
+    ApiResponse<Map<String, Object>> response = super.getAll(filters, pageable, request);
+    filterPageResponse(response.getData(), (Tenant) request.getAttribute("tenant"));
+    return response;
+  }
+
+  @Override
+  @GetMapping("/search")
+  public ApiResponse<Map<String, Object>> search(@RequestParam Map<String, Object> filters,
+      Pageable pageable, HttpServletRequest request) {
+    ApiResponse<Map<String, Object>> response = super.search(filters, pageable, request);
+    filterPageResponse(response.getData(), (Tenant) request.getAttribute("tenant"));
+    return response;
+  }
+
+  @SuppressWarnings("unchecked")
+  private void filterPageResponse(Map<String, Object> page, Tenant viewer) {
+    if (page == null || !(page.get("data") instanceof List<?> people)) {
+      return;
+    }
+    people.stream().filter(PeopleTenant.class::isInstance).map(PeopleTenant.class::cast)
+        .forEach(person -> filterCustomFieldValues(person, viewer));
+  }
+
+  private void filterCustomFieldValues(PeopleTenant person, Tenant viewer) {
+    if (person == null || viewer == null || person.getCustomFieldValues() == null) {
+      return;
+    }
+    List<PeopleTenantCustomFieldValue> visible = person.getCustomFieldValues().stream()
+        .filter(value -> {
+          if (viewer.getTenantType() == Tenant.TenantType.ORGANISATION) {
+            return person.getOrganisation() != null
+                && viewer.getId().equals(person.getOrganisation().getId());
+          }
+          if (viewer.getTenantType() == Tenant.TenantType.VENDOR) {
+            VendorPartner personOwnerLink = person.getOwnerVendorPartner();
+            if (personOwnerLink != null && personOwnerLink.getPartnerVendor() != null
+                && viewer.getId().equals(personOwnerLink.getPartnerVendor().getId())) {
+              // The associate customer is the client for these passenger records.
+              return true;
+            }
+            if (personOwnerLink != null && (personOwnerLink.getPrimaryVendor() == null
+                || !viewer.getId().equals(personOwnerLink.getPrimaryVendor().getId()))) {
+              return false;
+            }
+            if (value.getCreatedByVendor() != null) {
+              return viewer.getId().equals(value.getCreatedByVendor().getId());
+            }
+            return Boolean.TRUE.equals(value.getIsVisibleToVendor());
+          }
+          return false;
+        })
+        .collect(Collectors.toList());
+    person.setCustomFieldValues(visible);
   }
 
   private void applyUpdates(PeopleTenant person, UpdatePeopleTenantRequestDto body) {
@@ -265,10 +348,18 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
     UserAccount user = request.getAttribute("user") != null ? (UserAccount) request.getAttribute("user") : null;
 
     PeopleTenant updated = peopleTenantServiceImp.updatePhone(body.getPhone(), user);
+    filterCustomFieldValues(updated, (Tenant) request.getAttribute("tenant"));
 
     return ResponseEntity.ok(
         new ApiResponse<>(true, "Person phone updated successfully", updated)
     );
+  }
+
+  @Override
+  @PostMapping
+  public ResponseEntity<ApiResponse<PeopleTenant>> create(
+      @Valid @RequestBody PeopleTenant payload, HttpServletRequest request) {
+    throw new RuntimeException("Direct create is not supported. Please use POST /people-tenant/create");
   }
 
 }

@@ -8,4 +8,5 @@ import lombok.Setter;
 public class PeopleTenantCustomFieldValueDto {
   private String customFieldId;
   private String value;
+  private Boolean isVisibleToVendor;
 }

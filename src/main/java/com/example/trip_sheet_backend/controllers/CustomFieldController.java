@@ -49,6 +49,7 @@ public class CustomFieldController {
     CustomField created = customFieldService.createCustomField(
         body.getName(),
       body.getOrganisationId(),
+        body.getOwnerVendorPartnerId(),
         tenant,
         createdBy);
 
@@ -58,7 +59,8 @@ public class CustomFieldController {
 
   @GetMapping("/vendor/list")
   public ResponseEntity<ApiResponse<List<CustomField>>> listOrganisationFieldsForVendor(
-      @RequestParam("organisationId") UUID organisationId,
+      @RequestParam(value = "organisationId", required = false) UUID organisationId,
+      @RequestParam(value = "ownerVendorPartnerId", required = false) UUID ownerVendorPartnerId,
       HttpServletRequest request) {
 
     Tenant tenant = (Tenant) request.getAttribute("tenant");
@@ -71,7 +73,12 @@ public class CustomFieldController {
       throw new RuntimeException("Only vendor tenant can use this endpoint");
     }
 
-    List<CustomField> fields = customFieldService.getByOrganisationForVendor(tenant, organisationId);
+    if ((organisationId == null) == (ownerVendorPartnerId == null)) {
+      throw new RuntimeException("Provide exactly one of organisationId or ownerVendorPartnerId");
+    }
+    List<CustomField> fields = ownerVendorPartnerId != null
+        ? customFieldService.getByAssociateCustomerForVendor(tenant, ownerVendorPartnerId)
+        : customFieldService.getByOrganisationForVendor(tenant, organisationId);
 
     return ResponseEntity.ok(new ApiResponse<>(true, "Custom fields fetched successfully", fields));
   }
@@ -107,11 +114,14 @@ public class CustomFieldController {
       throw new RuntimeException("Tenant not found in token");
     }
 
-    if (tenant.getTenantType() != Tenant.TenantType.ORGANISATION) {
-      throw new RuntimeException("Only organisation tenant can update custom fields");
+    CustomField updated;
+    if (tenant.getTenantType() == Tenant.TenantType.ORGANISATION) {
+      updated = customFieldService.updateForOrganisation(id, body.getName(), tenant, updatedBy);
+    } else if (tenant.getTenantType() == Tenant.TenantType.VENDOR) {
+      updated = customFieldService.updateForVendor(id, body.getName(), tenant, updatedBy);
+    } else {
+      throw new RuntimeException("Only organisation or vendor tenant can update custom fields");
     }
-
-    CustomField updated = customFieldService.updateForOrganisation(id, body.getName(), tenant, updatedBy);
 
     return ResponseEntity.ok(new ApiResponse<>(true, "Custom field updated successfully", updated));
   }

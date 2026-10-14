@@ -90,6 +90,31 @@ public class TripController {
     }
   }
 
+  @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
+  @GetMapping("/{id}/locations")
+  public ResponseEntity<ApiResponse<Map<String, Object>>> getLocationHistory(
+      @PathVariable UUID id,
+      @RequestParam(required = false) Long from,
+      @RequestParam(required = false) Long to,
+      @RequestParam(defaultValue = "0") Integer page,
+      @RequestParam(defaultValue = "500") Integer size,
+      HttpServletRequest request) {
+    try {
+      UUID tenantId = (UUID) request.getAttribute("tenantId");
+      var result = tripLocationService.history(id, tenantId, from, to, page, size);
+      Map<String, Object> response = new java.util.LinkedHashMap<>();
+      response.put("data", result.getContent());
+      response.put("page", result.getNumber());
+      response.put("size", result.getSize());
+      response.put("totalItems", result.getTotalElements());
+      response.put("totalPages", result.getTotalPages());
+      response.put("hasNext", result.hasNext());
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip location history fetched", response));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.status(404).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
   @PreAuthorize("hasAuthority('CAN_CREATE_TRIP')")
   @PostMapping("/create")
   public ResponseEntity<ApiResponse<TripResponseDTO>> createTrip(

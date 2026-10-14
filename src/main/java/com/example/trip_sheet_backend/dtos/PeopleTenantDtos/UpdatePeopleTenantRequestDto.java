@@ -1,5 +1,8 @@
 package com.example.trip_sheet_backend.dtos.PeopleTenantDtos;
 
+import java.util.List;
+
+import com.example.trip_sheet_backend.dtos.PeopleTenantCustomFieldValueDtos.PeopleTenantCustomFieldValueDto;
 import com.example.trip_sheet_backend.models.PeopleTenant;
 
 import lombok.Getter;
@@ -19,4 +22,5 @@ public class UpdatePeopleTenantRequestDto {
 
   private String additionalContactId;
   private String emergencyContactId;
+  private List<PeopleTenantCustomFieldValueDto> customFields;
 }

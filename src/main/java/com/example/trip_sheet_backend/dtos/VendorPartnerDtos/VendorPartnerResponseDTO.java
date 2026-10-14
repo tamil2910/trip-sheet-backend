@@ -14,6 +14,11 @@ public class VendorPartnerResponseDTO {
   private UUID id;
   private UUID primaryVendorId;
   private UUID partnerVendorId;
+  private String tenantName;
+  private String contactEmail;
+  private String gstNumber;
+  private String address;
+  private String type;
   private VendorPartner.ContractStatus contractStatus;
   private Boolean isActive;
   private Boolean isAssociateSupplier;
@@ -32,6 +37,10 @@ public class VendorPartnerResponseDTO {
   public static VendorPartnerResponseDTO fromEntity(VendorPartner entity) {
     return new VendorPartnerResponseDTO(
         entity.getId(), entity.getPrimaryVendor().getId(), entity.getPartnerVendor().getId(),
+        entity.getPartnerVendor().getTenantName(), entity.getPartnerVendor().getContactEmail(),
+        entity.getPartnerVendor().getGstNumber(), entity.getPartnerVendor().getAddress(),
+        Boolean.TRUE.equals(entity.getIsAssociateCustomer()) ? "ASSOCIATE_CUSTOMER"
+            : Boolean.TRUE.equals(entity.getIsAssociateSupplier()) ? "ASSOCIATE_SUPPLIER" : null,
         entity.getContractStatus(), entity.getIsActive(), entity.getIsAssociateSupplier(),
         entity.getIsAssociateCustomer(), entity.getOnboardedAt(), entity.getPaymentTimelineInDays(),
         entity.getLocalBillingStructure(), entity.getMinGtgKmLimit(), entity.getMinGtgHrLimit(),

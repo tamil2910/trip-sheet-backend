@@ -10,6 +10,11 @@ import lombok.Setter;
 @Getter
 @Setter
 public class VendorPartnerUpdateRequestDTO {
+  private String tenantName;
+  private String contactEmail;
+  private String gstNumber;
+  private String address;
+  private String type;
   private List<@NotNull(message = "Tax id cannot be null") UUID> taxIds;
   private Boolean isActive;
   private Boolean isAssociateSupplier;
