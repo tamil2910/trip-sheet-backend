@@ -17,6 +17,7 @@ import org.modelmapper.ModelMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.transaction.support.TransactionSynchronization;
@@ -64,6 +65,7 @@ import com.example.trip_sheet_backend.models.Vehicle;
 import com.example.trip_sheet_backend.models.VehicleType;
 import com.example.trip_sheet_backend.services.TripBillingService.TripBillingService;
 import com.example.trip_sheet_backend.services.TripFeedbackService;
+import com.example.trip_sheet_backend.services.RailwayBucketStorageService;
 import com.example.trip_sheet_backend.services.TripService.TripCompletionWorkflowService;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
@@ -116,9 +118,11 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final TripCompletionWorkflowService tripCompletionWorkflowService;
     private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
     private final TripRealtimePublisher tripRealtimePublisher;
+    private final RailwayBucketStorageService bucketStorage;
 
     private final ModelMapper mapper;
 
+  @Autowired
   public TripServiceImp(TripRepository repository, TenantRepository tenantRepository, 
     DutyTypeRepository dutyTypeRepository, VehicleTypeRepository vehicleTypeRepository, 
     PeopleTenantRepository peopleTenantRepository, ModelMapper mapper, DriverRepository driverRepository,
@@ -131,7 +135,8 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
        TripFeedbackService tripFeedbackService, TripBillingService tripBillingService,
       TripCompletionWorkflowService tripCompletionWorkflowService,
       UniqueCodeGeneratorService uniqueCodeGeneratorService,
-      TripRealtimePublisher tripRealtimePublisher) {
+      TripRealtimePublisher tripRealtimePublisher,
+      RailwayBucketStorageService bucketStorage) {
     super(repository);
     this.repository = repository;
     this.tenantRepository = tenantRepository;
@@ -153,6 +158,24 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     this.tripCompletionWorkflowService = tripCompletionWorkflowService;
     this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
     this.tripRealtimePublisher = tripRealtimePublisher;
+    this.bucketStorage = bucketStorage;
+  }
+
+  public TripServiceImp(TripRepository repository, TenantRepository tenantRepository,
+      DutyTypeRepository dutyTypeRepository, VehicleTypeRepository vehicleTypeRepository,
+      PeopleTenantRepository peopleTenantRepository, ModelMapper mapper, DriverRepository driverRepository,
+      VehicleRepository vehicleRepository, CustomFieldRepository customFieldRepository,
+      LabelRepository labelRepository, DispatchCenterRepository dispatchCenterRepository,
+      TripSummaryRepository tripSummaryRepository, DriverTenantMappingRepository driverTenantMappingRepository,
+      VendorDelegationHistoryRepository vendorDelegationHistoryRepository,
+      VendorOrganisationRepository vendorOrganisationRepository, TripFeedbackService tripFeedbackService,
+      TripBillingService tripBillingService, TripCompletionWorkflowService tripCompletionWorkflowService,
+      UniqueCodeGeneratorService uniqueCodeGeneratorService, TripRealtimePublisher tripRealtimePublisher) {
+    this(repository, tenantRepository, dutyTypeRepository, vehicleTypeRepository, peopleTenantRepository, mapper,
+        driverRepository, vehicleRepository, customFieldRepository, labelRepository, dispatchCenterRepository,
+        tripSummaryRepository, driverTenantMappingRepository, vendorDelegationHistoryRepository,
+        vendorOrganisationRepository, tripFeedbackService, tripBillingService, tripCompletionWorkflowService,
+        uniqueCodeGeneratorService, tripRealtimePublisher, null);
   }
 
 @Override
@@ -1943,7 +1966,13 @@ public Trip executeManualTrip(
   dispatchTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getDispatchData());
   arrivedTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getArrivedData());
   startTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getStartData());
-  return dropTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getDropData());
+  Trip completedTrip = dropTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getDropData());
+  if (executeData.getTripRouteUrl() != null) {
+    TripSummary summary = getOrCreateTripSummary(completedTrip);
+    summary.setTripRouteUrl(bucketStorage.storeIfBase64("trip-routes", executeData.getTripRouteUrl()));
+    tripSummaryRepository.save(summary);
+  }
+  return completedTrip;
 }
 
 /**

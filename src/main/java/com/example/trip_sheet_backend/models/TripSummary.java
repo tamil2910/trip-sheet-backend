@@ -45,6 +45,8 @@ public class TripSummary extends BaseModel implements TenantScoped {
   private Long tripEndKmOdo;
   private Long tripEndKmOdoImage;
 
+  private String tripRouteUrl;
+
   private Long tripDuration;
   private Long tripDistance;
 

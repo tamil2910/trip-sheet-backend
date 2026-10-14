@@ -18,6 +18,7 @@ public class TripSummaryResponseDTO {
   private Long tripEndTime;
   private Long tripEndKmOdo;
   private Long tripEndKmOdoImage;
+  private String tripRouteUrl;
   private Long tripDuration;
   private Long tripDistance;
   private Long tripExtraKmOdo;

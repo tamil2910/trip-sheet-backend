@@ -10,4 +10,5 @@ public class ManualTripExecuteRequestDTO {
   private TripArrivedRequestDTO arrivedData;
   private TripStartRequestDTO startData;
   private TripDropRequestDTO dropData;
+  private String tripRouteUrl;
 }
