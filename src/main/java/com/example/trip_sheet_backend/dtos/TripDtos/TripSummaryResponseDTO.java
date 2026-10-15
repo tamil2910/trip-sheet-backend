@@ -1,5 +1,7 @@
 package com.example.trip_sheet_backend.dtos.TripDtos;
 
+import java.math.BigDecimal;
+
 import lombok.Getter;
 import lombok.Setter;
 
@@ -19,6 +21,7 @@ public class TripSummaryResponseDTO {
   private Long tripEndKmOdo;
   private Long tripEndKmOdoImage;
   private String tripRouteUrl;
+  private BigDecimal tripRouteGpsKm;
   private Long tripDuration;
   private Long tripDistance;
   private Long tripExtraKmOdo;

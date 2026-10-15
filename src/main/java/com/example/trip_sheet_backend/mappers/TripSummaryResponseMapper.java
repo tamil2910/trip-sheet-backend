@@ -22,6 +22,7 @@ public final class TripSummaryResponseMapper {
     dto.setTripEndKmOdo(summary.getTripEndKmOdo());
     dto.setTripEndKmOdoImage(summary.getTripEndKmOdoImage());
     dto.setTripRouteUrl(summary.getTripRouteUrl());
+    dto.setTripRouteGpsKm(summary.getTripRouteGpsKm());
     dto.setTripDuration(summary.getTripDuration());
     dto.setTripDistance(summary.getTripDistance());
     dto.setTripExtraKmOdo(summary.getTripExtraKmOdo());

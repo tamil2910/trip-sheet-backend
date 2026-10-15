@@ -38,6 +38,8 @@ public final class TripResponseMapper {
         }
         if (trip.getTripSummary() != null && trip.getTripSummary().getId() != null) {
             dto.setTripSummaryId(trip.getTripSummary().getId().toString());
+            dto.setTripRouteUrl(trip.getTripSummary().getTripRouteUrl());
+            dto.setTripRouteGpsKm(trip.getTripSummary().getTripRouteGpsKm());
         }
 
         dto.setTripCode(trip.getTripCode());

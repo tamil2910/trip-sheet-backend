@@ -1981,6 +1981,9 @@ public Trip executeManualTrip(
       || executeData.getStartData() == null || executeData.getDropData() == null) {
     throw new RuntimeException("dispatchData, arrivedData, startData, and dropData are required");
   }
+  if (executeData.getTripRouteUrl() == null || executeData.getTripRouteUrl().isBlank()) {
+    throw new RuntimeException("tripRouteUrl is required and must contain a Base64 encoded image");
+  }
 
   // Manual close is also the recovery path when the driver app has already
   // advanced the trip. Continue from its current lifecycle state instead of
@@ -2006,11 +2009,12 @@ public Trip executeManualTrip(
     throw new RuntimeException("Manual trip cannot be closed from status " + currentStatus);
   }
   Trip completedTrip = dropTrip(tokenTenantId, tokenTenant, user, tripId, executeData.getDropData());
-  if (executeData.getTripRouteUrl() != null) {
-    TripSummary summary = getOrCreateTripSummary(completedTrip);
-    summary.setTripRouteUrl(bucketStorage.storeIfBase64("trip-routes", executeData.getTripRouteUrl()));
-    tripSummaryRepository.save(summary);
+  TripSummary summary = getOrCreateTripSummary(completedTrip);
+  summary.setTripRouteUrl(bucketStorage.storeBase64("trip-routes", executeData.getTripRouteUrl()));
+  if (executeData.getTripRouteGpsKm() != null) {
+    summary.setTripRouteGpsKm(executeData.getTripRouteGpsKm());
   }
+  tripSummaryRepository.save(summary);
   return completedTrip;
 }
 

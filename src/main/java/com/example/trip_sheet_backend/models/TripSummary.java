@@ -2,11 +2,13 @@ package com.example.trip_sheet_backend.models;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.math.BigDecimal;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
 import io.micrometer.common.lang.Nullable;
 import jakarta.persistence.Entity;
+import jakarta.persistence.Column;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -46,6 +48,9 @@ public class TripSummary extends BaseModel implements TenantScoped {
   private Long tripEndKmOdoImage;
 
   private String tripRouteUrl;
+
+  @Column(precision = 10, scale = 2)
+  private BigDecimal tripRouteGpsKm;
 
   private Long tripDuration;
   private Long tripDistance;

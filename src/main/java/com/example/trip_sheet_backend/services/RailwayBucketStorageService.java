@@ -141,8 +141,8 @@ public class RailwayBucketStorageService {
     } catch (IllegalArgumentException ignored) {
       try {
         return Base64.getUrlDecoder().decode(value);
-      } catch (IllegalArgumentException exception) {
-        throw exception;
+      } catch (IllegalArgumentException ignoredUrlSafe) {
+        return Base64.getMimeDecoder().decode(value);
       }
     }
   }

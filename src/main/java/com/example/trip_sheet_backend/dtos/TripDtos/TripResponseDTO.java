@@ -1,5 +1,6 @@
 package com.example.trip_sheet_backend.dtos.TripDtos;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 import com.example.trip_sheet_backend.models.DutyType.TypeAirportTransfer;
@@ -14,6 +15,8 @@ public class TripResponseDTO {
     private String id;
     private String parentTripId;
     private String tripSummaryId;
+    private String tripRouteUrl;
+    private BigDecimal tripRouteGpsKm;
     private String tripCode;
     private List<String> labelIds;
     private List<TripLabelResponseDTO> labels;
