@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.controllers;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.ArrayList;
 import java.util.UUID;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -160,7 +161,9 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
 
     Map<String, Object> response = new HashMap<>();
     peoplePage.getContent().forEach(person -> filterCustomFieldValues(person, tenant));
-    response.put("data", peoplePage.getContent());
+    response.put("data", peoplePage.getContent().stream()
+        .map(this::toPeopleListItem)
+        .collect(Collectors.toList()));
 
     response.put("currentPage", peoplePage.getNumber());
     response.put("pageSize", peoplePage.getSize());
@@ -177,6 +180,48 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
     return ResponseEntity.ok(
         new ApiResponse<>(true, "People list fetched successfully", response)
     );
+  }
+
+  private Map<String, Object> toPeopleListItem(PeopleTenant person) {
+    Map<String, Object> item = new HashMap<>();
+    item.put("id", person.getId());
+    item.put("name", person.getName());
+    item.put("email", person.getEmail());
+    item.put("phone", person.getPhone());
+    item.put("designation", person.getDesignation());
+    item.put("gender", person.getGender());
+    item.put("peopleType", person.getPeopleType());
+
+    if (person.getOrganisation() == null) {
+      item.put("organisation", null);
+    } else {
+      Map<String, Object> organisation = new HashMap<>();
+      organisation.put("id", person.getOrganisation().getId());
+      organisation.put("tenantName", person.getOrganisation().getTenantName());
+      item.put("organisation", organisation);
+    }
+
+    List<Map<String, Object>> customFieldValues = new ArrayList<>();
+    if (person.getCustomFieldValues() != null) {
+      person.getCustomFieldValues().forEach(value -> {
+        Map<String, Object> fieldValue = new HashMap<>();
+        fieldValue.put("id", value.getId());
+        if (value.getCustomField() == null) {
+          fieldValue.put("customField", null);
+        } else {
+          Map<String, Object> customField = new HashMap<>();
+          customField.put("id", value.getCustomField().getId());
+          customField.put("name", value.getCustomField().getName());
+          customField.put("isActive", value.getCustomField().getIsActive());
+          fieldValue.put("customField", customField);
+        }
+        fieldValue.put("isVisibleToVendor", value.getIsVisibleToVendor());
+        fieldValue.put("value", value.getValue());
+        customFieldValues.add(fieldValue);
+      });
+    }
+    item.put("customFieldValues", customFieldValues);
+    return item;
   }
 
   @PutMapping("/update/{id}")

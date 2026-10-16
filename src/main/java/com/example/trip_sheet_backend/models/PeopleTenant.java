@@ -4,6 +4,8 @@ import java.util.ArrayList;
 import java.util.List;
 import com.example.trip_sheet_backend.common.models.BaseModel;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.example.trip_sheet_backend.serializers.TenantSummarySerializer;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.CascadeType;
@@ -43,6 +45,7 @@ public class PeopleTenant extends BaseModel implements TenantScoped {
 
   @ManyToOne
   @JoinColumn(name = "organisation_id")
+  @JsonSerialize(using = TenantSummarySerializer.class)
   private Tenant organisation;
 
   @JsonIgnore

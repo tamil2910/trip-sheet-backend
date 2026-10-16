@@ -6,6 +6,7 @@ import lombok.Setter;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -22,11 +23,13 @@ import jakarta.persistence.Column;
 @Table(name = "people_tenant_custom_field_values")
 public class PeopleTenantCustomFieldValue extends BaseModel {
   
+  @JsonIgnore
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "people_tenant_id", nullable = false)
   private PeopleTenant peopleTenant;
 
-  @ManyToOne(fetch = FetchType.LAZY)
+  @JsonIgnoreProperties({"tenant", "createdByVendor", "ownerVendorPartner"})
+  @ManyToOne(fetch = FetchType.EAGER)
   @JoinColumn(name = "custom_field_id", nullable = false)
   private CustomField customField;
 
