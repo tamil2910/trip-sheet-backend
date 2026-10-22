@@ -15,11 +15,12 @@ import com.example.trip_sheet_backend.models.Expense;
 import com.example.trip_sheet_backend.models.PettyCashBreakdown;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Vehicle;
+import com.example.trip_sheet_backend.models.VehicleTenantMapping;
 import com.example.trip_sheet_backend.models.VehicleExpenseBreakdown;
 import com.example.trip_sheet_backend.repositories.ExpenseRepository;
 import com.example.trip_sheet_backend.repositories.PettyCashBreakdownRepository;
 import com.example.trip_sheet_backend.repositories.VehicleExpenseBreakdownRepository;
-import com.example.trip_sheet_backend.repositories.VehicleRepository;
+import com.example.trip_sheet_backend.repositories.VehicleTenantMappingRepository;
 
 @Service
 @Transactional
@@ -27,15 +28,15 @@ public class ExpenseBreakdownService {
   private final PettyCashBreakdownRepository pettyCashRepository;
   private final VehicleExpenseBreakdownRepository vehicleExpenseRepository;
   private final ExpenseRepository expenseRepository;
-  private final VehicleRepository vehicleRepository;
+  private final VehicleTenantMappingRepository vehicleTenantMappingRepository;
 
   public ExpenseBreakdownService(PettyCashBreakdownRepository pettyCashRepository,
       VehicleExpenseBreakdownRepository vehicleExpenseRepository, ExpenseRepository expenseRepository,
-      VehicleRepository vehicleRepository) {
+      VehicleTenantMappingRepository vehicleTenantMappingRepository) {
     this.pettyCashRepository = pettyCashRepository;
     this.vehicleExpenseRepository = vehicleExpenseRepository;
     this.expenseRepository = expenseRepository;
-    this.vehicleRepository = vehicleRepository;
+    this.vehicleTenantMappingRepository = vehicleTenantMappingRepository;
   }
 
   public List<PettyCashBreakdown> listPettyCash(UUID tenantId, UUID expenseId) {
@@ -207,10 +208,12 @@ public class ExpenseBreakdownService {
   }
 
   private void validateVehicleLink(UUID tenantId, UUID vehicleId) {
-    Vehicle vehicle = vehicleRepository.findById(vehicleId).filter(v -> !Boolean.TRUE.equals(v.getIsDeleted()))
-        .orElseThrow(() -> notFound("Vehicle"));
-    requireStatus(vehicle.getTenant() != null && tenantId.equals(vehicle.getTenant().getId()),
-        "Vehicle does not belong to this tenant");
+    VehicleTenantMapping mapping = vehicleTenantMappingRepository.findByTenant_IdAndVehicle_Id(tenantId, vehicleId)
+        .filter(row -> !Boolean.TRUE.equals(row.getIsDeleted()))
+        .filter(row -> !Boolean.FALSE.equals(row.getActive()))
+        .orElseThrow(() -> notFound("Vehicle linked to this tenant"));
+    Vehicle vehicle = mapping.getVehicle();
+    requireStatus(vehicle != null && !Boolean.TRUE.equals(vehicle.getIsDeleted()), "Vehicle not found");
     requireStatus(!Boolean.FALSE.equals(vehicle.getIsActive()), "Vehicle is inactive");
   }
 
