@@ -82,6 +82,29 @@ public class RailwayBucketStorageService {
     }
   }
 
+  /** Stores a validated PDF or image upload and returns the private bucket key. */
+  public String storeFile(String category, byte[] bytes, String declaredContentType) {
+    ensureConfigured();
+    if (bytes == null || bytes.length == 0 || bytes.length > MAX_FILE_BYTES) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "File must be between 1 byte and 10 MB");
+    }
+    String detectedType = detectType(bytes);
+    String contentType = declaredContentType == null ? "" : declaredContentType.toLowerCase(Locale.ROOT);
+    if (!isSupportedType(detectedType) || (!contentType.isBlank() && !contentType.equals("application/octet-stream")
+        && !contentType.equals(detectedType))) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only valid JPEG, PNG, WebP, GIF, BMP and PDF files are supported");
+    }
+    String key = safeCategory(category) + "/" + UUID.randomUUID() + extensionFor(detectedType);
+    try {
+      s3Provider.getObject().putObject(
+          PutObjectRequest.builder().bucket(bucket).key(key).contentType(detectedType).build(),
+          RequestBody.fromBytes(bytes));
+      return key;
+    } catch (S3Exception exception) {
+      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Could not save the file to Railway Bucket", exception);
+    }
+  }
+
   /** URL is temporary because Railway Buckets are private; persist the returned key, not this URL. */
   public String createDownloadUrl(String key) {
     ensureConfigured();
@@ -122,7 +145,8 @@ public class RailwayBucketStorageService {
   }
 
   private static boolean isSupportedType(String type) {
-    return type.equals("image/jpeg") || type.equals("image/png") || type.equals("image/webp") || type.equals("application/pdf");
+    return type.equals("image/jpeg") || type.equals("image/png") || type.equals("image/webp")
+        || type.equals("image/gif") || type.equals("image/bmp") || type.equals("application/pdf");
   }
 
   private static String extensionFor(String type) {
@@ -130,6 +154,8 @@ public class RailwayBucketStorageService {
       case "image/jpeg" -> ".jpg";
       case "image/png" -> ".png";
       case "image/webp" -> ".webp";
+      case "image/gif" -> ".gif";
+      case "image/bmp" -> ".bmp";
       case "application/pdf" -> ".pdf";
       default -> ".bin";
     };
@@ -152,6 +178,9 @@ public class RailwayBucketStorageService {
     if (bytes.length >= 8 && bytes[0] == (byte) 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) return "image/png";
     if (bytes.length >= 12 && bytes[0] == 0x52 && bytes[1] == 0x49 && bytes[2] == 0x46 && bytes[3] == 0x46
         && bytes[8] == 0x57 && bytes[9] == 0x45 && bytes[10] == 0x42 && bytes[11] == 0x50) return "image/webp";
+    if (bytes.length >= 6 && bytes[0] == 0x47 && bytes[1] == 0x49 && bytes[2] == 0x46
+        && bytes[3] == 0x38 && (bytes[4] == 0x37 || bytes[4] == 0x39) && bytes[5] == 0x61) return "image/gif";
+    if (bytes.length >= 2 && bytes[0] == 0x42 && bytes[1] == 0x4D) return "image/bmp";
     if (bytes.length >= 5 && bytes[0] == 0x25 && bytes[1] == 0x50 && bytes[2] == 0x44 && bytes[3] == 0x46 && bytes[4] == 0x2D) return "application/pdf";
     return "application/octet-stream";
   }

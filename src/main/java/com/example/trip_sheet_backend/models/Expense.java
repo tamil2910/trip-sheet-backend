@@ -49,11 +49,11 @@ public class Expense extends BaseModel implements TenantScoped {
   private ExpenseLedger ledger;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "category_id", nullable = false)
+  @JoinColumn(name = "category_id")
   private ExpenseCategory category;
 
   @ManyToOne(fetch = FetchType.LAZY)
-  @JoinColumn(name = "sub_category_id", nullable = false)
+  @JoinColumn(name = "sub_category_id")
   private ExpenseSubCategory subCategory;
 
   @Column(nullable = false)

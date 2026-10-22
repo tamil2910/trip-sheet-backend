@@ -32,6 +32,10 @@ public class ExpenseLedger extends BaseModel implements TenantScoped {
 
   private Boolean isActive = true;
 
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "category_id")
+  private ExpenseCategory category;
+
   @JsonIgnore
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "tenant_id", nullable = false)
