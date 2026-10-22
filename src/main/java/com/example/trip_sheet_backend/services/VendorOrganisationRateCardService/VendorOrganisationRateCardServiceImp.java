@@ -21,6 +21,7 @@ import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.Vendor
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardBulkReviewRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.VendorOrganisationRateCardDtos.VendorOrganisationRateCardUpdateRequestDTO;
+import com.example.trip_sheet_backend.dtos.RateCardPackageDtos.RateCardPackageCreateRequestDTO;
 import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.VehicleType;
@@ -30,6 +31,7 @@ import com.example.trip_sheet_backend.repositories.DutyTypeRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRateCardRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
+import com.example.trip_sheet_backend.services.RateCardPackageService.RateCardPackageService;
 
 @Service
 public class VendorOrganisationRateCardServiceImp implements VendorOrganisationRateCardService {
@@ -38,17 +40,20 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
   private final VendorOrganisationRepository vendorOrganisationRepository;
   private final VehicleTypeRepository vehicleTypeRepository;
   private final DutyTypeRepository dutyTypeRepository;
+  private final RateCardPackageService rateCardPackageService;
 
   public VendorOrganisationRateCardServiceImp(
       VendorOrganisationRateCardRepository vendorOrganisationRateCardRepository,
       VendorOrganisationRepository vendorOrganisationRepository,
       VehicleTypeRepository vehicleTypeRepository,
-      DutyTypeRepository dutyTypeRepository
+      DutyTypeRepository dutyTypeRepository,
+      RateCardPackageService rateCardPackageService
   ) {
     this.vendorOrganisationRateCardRepository = vendorOrganisationRateCardRepository;
     this.vendorOrganisationRepository = vendorOrganisationRepository;
     this.vehicleTypeRepository = vehicleTypeRepository;
     this.dutyTypeRepository = dutyTypeRepository;
+    this.rateCardPackageService = rateCardPackageService;
   }
 
   @Override
@@ -81,9 +86,18 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
     vendorOrganisation.setUpdatedBy(createdBy.toString());
     vendorOrganisationRepository.save(vendorOrganisation);
 
-    return body.getRateCards().stream()
+    List<VendorOrganisationRateCard> created = body.getRateCards().stream()
         .map(rateCardRequest -> createSingleRateCard(vendorOrganisation, rateCardRequest, createdBy))
         .toList();
+    if (body.getPackageName() != null && !body.getPackageName().isBlank()) {
+      RateCardPackageCreateRequestDTO packageRequest = new RateCardPackageCreateRequestDTO();
+      packageRequest.setName(body.getPackageName());
+      packageRequest.setVendorOrganisationId(vendorOrganisation.getId());
+      packageRequest.setRateCardIds(created.stream().map(VendorOrganisationRateCard::getId).toList());
+      packageRequest.setIsDefault(body.getIsDefaultPackage());
+      rateCardPackageService.create(packageRequest, loggedInTenant, createdBy);
+    }
+    return created;
   }
 
   private VendorOrganisationRateCard createSingleRateCard(

@@ -1,0 +1,237 @@
+package com.example.trip_sheet_backend.services.RateCardPackageService;
+
+import java.util.List;
+import java.util.UUID;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import com.example.trip_sheet_backend.dtos.RateCardPackageDtos.RateCardPackageCreateRequestDTO;
+import com.example.trip_sheet_backend.dtos.RateCardPackageDtos.RateCardPackageUpdateRequestDTO;
+import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.VendorOrganisation;
+import com.example.trip_sheet_backend.models.VendorOrganisationRateCard;
+import com.example.trip_sheet_backend.models.VendorPartner;
+import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
+import com.example.trip_sheet_backend.models.ratecardpackage.RateCardPackage;
+import com.example.trip_sheet_backend.models.ratecardpackage.RateCardPackageItem;
+import com.example.trip_sheet_backend.repositories.RateCardPackageRepository;
+import com.example.trip_sheet_backend.repositories.VendorOrganisationRateCardRepository;
+import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
+import com.example.trip_sheet_backend.repositories.VendorPartnerRateCardRepository;
+import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
+
+@Service
+public class RateCardPackageService {
+  private final RateCardPackageRepository packages;
+  private final VendorPartnerRepository partners;
+  private final VendorOrganisationRepository organisations;
+  private final VendorPartnerRateCardRepository partnerRates;
+  private final VendorOrganisationRateCardRepository organisationRates;
+
+  public RateCardPackageService(RateCardPackageRepository packages, VendorPartnerRepository partners,
+      VendorOrganisationRepository organisations, VendorPartnerRateCardRepository partnerRates,
+      VendorOrganisationRateCardRepository organisationRates) {
+    this.packages = packages;
+    this.partners = partners;
+    this.organisations = organisations;
+    this.partnerRates = partnerRates;
+    this.organisationRates = organisationRates;
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  public RateCardPackage create(RateCardPackageCreateRequestDTO body, Tenant tenant, UUID actorId) {
+    if ((body.getVendorPartnerId() == null) == (body.getVendorOrganisationId() == null)) {
+      throw new IllegalArgumentException("Provide exactly one of vendorPartnerId or vendorOrganisationId");
+    }
+    if (body.getValidFrom() != null && body.getValidTo() != null && body.getValidFrom() > body.getValidTo()) {
+      throw new IllegalArgumentException("validFrom must be before or equal to validTo");
+    }
+    if (body.getRateCardIds().stream().distinct().count() != body.getRateCardIds().size()) {
+      throw new IllegalArgumentException("Duplicate rateCardIds are not allowed");
+    }
+
+    RateCardPackage entity = new RateCardPackage();
+    entity.setName(body.getName().trim());
+    entity.setValidFrom(body.getValidFrom());
+    entity.setValidTo(body.getValidTo());
+    entity.setIsDefault(Boolean.TRUE.equals(body.getIsDefault()));
+    entity.setCreatedBy(actorId == null ? null : actorId.toString());
+
+    if (body.getVendorPartnerId() != null) {
+      VendorPartner link = partners.findById(body.getVendorPartnerId())
+          .filter(p -> !Boolean.TRUE.equals(p.getIsDeleted()))
+          .orElseThrow(() -> new IllegalArgumentException("Vendor partner relationship not found"));
+      if (tenant == null || tenant.getId() == null || !tenant.getId().equals(link.getPrimaryVendor().getId())) {
+        throw new IllegalArgumentException("Only the primary vendor can manage partner rate card packages");
+      }
+      entity.setVendorPartner(link);
+      List<VendorPartnerRateCard> rates = partnerRates.findAllById(body.getRateCardIds());
+      if (rates.size() != body.getRateCardIds().size() || rates.stream().anyMatch(r ->
+          Boolean.TRUE.equals(r.getIsDeleted()) || !link.getId().equals(r.getVendorPartner().getId()))) {
+        throw new IllegalArgumentException("Every rate card must belong to the selected vendor partner");
+      }
+      rates.forEach(rate -> addPartnerRate(entity, rate));
+      if (Boolean.TRUE.equals(entity.getIsDefault())) {
+        entity.setValidFrom(link.getContractStartDate());
+        entity.setValidTo(link.getContractEndDate());
+        packages.findByVendorPartner_IdAndIsDefaultTrueAndIsDeletedFalse(link.getId())
+            .ifPresent(previous -> previous.setIsDefault(false));
+      }
+    } else {
+      VendorOrganisation link = organisations.findById(body.getVendorOrganisationId())
+          .filter(o -> !Boolean.TRUE.equals(o.getIsDeleted()))
+          .orElseThrow(() -> new IllegalArgumentException("Vendor organisation relationship not found"));
+      if (tenant == null || tenant.getId() == null || !tenant.getId().equals(link.getVendor().getId())) {
+        throw new IllegalArgumentException("Only the vendor can manage organisation rate card packages");
+      }
+      entity.setVendorOrganisation(link);
+      List<VendorOrganisationRateCard> rates = organisationRates.findAllById(body.getRateCardIds());
+      if (rates.size() != body.getRateCardIds().size() || rates.stream().anyMatch(r ->
+          Boolean.TRUE.equals(r.getIsDeleted()) || !link.getId().equals(r.getVendorOrganisation().getId()))) {
+        throw new IllegalArgumentException("Every rate card must belong to the selected vendor organisation");
+      }
+      rates.forEach(rate -> addOrganisationRate(entity, rate));
+      if (Boolean.TRUE.equals(entity.getIsDefault())) {
+        entity.setValidFrom(link.getContractStartDate());
+        entity.setValidTo(link.getContractEndDate());
+        packages.findByVendorOrganisation_IdAndIsDefaultTrueAndIsDeletedFalse(link.getId())
+            .ifPresent(previous -> previous.setIsDefault(false));
+      }
+    }
+    if (entity.getValidFrom() != null && entity.getValidTo() != null && entity.getValidFrom() > entity.getValidTo()) {
+      throw new IllegalArgumentException("Package validity period is invalid");
+    }
+    return packages.save(entity);
+  }
+
+  @Transactional(readOnly = true)
+  public List<RateCardPackage> list(UUID vendorPartnerId, UUID vendorOrganisationId, Tenant tenant) {
+    if ((vendorPartnerId == null) == (vendorOrganisationId == null)) {
+      throw new IllegalArgumentException("Provide exactly one of vendorPartnerId or vendorOrganisationId");
+    }
+    if (vendorPartnerId != null) {
+      VendorPartner link = partners.findById(vendorPartnerId).orElseThrow();
+      if (!hasTenant(tenant, link.getPrimaryVendor(), link.getPartnerVendor())) throw new IllegalArgumentException("Not allowed");
+      return packages.findByVendorPartner_IdAndIsDeletedFalseOrderByCreatedAtDesc(vendorPartnerId);
+    }
+    VendorOrganisation link = organisations.findById(vendorOrganisationId).orElseThrow();
+    if (!hasTenant(tenant, link.getVendor(), link.getOrganisation())) throw new IllegalArgumentException("Not allowed");
+    return packages.findByVendorOrganisation_IdAndIsDeletedFalseOrderByCreatedAtDesc(vendorOrganisationId);
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  public RateCardPackage setDefault(UUID packageId, Tenant tenant, UUID actorId) {
+    RateCardPackage selected = packages.findByIdAndIsDeletedFalse(packageId)
+        .orElseThrow(() -> new IllegalArgumentException("Rate card package not found"));
+    if (selected.getVendorPartner() != null) {
+      VendorPartner link = selected.getVendorPartner();
+      if (tenant == null || tenant.getId() == null || !tenant.getId().equals(link.getPrimaryVendor().getId())) {
+        throw new IllegalArgumentException("Only the primary vendor can change the default partner package");
+      }
+      packages.findByVendorPartner_IdAndIsDefaultTrueAndIsDeletedFalse(link.getId())
+          .filter(existing -> !existing.getId().equals(selected.getId()))
+          .ifPresent(existing -> existing.setIsDefault(false));
+      selected.setValidFrom(link.getContractStartDate());
+      selected.setValidTo(link.getContractEndDate());
+    } else {
+      VendorOrganisation link = selected.getVendorOrganisation();
+      if (tenant == null || tenant.getId() == null || !tenant.getId().equals(link.getVendor().getId())) {
+        throw new IllegalArgumentException("Only the vendor can change the default organisation package");
+      }
+      packages.findByVendorOrganisation_IdAndIsDefaultTrueAndIsDeletedFalse(link.getId())
+          .filter(existing -> !existing.getId().equals(selected.getId()))
+          .ifPresent(existing -> existing.setIsDefault(false));
+      selected.setValidFrom(link.getContractStartDate());
+      selected.setValidTo(link.getContractEndDate());
+    }
+    selected.setIsDefault(true);
+    selected.setUpdatedBy(actorId == null ? null : actorId.toString());
+    return packages.save(selected);
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  public RateCardPackage update(UUID packageId, RateCardPackageUpdateRequestDTO body, Tenant tenant, UUID actorId) {
+    RateCardPackage selected = packages.findByIdAndIsDeletedFalse(packageId)
+        .orElseThrow(() -> new IllegalArgumentException("Rate card package not found"));
+    VendorPartner partner = selected.getVendorPartner();
+    VendorOrganisation organisation = selected.getVendorOrganisation();
+    if (partner != null) {
+      if (tenant == null || tenant.getId() == null || !tenant.getId().equals(partner.getPrimaryVendor().getId())) {
+        throw new IllegalArgumentException("Only the primary vendor can update the partner package");
+      }
+    } else if (tenant == null || tenant.getId() == null || !tenant.getId().equals(organisation.getVendor().getId())) {
+      throw new IllegalArgumentException("Only the vendor can update the organisation package");
+    }
+
+    if (body.getName() != null) {
+      if (body.getName().isBlank()) throw new IllegalArgumentException("Package name cannot be blank");
+      selected.setName(body.getName().trim());
+    }
+    if (body.getRateCardIds() != null) {
+      if (body.getRateCardIds().isEmpty()) throw new IllegalArgumentException("At least one rate card is required");
+      if (body.getRateCardIds().stream().distinct().count() != body.getRateCardIds().size()) {
+        throw new IllegalArgumentException("Duplicate rateCardIds are not allowed");
+      }
+      selected.getItems().clear();
+      if (partner != null) {
+        List<VendorPartnerRateCard> rates = partnerRates.findAllById(body.getRateCardIds());
+        if (rates.size() != body.getRateCardIds().size() || rates.stream().anyMatch(r ->
+            Boolean.TRUE.equals(r.getIsDeleted()) || !partner.getId().equals(r.getVendorPartner().getId()))) {
+          throw new IllegalArgumentException("Every rate card must belong to this vendor partner");
+        }
+        rates.forEach(rate -> addPartnerRate(selected, rate));
+      } else {
+        List<VendorOrganisationRateCard> rates = organisationRates.findAllById(body.getRateCardIds());
+        if (rates.size() != body.getRateCardIds().size() || rates.stream().anyMatch(r ->
+            Boolean.TRUE.equals(r.getIsDeleted()) || !organisation.getId().equals(r.getVendorOrganisation().getId()))) {
+          throw new IllegalArgumentException("Every rate card must belong to this vendor organisation");
+        }
+        rates.forEach(rate -> addOrganisationRate(selected, rate));
+      }
+    }
+
+    if (body.getIsDefault() != null) selected.setIsDefault(body.getIsDefault());
+    if (Boolean.TRUE.equals(selected.getIsDefault())) {
+      if (partner != null) {
+        packages.findByVendorPartner_IdAndIsDefaultTrueAndIsDeletedFalse(partner.getId())
+            .filter(existing -> !existing.getId().equals(selected.getId()))
+            .ifPresent(existing -> existing.setIsDefault(false));
+        selected.setValidFrom(partner.getContractStartDate());
+        selected.setValidTo(partner.getContractEndDate());
+      } else {
+        packages.findByVendorOrganisation_IdAndIsDefaultTrueAndIsDeletedFalse(organisation.getId())
+            .filter(existing -> !existing.getId().equals(selected.getId()))
+            .ifPresent(existing -> existing.setIsDefault(false));
+        selected.setValidFrom(organisation.getContractStartDate());
+        selected.setValidTo(organisation.getContractEndDate());
+      }
+    } else {
+      if (body.getValidFrom() != null) selected.setValidFrom(body.getValidFrom());
+      if (body.getValidTo() != null) selected.setValidTo(body.getValidTo());
+    }
+    if (selected.getValidFrom() != null && selected.getValidTo() != null
+        && selected.getValidFrom() > selected.getValidTo()) {
+      throw new IllegalArgumentException("validFrom must be before or equal to validTo");
+    }
+    selected.setUpdatedBy(actorId == null ? null : actorId.toString());
+    return packages.save(selected);
+  }
+
+  private boolean hasTenant(Tenant tenant, Tenant a, Tenant b) {
+    return tenant != null && tenant.getId() != null
+        && (tenant.getId().equals(a.getId()) || tenant.getId().equals(b.getId()));
+  }
+
+  private void addPartnerRate(RateCardPackage target, VendorPartnerRateCard rate) {
+    RateCardPackageItem item = new RateCardPackageItem();
+    item.setRateCardPackage(target);
+    item.setVendorPartnerRateCard(rate);
+    target.getItems().add(item);
+  }
+
+  private void addOrganisationRate(RateCardPackage target, VendorOrganisationRateCard rate) {
+    RateCardPackageItem item = new RateCardPackageItem();
+    item.setRateCardPackage(target);
+    item.setVendorOrganisationRateCard(rate);
+    target.getItems().add(item);
+  }
+}

@@ -42,6 +42,10 @@ public class VendorOrganisationRateCardBulkCreateRequestDTO {
 
   private Long contractEndDate;
 
+  private String packageName;
+
+  private Boolean isDefaultPackage = true;
+
   @Valid
   @NotEmpty
   private List<VendorOrganisationRateCardCreateRequestDTO> rateCards;

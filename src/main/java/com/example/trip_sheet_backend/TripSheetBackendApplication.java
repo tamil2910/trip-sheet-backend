@@ -4,9 +4,11 @@ import com.example.trip_sheet_backend.config.DotenvDefaultsLoader;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableAsync
+@EnableScheduling
 public class TripSheetBackendApplication {
 
 	public static void main(String[] args) {

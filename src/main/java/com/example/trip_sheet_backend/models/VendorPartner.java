@@ -53,6 +53,7 @@ public class VendorPartner extends BaseModel {
     REJECTED,
     SUSPENDED,
     TERMINATED,
+    EXPIRED,
     PENDING_APPROVAL
   }
 

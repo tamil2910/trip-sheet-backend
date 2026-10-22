@@ -34,6 +34,7 @@ import com.example.trip_sheet_backend.models.VendorOrganisationRateCard;
 import com.example.trip_sheet_backend.models.VendorPartner;
 import com.example.trip_sheet_backend.models.VendorPartnerRateCard;
 import com.example.trip_sheet_backend.models.VendorDelegationHistory;
+import com.example.trip_sheet_backend.models.ratecardpackage.RateCardPackage;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderRepository;
 import com.example.trip_sheet_backend.repositories.PurchaseOrderNumberRuleRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
@@ -45,6 +46,7 @@ import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRateCardRepository;
 import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
 import com.example.trip_sheet_backend.repositories.VendorDelegationHistoryRepository;
+import com.example.trip_sheet_backend.repositories.RateCardPackageRepository;
 
 @Service
 public class TripBillingService {
@@ -66,6 +68,7 @@ public class TripBillingService {
   private final VendorPartnerRepository vendorPartnerRepository;
   private final VendorPartnerRateCardRepository vendorPartnerRateCardRepository;
   private final VendorDelegationHistoryRepository vendorDelegationHistoryRepository;
+  private final RateCardPackageRepository rateCardPackageRepository;
 
   public TripBillingService(
       PurchaseOrderRepository purchaseOrderRepository,
@@ -78,7 +81,8 @@ public class TripBillingService {
       VendorOrganisationRateCardRepository vendorOrganisationRateCardRepository,
       VendorPartnerRepository vendorPartnerRepository,
       VendorPartnerRateCardRepository vendorPartnerRateCardRepository,
-      VendorDelegationHistoryRepository vendorDelegationHistoryRepository
+      VendorDelegationHistoryRepository vendorDelegationHistoryRepository,
+      RateCardPackageRepository rateCardPackageRepository
   ) {
     this.purchaseOrderRepository = purchaseOrderRepository;
     this.purchaseOrderNumberRuleRepository = purchaseOrderNumberRuleRepository;
@@ -91,6 +95,7 @@ public class TripBillingService {
     this.vendorPartnerRepository = vendorPartnerRepository;
     this.vendorPartnerRateCardRepository = vendorPartnerRateCardRepository;
     this.vendorDelegationHistoryRepository = vendorDelegationHistoryRepository;
+    this.rateCardPackageRepository = rateCardPackageRepository;
   }
 
   @Transactional(rollbackFor = Exception.class)
@@ -591,10 +596,12 @@ public class TripBillingService {
       throw new RuntimeException("Vendor organisation contract is not active for trip billing");
     }
 
+    List<UUID> packageRateIds = defaultPackageRateIds(null, vendorOrganisation, trip);
     VendorOrganisationRateCard rateCard = vendorOrganisationRateCardRepository
         .findByVendorOrganisationIdAndIsDeletedFalse(vendorOrganisation.getId())
         .stream()
         .filter(card -> card.getApprovalStatus() == VendorOrganisationRateCard.ApprovalStatus.APPROVED)
+        .filter(card -> packageRateIds == null || packageRateIds.contains(card.getId()))
         .filter(card -> matchesRateCard(card.getVehicleType(), card.getDutyType(), card.getCity(), trip))
         .max(Comparator.comparing(card -> card.getApprovedAt() == null ? 0L : card.getApprovedAt()))
         .orElseThrow(() -> new RuntimeException("No approved vendor organisation rate card found for trip"));
@@ -639,10 +646,12 @@ public class TripBillingService {
     if (relationship.getContractStatus() != VendorPartner.ContractStatus.ACTIVE) {
       throw new RuntimeException("Associate customer contract is not active for trip billing");
     }
+    List<UUID> packageRateIds = defaultPackageRateIds(relationship, null, trip);
     VendorPartnerRateCard rateCard = vendorPartnerRateCardRepository
         .findByVendorPartnerIdAndIsDeletedFalse(relationship.getId())
         .stream()
         .filter(card -> card.getApprovalStatus() == VendorPartnerRateCard.ApprovalStatus.APPROVED)
+        .filter(card -> packageRateIds == null || packageRateIds.contains(card.getId()))
         .filter(card -> matchesRateCard(card.getVehicleType(), card.getDutyType(), card.getCity(), trip))
         .findFirst()
         .orElseThrow(() -> new RuntimeException("No approved associate customer rate card found for trip"));
@@ -677,10 +686,12 @@ public class TripBillingService {
       throw new RuntimeException("Vendor partner contract is not active for trip billing");
     }
 
+    List<UUID> packageRateIds = defaultPackageRateIds(vendorPartner, null, trip);
     VendorPartnerRateCard rateCard = vendorPartnerRateCardRepository
         .findByVendorPartnerIdAndIsDeletedFalse(vendorPartner.getId())
         .stream()
         .filter(card -> card.getApprovalStatus() == VendorPartnerRateCard.ApprovalStatus.APPROVED)
+        .filter(card -> packageRateIds == null || packageRateIds.contains(card.getId()))
         .filter(card -> matchesRateCard(card.getVehicleType(), card.getDutyType(), card.getCity(), trip))
         .findFirst()
         .orElseThrow(() -> new RuntimeException("No approved vendor partner rate card found for trip"));
@@ -701,6 +712,20 @@ public class TripBillingService {
         buildRateCardPackageName(rateCard.getCity(), trip.getVehicleType(), trip.getDutyType()),
         "Partner vendor to primary vendor billing"
     );
+  }
+
+  private List<UUID> defaultPackageRateIds(VendorPartner partner, VendorOrganisation organisation, Trip trip) {
+    RateCardPackage selected = partner != null
+        ? rateCardPackageRepository.findByVendorPartner_IdAndIsDefaultTrueAndIsDeletedFalse(partner.getId()).orElse(null)
+        : rateCardPackageRepository.findByVendorOrganisation_IdAndIsDefaultTrueAndIsDeletedFalse(organisation.getId()).orElse(null);
+    if (selected == null) return null; // legacy contracts keep using their existing approved-rate selection
+    long tripTime = trip.getStartDate() == null ? Instant.now().toEpochMilli() : trip.getStartDate();
+    if ((selected.getValidFrom() != null && tripTime < selected.getValidFrom())
+        || (selected.getValidTo() != null && tripTime > selected.getValidTo())) {
+      throw new RuntimeException("Default rate card package is not valid for the trip date");
+    }
+    return selected.getItems().stream().map(item -> item.getVendorPartnerRateCard() != null
+        ? item.getVendorPartnerRateCard().getId() : item.getVendorOrganisationRateCard().getId()).toList();
   }
 
   private boolean matchesRateCard(com.example.trip_sheet_backend.models.VehicleType rateCardVehicleType,
