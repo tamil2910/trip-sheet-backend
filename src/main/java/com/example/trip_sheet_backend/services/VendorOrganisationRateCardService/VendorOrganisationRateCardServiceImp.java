@@ -295,6 +295,10 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
 
     validateTenantLinkedToVendorOrganisation(loggedInTenant, vendorOrganisation);
 
+    if (body.getPackageId() != null && body.getPackageName() != null && !body.getPackageName().isBlank()) {
+      throw new RuntimeException("Provide either packageId or packageName, not both");
+    }
+
     Set<UUID> requestedRateCardIds = body.getRateCards().stream()
         .filter(actionItem -> actionItem.getAction() != null)
         .filter(actionItem -> actionItem.getAction() != VendorOrganisationRateCardBulkReviewRequestDTO.BulkAction.CREATE)
@@ -339,7 +343,13 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       }
     }
 
-    if (body.getPackageName() != null && !body.getPackageName().isBlank()) {
+    if (body.getPackageId() != null) {
+      if (createdRateCards.isEmpty()) {
+        throw new RuntimeException("At least one CREATE action is required when packageId is provided");
+      }
+      rateCardPackageService.addRateCards(body.getPackageId(),
+          createdRateCards.stream().map(VendorOrganisationRateCard::getId).toList(), loggedInTenant, actedBy);
+    } else if (body.getPackageName() != null && !body.getPackageName().isBlank()) {
       if (createdRateCards.isEmpty()) {
         throw new RuntimeException("At least one CREATE action is required when packageName is provided");
       }

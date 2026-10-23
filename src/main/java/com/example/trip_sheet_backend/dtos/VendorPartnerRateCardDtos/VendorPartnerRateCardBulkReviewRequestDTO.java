@@ -24,6 +24,8 @@ public class VendorPartnerRateCardBulkReviewRequestDTO {
 
   private String packageName;
 
+  private UUID packageId;
+
   private Boolean isDefaultPackage = true;
 
   private Long validFrom;

@@ -315,6 +315,10 @@ public class VendorPartnerRateCardServiceImp implements VendorPartnerRateCardSer
 
     validateTenantLinkedToVendorPartner(loggedInTenant, vendorPartner);
 
+    if (body.getPackageId() != null && body.getPackageName() != null && !body.getPackageName().isBlank()) {
+      throw new RuntimeException("Provide either packageId or packageName, not both");
+    }
+
     Set<UUID> requestedRateCardIds = body.getRateCards().stream()
         .filter(item -> item.getAction() != VendorPartnerRateCardBulkReviewRequestDTO.BulkAction.CREATE)
         .map(VendorPartnerRateCardBulkReviewRequestDTO.RateCardActionDTO::getRateCardId)
@@ -361,7 +365,13 @@ public class VendorPartnerRateCardServiceImp implements VendorPartnerRateCardSer
       }
     }
 
-    if (body.getPackageName() != null && !body.getPackageName().isBlank()) {
+    if (body.getPackageId() != null) {
+      if (createdRateCards.isEmpty()) {
+        throw new RuntimeException("At least one CREATE action is required when packageId is provided");
+      }
+      rateCardPackageService.addRateCards(body.getPackageId(),
+          createdRateCards.stream().map(VendorPartnerRateCard::getId).toList(), loggedInTenant, actedBy);
+    } else if (body.getPackageName() != null && !body.getPackageName().isBlank()) {
       if (createdRateCards.isEmpty()) {
         throw new RuntimeException("At least one CREATE action is required when packageName is provided");
       }

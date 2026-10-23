@@ -221,6 +221,45 @@ public class RateCardPackageService {
     return packages.save(selected);
   }
 
+  @Transactional(rollbackFor = Exception.class)
+  public RateCardPackage addRateCards(UUID packageId, List<UUID> rateCardIds, Tenant tenant, UUID actorId) {
+    if (rateCardIds == null || rateCardIds.isEmpty()) {
+      throw new IllegalArgumentException("At least one rate card is required");
+    }
+    if (rateCardIds.stream().distinct().count() != rateCardIds.size()) {
+      throw new IllegalArgumentException("Duplicate rateCardIds are not allowed");
+    }
+    RateCardPackage selected = packages.findByIdAndIsDeletedFalse(packageId)
+        .orElseThrow(() -> new IllegalArgumentException("Rate card package not found"));
+    VendorPartner partner = selected.getVendorPartner();
+    VendorOrganisation organisation = selected.getVendorOrganisation();
+    if (partner != null) {
+      if (tenant == null || tenant.getId() == null || !tenant.getId().equals(partner.getPrimaryVendor().getId())) {
+        throw new IllegalArgumentException("Only the primary vendor can add cards to the partner package");
+      }
+      List<VendorPartnerRateCard> rates = partnerRates.findAllById(rateCardIds);
+      if (rates.size() != rateCardIds.size() || rates.stream().anyMatch(rate ->
+          Boolean.TRUE.equals(rate.getIsDeleted()) || !partner.getId().equals(rate.getVendorPartner().getId()))) {
+        throw new IllegalArgumentException("Every rate card must belong to this vendor partner");
+      }
+      rates.stream().filter(rate -> !containsRateCard(selected, rate.getId()))
+          .forEach(rate -> addPartnerRate(selected, rate));
+    } else {
+      if (tenant == null || tenant.getId() == null || !tenant.getId().equals(organisation.getVendor().getId())) {
+        throw new IllegalArgumentException("Only the vendor can add cards to the organisation package");
+      }
+      List<VendorOrganisationRateCard> rates = organisationRates.findAllById(rateCardIds);
+      if (rates.size() != rateCardIds.size() || rates.stream().anyMatch(rate ->
+          Boolean.TRUE.equals(rate.getIsDeleted()) || !organisation.getId().equals(rate.getVendorOrganisation().getId()))) {
+        throw new IllegalArgumentException("Every rate card must belong to this vendor organisation");
+      }
+      rates.stream().filter(rate -> !containsRateCard(selected, rate.getId()))
+          .forEach(rate -> addOrganisationRate(selected, rate));
+    }
+    selected.setUpdatedBy(actorId == null ? null : actorId.toString());
+    return packages.save(selected);
+  }
+
   private boolean hasTenant(Tenant tenant, Tenant a, Tenant b) {
     return tenant != null && tenant.getId() != null
         && (tenant.getId().equals(a.getId()) || tenant.getId().equals(b.getId()));
