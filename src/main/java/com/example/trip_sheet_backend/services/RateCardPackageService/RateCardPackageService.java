@@ -176,21 +176,24 @@ public class RateCardPackageService {
       if (body.getRateCardIds().stream().distinct().count() != body.getRateCardIds().size()) {
         throw new IllegalArgumentException("Duplicate rateCardIds are not allowed");
       }
-      selected.getItems().clear();
       if (partner != null) {
         List<VendorPartnerRateCard> rates = partnerRates.findAllById(body.getRateCardIds());
         if (rates.size() != body.getRateCardIds().size() || rates.stream().anyMatch(r ->
             Boolean.TRUE.equals(r.getIsDeleted()) || !partner.getId().equals(r.getVendorPartner().getId()))) {
           throw new IllegalArgumentException("Every rate card must belong to this vendor partner");
         }
-        rates.forEach(rate -> addPartnerRate(selected, rate));
+        rates.stream()
+            .filter(rate -> !containsRateCard(selected, rate.getId()))
+            .forEach(rate -> addPartnerRate(selected, rate));
       } else {
         List<VendorOrganisationRateCard> rates = organisationRates.findAllById(body.getRateCardIds());
         if (rates.size() != body.getRateCardIds().size() || rates.stream().anyMatch(r ->
             Boolean.TRUE.equals(r.getIsDeleted()) || !organisation.getId().equals(r.getVendorOrganisation().getId()))) {
           throw new IllegalArgumentException("Every rate card must belong to this vendor organisation");
         }
-        rates.forEach(rate -> addOrganisationRate(selected, rate));
+        rates.stream()
+            .filter(rate -> !containsRateCard(selected, rate.getId()))
+            .forEach(rate -> addOrganisationRate(selected, rate));
       }
     }
 
@@ -244,5 +247,13 @@ public class RateCardPackageService {
     item.setRateCardPackage(target);
     item.setVendorOrganisationRateCard(rate);
     target.getItems().add(item);
+  }
+
+  private boolean containsRateCard(RateCardPackage target, UUID rateCardId) {
+    return target.getItems().stream().anyMatch(item ->
+        item.getVendorPartnerRateCard() != null
+            && rateCardId.equals(item.getVendorPartnerRateCard().getId())
+        || item.getVendorOrganisationRateCard() != null
+            && rateCardId.equals(item.getVendorOrganisationRateCard().getId()));
   }
 }
