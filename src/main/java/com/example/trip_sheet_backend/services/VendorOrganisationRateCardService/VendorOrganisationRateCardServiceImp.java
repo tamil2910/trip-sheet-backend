@@ -95,6 +95,8 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       packageRequest.setVendorOrganisationId(vendorOrganisation.getId());
       packageRequest.setRateCardIds(created.stream().map(VendorOrganisationRateCard::getId).toList());
       packageRequest.setIsDefault(body.getIsDefaultPackage());
+      packageRequest.setValidFrom(body.getValidFrom());
+      packageRequest.setValidTo(body.getValidTo());
       rateCardPackageService.create(packageRequest, loggedInTenant, createdBy);
     }
     return created;
@@ -346,6 +348,8 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       packageRequest.setVendorOrganisationId(vendorOrganisation.getId());
       packageRequest.setRateCardIds(createdRateCards.stream().map(VendorOrganisationRateCard::getId).toList());
       packageRequest.setIsDefault(body.getIsDefaultPackage());
+      packageRequest.setValidFrom(body.getValidFrom());
+      packageRequest.setValidTo(body.getValidTo());
       rateCardPackageService.create(packageRequest, loggedInTenant, actedBy);
     }
 

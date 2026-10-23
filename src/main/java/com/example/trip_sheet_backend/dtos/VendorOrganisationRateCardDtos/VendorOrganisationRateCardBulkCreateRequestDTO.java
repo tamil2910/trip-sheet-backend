@@ -46,6 +46,10 @@ public class VendorOrganisationRateCardBulkCreateRequestDTO {
 
   private Boolean isDefaultPackage = true;
 
+  private Long validFrom;
+
+  private Long validTo;
+
   @Valid
   @NotEmpty
   private List<VendorOrganisationRateCardCreateRequestDTO> rateCards;

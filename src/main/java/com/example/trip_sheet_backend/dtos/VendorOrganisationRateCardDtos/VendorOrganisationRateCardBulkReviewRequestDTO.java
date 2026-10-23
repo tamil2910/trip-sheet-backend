@@ -27,6 +27,10 @@ public class VendorOrganisationRateCardBulkReviewRequestDTO {
 
   private Boolean isDefaultPackage = true;
 
+  private Long validFrom;
+
+  private Long validTo;
+
   @NotEmpty
   @Valid
   private List<RateCardActionDTO> rateCards;

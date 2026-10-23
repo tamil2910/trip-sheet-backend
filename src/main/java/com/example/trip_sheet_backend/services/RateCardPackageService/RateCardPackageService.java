@@ -42,9 +42,6 @@ public class RateCardPackageService {
     if ((body.getVendorPartnerId() == null) == (body.getVendorOrganisationId() == null)) {
       throw new IllegalArgumentException("Provide exactly one of vendorPartnerId or vendorOrganisationId");
     }
-    if (body.getValidFrom() != null && body.getValidTo() != null && body.getValidFrom() > body.getValidTo()) {
-      throw new IllegalArgumentException("validFrom must be before or equal to validTo");
-    }
     if (body.getRateCardIds().stream().distinct().count() != body.getRateCardIds().size()) {
       throw new IllegalArgumentException("Duplicate rateCardIds are not allowed");
     }
@@ -71,8 +68,10 @@ public class RateCardPackageService {
       }
       rates.forEach(rate -> addPartnerRate(entity, rate));
       if (Boolean.TRUE.equals(entity.getIsDefault())) {
-        entity.setValidFrom(link.getContractStartDate());
-        entity.setValidTo(link.getContractEndDate());
+        validateDates(entity.getValidFrom(), entity.getValidTo(), true);
+        link.setContractStartDate(entity.getValidFrom());
+        link.setContractEndDate(entity.getValidTo());
+        link.setUpdatedBy(actorId == null ? null : actorId.toString());
         packages.findByVendorPartner_IdAndIsDefaultTrueAndIsDeletedFalse(link.getId())
             .ifPresent(previous -> previous.setIsDefault(false));
       }
@@ -91,15 +90,15 @@ public class RateCardPackageService {
       }
       rates.forEach(rate -> addOrganisationRate(entity, rate));
       if (Boolean.TRUE.equals(entity.getIsDefault())) {
-        entity.setValidFrom(link.getContractStartDate());
-        entity.setValidTo(link.getContractEndDate());
+        validateDates(entity.getValidFrom(), entity.getValidTo(), true);
+        link.setContractStartDate(entity.getValidFrom());
+        link.setContractEndDate(entity.getValidTo());
+        link.setUpdatedBy(actorId == null ? null : actorId.toString());
         packages.findByVendorOrganisation_IdAndIsDefaultTrueAndIsDeletedFalse(link.getId())
             .ifPresent(previous -> previous.setIsDefault(false));
       }
     }
-    if (entity.getValidFrom() != null && entity.getValidTo() != null && entity.getValidFrom() > entity.getValidTo()) {
-      throw new IllegalArgumentException("Package validity period is invalid");
-    }
+    validateDates(entity.getValidFrom(), entity.getValidTo(), Boolean.TRUE.equals(entity.getIsDefault()));
     return packages.save(entity);
   }
 
@@ -130,8 +129,10 @@ public class RateCardPackageService {
       packages.findByVendorPartner_IdAndIsDefaultTrueAndIsDeletedFalse(link.getId())
           .filter(existing -> !existing.getId().equals(selected.getId()))
           .ifPresent(existing -> existing.setIsDefault(false));
-      selected.setValidFrom(link.getContractStartDate());
-      selected.setValidTo(link.getContractEndDate());
+      validateDates(selected.getValidFrom(), selected.getValidTo(), true);
+      link.setContractStartDate(selected.getValidFrom());
+      link.setContractEndDate(selected.getValidTo());
+      link.setUpdatedBy(actorId == null ? null : actorId.toString());
     } else {
       VendorOrganisation link = selected.getVendorOrganisation();
       if (tenant == null || tenant.getId() == null || !tenant.getId().equals(link.getVendor().getId())) {
@@ -140,8 +141,10 @@ public class RateCardPackageService {
       packages.findByVendorOrganisation_IdAndIsDefaultTrueAndIsDeletedFalse(link.getId())
           .filter(existing -> !existing.getId().equals(selected.getId()))
           .ifPresent(existing -> existing.setIsDefault(false));
-      selected.setValidFrom(link.getContractStartDate());
-      selected.setValidTo(link.getContractEndDate());
+      validateDates(selected.getValidFrom(), selected.getValidTo(), true);
+      link.setContractStartDate(selected.getValidFrom());
+      link.setContractEndDate(selected.getValidTo());
+      link.setUpdatedBy(actorId == null ? null : actorId.toString());
     }
     selected.setIsDefault(true);
     selected.setUpdatedBy(actorId == null ? null : actorId.toString());
@@ -166,6 +169,8 @@ public class RateCardPackageService {
       if (body.getName().isBlank()) throw new IllegalArgumentException("Package name cannot be blank");
       selected.setName(body.getName().trim());
     }
+    if (body.getValidFrom() != null) selected.setValidFrom(body.getValidFrom());
+    if (body.getValidTo() != null) selected.setValidTo(body.getValidTo());
     if (body.getRateCardIds() != null) {
       if (body.getRateCardIds().isEmpty()) throw new IllegalArgumentException("At least one rate card is required");
       if (body.getRateCardIds().stream().distinct().count() != body.getRateCardIds().size()) {
@@ -191,27 +196,24 @@ public class RateCardPackageService {
 
     if (body.getIsDefault() != null) selected.setIsDefault(body.getIsDefault());
     if (Boolean.TRUE.equals(selected.getIsDefault())) {
+      validateDates(selected.getValidFrom(), selected.getValidTo(), true);
       if (partner != null) {
         packages.findByVendorPartner_IdAndIsDefaultTrueAndIsDeletedFalse(partner.getId())
             .filter(existing -> !existing.getId().equals(selected.getId()))
             .ifPresent(existing -> existing.setIsDefault(false));
-        selected.setValidFrom(partner.getContractStartDate());
-        selected.setValidTo(partner.getContractEndDate());
+        partner.setContractStartDate(selected.getValidFrom());
+        partner.setContractEndDate(selected.getValidTo());
+        partner.setUpdatedBy(actorId == null ? null : actorId.toString());
       } else {
         packages.findByVendorOrganisation_IdAndIsDefaultTrueAndIsDeletedFalse(organisation.getId())
             .filter(existing -> !existing.getId().equals(selected.getId()))
             .ifPresent(existing -> existing.setIsDefault(false));
-        selected.setValidFrom(organisation.getContractStartDate());
-        selected.setValidTo(organisation.getContractEndDate());
+        organisation.setContractStartDate(selected.getValidFrom());
+        organisation.setContractEndDate(selected.getValidTo());
+        organisation.setUpdatedBy(actorId == null ? null : actorId.toString());
       }
-    } else {
-      if (body.getValidFrom() != null) selected.setValidFrom(body.getValidFrom());
-      if (body.getValidTo() != null) selected.setValidTo(body.getValidTo());
     }
-    if (selected.getValidFrom() != null && selected.getValidTo() != null
-        && selected.getValidFrom() > selected.getValidTo()) {
-      throw new IllegalArgumentException("validFrom must be before or equal to validTo");
-    }
+    validateDates(selected.getValidFrom(), selected.getValidTo(), Boolean.TRUE.equals(selected.getIsDefault()));
     selected.setUpdatedBy(actorId == null ? null : actorId.toString());
     return packages.save(selected);
   }
@@ -219,6 +221,15 @@ public class RateCardPackageService {
   private boolean hasTenant(Tenant tenant, Tenant a, Tenant b) {
     return tenant != null && tenant.getId() != null
         && (tenant.getId().equals(a.getId()) || tenant.getId().equals(b.getId()));
+  }
+
+  private void validateDates(Long validFrom, Long validTo, boolean required) {
+    if (required && (validFrom == null || validTo == null)) {
+      throw new IllegalArgumentException("validFrom and validTo are required for a default package");
+    }
+    if (validFrom != null && validTo != null && validFrom > validTo) {
+      throw new IllegalArgumentException("validFrom must be before or equal to validTo");
+    }
   }
 
   private void addPartnerRate(RateCardPackage target, VendorPartnerRateCard rate) {

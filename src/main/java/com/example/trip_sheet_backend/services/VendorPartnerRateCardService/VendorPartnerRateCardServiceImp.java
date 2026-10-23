@@ -84,12 +84,13 @@ public class VendorPartnerRateCardServiceImp implements VendorPartnerRateCardSer
         .map(rateCardRequest -> createSingleRateCard(vendorPartner, rateCardRequest, loggedInTenant, createdBy))
         .toList();
     createPackageIfNamed(body.getPackageName(), body.getIsDefaultPackage(), vendorPartner.getId(), null,
-        created.stream().map(VendorPartnerRateCard::getId).toList(), loggedInTenant, createdBy);
+        created.stream().map(VendorPartnerRateCard::getId).toList(), body.getValidFrom(), body.getValidTo(),
+        loggedInTenant, createdBy);
     return created;
   }
 
   private void createPackageIfNamed(String name, Boolean isDefault, UUID vendorPartnerId,
-      UUID vendorOrganisationId, List<UUID> rateCardIds, Tenant tenant, UUID actorId) {
+      UUID vendorOrganisationId, List<UUID> rateCardIds, Long validFrom, Long validTo, Tenant tenant, UUID actorId) {
     if (name == null || name.isBlank()) {
       if (Boolean.TRUE.equals(isDefault)) return;
       return;
@@ -100,6 +101,8 @@ public class VendorPartnerRateCardServiceImp implements VendorPartnerRateCardSer
     request.setVendorOrganisationId(vendorOrganisationId);
     request.setRateCardIds(rateCardIds);
     request.setIsDefault(isDefault);
+    request.setValidFrom(validFrom);
+    request.setValidTo(validTo);
     rateCardPackageService.create(request, tenant, actorId);
   }
 
@@ -363,7 +366,8 @@ public class VendorPartnerRateCardServiceImp implements VendorPartnerRateCardSer
         throw new RuntimeException("At least one CREATE action is required when packageName is provided");
       }
       createPackageIfNamed(body.getPackageName(), body.getIsDefaultPackage(), vendorPartner.getId(), null,
-          createdRateCards.stream().map(VendorPartnerRateCard::getId).toList(), loggedInTenant, actedBy);
+          createdRateCards.stream().map(VendorPartnerRateCard::getId).toList(), body.getValidFrom(), body.getValidTo(),
+          loggedInTenant, actedBy);
     }
 
     syncVendorPartnerContractStatus(vendorPartner, actedBy);
