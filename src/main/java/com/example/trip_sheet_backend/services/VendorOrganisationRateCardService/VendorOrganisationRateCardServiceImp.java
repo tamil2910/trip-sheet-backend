@@ -304,13 +304,14 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
         .stream()
         .collect(Collectors.toMap(VendorOrganisationRateCard::getId, Function.identity()));
 
+    List<VendorOrganisationRateCard> createdRateCards = new java.util.ArrayList<>();
     for (VendorOrganisationRateCardBulkReviewRequestDTO.RateCardActionDTO actionItem : body.getRateCards()) {
       if (actionItem.getAction() == null) {
         throw new RuntimeException("Action is required for each rate card item");
       }
 
       if (actionItem.getAction() == VendorOrganisationRateCardBulkReviewRequestDTO.BulkAction.CREATE) {
-        applyBulkRateCardCreate(vendorOrganisation, actionItem.getNewRateCard(), loggedInTenant, actedBy);
+        createdRateCards.add(applyBulkRateCardCreate(vendorOrganisation, actionItem.getNewRateCard(), loggedInTenant, actedBy));
         continue;
       }
 
@@ -336,13 +337,25 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       }
     }
 
+    if (body.getPackageName() != null && !body.getPackageName().isBlank()) {
+      if (createdRateCards.isEmpty()) {
+        throw new RuntimeException("At least one CREATE action is required when packageName is provided");
+      }
+      RateCardPackageCreateRequestDTO packageRequest = new RateCardPackageCreateRequestDTO();
+      packageRequest.setName(body.getPackageName());
+      packageRequest.setVendorOrganisationId(vendorOrganisation.getId());
+      packageRequest.setRateCardIds(createdRateCards.stream().map(VendorOrganisationRateCard::getId).toList());
+      packageRequest.setIsDefault(body.getIsDefaultPackage());
+      rateCardPackageService.create(packageRequest, loggedInTenant, actedBy);
+    }
+
     syncVendorOrganisationContractStatus(vendorOrganisation, actedBy);
 
     return vendorOrganisationRepository.findById(vendorOrganisationId)
         .orElseThrow(() -> new RuntimeException("Vendor organisation relationship not found after bulk review"));
   }
 
-  private void applyBulkRateCardCreate(
+  private VendorOrganisationRateCard applyBulkRateCardCreate(
       VendorOrganisation vendorOrganisation,
       VendorOrganisationRateCardCreateRequestDTO newRateCard,
       Tenant loggedInTenant,
@@ -356,7 +369,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       throw new RuntimeException("Only vendor can create rate cards");
     }
 
-    createSingleRateCard(vendorOrganisation, newRateCard, createdBy);
+    return createSingleRateCard(vendorOrganisation, newRateCard, createdBy);
   }
 
   @Override

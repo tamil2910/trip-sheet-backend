@@ -313,14 +313,33 @@ public class VendorPartnerRateCardServiceImp implements VendorPartnerRateCardSer
     validateTenantLinkedToVendorPartner(loggedInTenant, vendorPartner);
 
     Set<UUID> requestedRateCardIds = body.getRateCards().stream()
+        .filter(item -> item.getAction() != VendorPartnerRateCardBulkReviewRequestDTO.BulkAction.CREATE)
         .map(VendorPartnerRateCardBulkReviewRequestDTO.RateCardActionDTO::getRateCardId)
+        .filter(java.util.Objects::nonNull)
         .collect(Collectors.toSet());
 
     Map<UUID, VendorPartnerRateCard> rateCardById = vendorPartnerRateCardRepository.findAllById(requestedRateCardIds)
         .stream()
         .collect(Collectors.toMap(VendorPartnerRateCard::getId, Function.identity()));
 
+    List<VendorPartnerRateCard> createdRateCards = new java.util.ArrayList<>();
     for (VendorPartnerRateCardBulkReviewRequestDTO.RateCardActionDTO actionItem : body.getRateCards()) {
+      if (actionItem.getAction() == null) {
+        throw new RuntimeException("Action is required for each rate card item");
+      }
+      if (actionItem.getAction() == VendorPartnerRateCardBulkReviewRequestDTO.BulkAction.CREATE) {
+        if (actionItem.getNewRateCard() == null) {
+          throw new RuntimeException("New rate card payload is required for CREATE action");
+        }
+        if (!vendorPartner.getPrimaryVendor().getId().equals(loggedInTenant.getId())) {
+          throw new RuntimeException("Only primary vendor can create partner rate cards");
+        }
+        createdRateCards.add(createSingleRateCard(vendorPartner, actionItem.getNewRateCard(), loggedInTenant, actedBy));
+        continue;
+      }
+      if (actionItem.getRateCardId() == null) {
+        throw new RuntimeException("Rate card id is required for " + actionItem.getAction() + " action");
+      }
       VendorPartnerRateCard rateCard = rateCardById.get(actionItem.getRateCardId());
       if (rateCard == null || Boolean.TRUE.equals(rateCard.getIsDeleted())) {
         throw new RuntimeException("Vendor partner rate card not found for id: " + actionItem.getRateCardId());
@@ -334,8 +353,17 @@ public class VendorPartnerRateCardServiceImp implements VendorPartnerRateCardSer
         case APPROVE -> applyBulkApprovalDecision(rateCard, VendorPartnerRateCard.ApprovalStatus.APPROVED, loggedInTenant, actedBy);
         case REJECT -> applyBulkApprovalDecision(rateCard, VendorPartnerRateCard.ApprovalStatus.REJECTED, loggedInTenant, actedBy);
         case UPDATE -> applyPartialRateCardUpdate(rateCard, actionItem.getChanges(), loggedInTenant, actedBy);
+        case CREATE -> throw new RuntimeException("Unsupported bulk action");
         default -> throw new RuntimeException("Unsupported bulk action");
       }
+    }
+
+    if (body.getPackageName() != null && !body.getPackageName().isBlank()) {
+      if (createdRateCards.isEmpty()) {
+        throw new RuntimeException("At least one CREATE action is required when packageName is provided");
+      }
+      createPackageIfNamed(body.getPackageName(), body.getIsDefaultPackage(), vendorPartner.getId(), null,
+          createdRateCards.stream().map(VendorPartnerRateCard::getId).toList(), loggedInTenant, actedBy);
     }
 
     syncVendorPartnerContractStatus(vendorPartner, actedBy);

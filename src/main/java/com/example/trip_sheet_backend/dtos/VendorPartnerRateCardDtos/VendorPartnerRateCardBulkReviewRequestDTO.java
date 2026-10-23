@@ -22,6 +22,10 @@ import lombok.Setter;
 @AllArgsConstructor
 public class VendorPartnerRateCardBulkReviewRequestDTO {
 
+  private String packageName;
+
+  private Boolean isDefaultPackage = true;
+
   @NotEmpty
   @Valid
   private List<RateCardActionDTO> rateCards;
@@ -29,7 +33,8 @@ public class VendorPartnerRateCardBulkReviewRequestDTO {
   public enum BulkAction {
     APPROVE,
     REJECT,
-    UPDATE
+    UPDATE,
+    CREATE
   }
 
   @Getter
@@ -37,7 +42,6 @@ public class VendorPartnerRateCardBulkReviewRequestDTO {
   @NoArgsConstructor
   @AllArgsConstructor
   public static class RateCardActionDTO {
-    @NotNull
     private UUID rateCardId;
 
     @NotNull
@@ -45,6 +49,9 @@ public class VendorPartnerRateCardBulkReviewRequestDTO {
 
     @Valid
     private PartialUpdateDTO changes;
+
+    @Valid
+    private VendorPartnerRateCardCreateRequestDTO newRateCard;
   }
 
   @Getter

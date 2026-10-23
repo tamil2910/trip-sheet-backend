@@ -23,6 +23,10 @@ import lombok.Setter;
 @AllArgsConstructor
 public class VendorOrganisationRateCardBulkReviewRequestDTO {
 
+  private String packageName;
+
+  private Boolean isDefaultPackage = true;
+
   @NotEmpty
   @Valid
   private List<RateCardActionDTO> rateCards;
