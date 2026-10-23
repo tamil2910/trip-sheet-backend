@@ -10,6 +10,7 @@ import org.springframework.data.domain.Pageable;
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
+import com.example.trip_sheet_backend.models.VendorOrganisation.ContractStatus;
 
 
 public interface VendorOrganisationRepository extends BaseRepository<VendorOrganisation, UUID> {
@@ -19,6 +20,8 @@ public interface VendorOrganisationRepository extends BaseRepository<VendorOrgan
   );
 
   List<VendorOrganisation> findByVendor(Tenant vendor);
+  List<VendorOrganisation> findByContractStatusAndContractEndDateLessThanAndIsDeletedFalse(
+      ContractStatus contractStatus, Long contractEndDate);
   Page<VendorOrganisation> findByVendor(Tenant vendor, Pageable pageable);
   Page<VendorOrganisation> findByVendorAndOrganisation_TenantType(
       Tenant vendor,

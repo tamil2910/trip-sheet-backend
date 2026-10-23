@@ -555,6 +555,15 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
   }
 
   private void syncVendorOrganisationContractStatus(VendorOrganisation vendorOrganisation, UUID updatedBy) {
+    if (vendorOrganisation.getContractEndDate() != null
+        && vendorOrganisation.getContractEndDate() < Instant.now().toEpochMilli()) {
+      vendorOrganisation.setContractStatus(VendorOrganisation.ContractStatus.EXPIRED);
+      vendorOrganisation.setActive(false);
+      vendorOrganisation.setUpdatedBy(updatedBy == null ? null : updatedBy.toString());
+      vendorOrganisationRepository.save(vendorOrganisation);
+      return;
+    }
+
     List<VendorOrganisationRateCard> nonDeletedRateCards = getNonDeletedRateCards(vendorOrganisation.getId());
 
     boolean hasApproved = nonDeletedRateCards.stream()

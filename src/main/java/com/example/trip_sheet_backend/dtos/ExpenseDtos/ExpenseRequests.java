@@ -5,6 +5,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 import java.util.List;
 import jakarta.validation.Valid;
+import com.example.trip_sheet_backend.models.Expense;
 import com.example.trip_sheet_backend.models.Expense.PaymentMode;
 import com.example.trip_sheet_backend.models.Expense.PaymentType;
 import jakarta.validation.constraints.*;

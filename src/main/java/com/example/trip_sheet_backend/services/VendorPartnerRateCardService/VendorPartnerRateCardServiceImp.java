@@ -572,6 +572,15 @@ public class VendorPartnerRateCardServiceImp implements VendorPartnerRateCardSer
   }
 
   private void syncVendorPartnerContractStatus(VendorPartner vendorPartner, UUID updatedBy) {
+    if (vendorPartner.getContractEndDate() != null
+        && vendorPartner.getContractEndDate() < Instant.now().toEpochMilli()) {
+      vendorPartner.setContractStatus(VendorPartner.ContractStatus.EXPIRED);
+      vendorPartner.setIsActive(false);
+      vendorPartner.setUpdatedBy(updatedBy == null ? null : updatedBy.toString());
+      vendorPartnerRepository.save(vendorPartner);
+      return;
+    }
+
     List<VendorPartnerRateCard> nonDeletedRateCards = getNonDeletedRateCards(vendorPartner.getId());
 
     boolean hasApproved = nonDeletedRateCards.stream()

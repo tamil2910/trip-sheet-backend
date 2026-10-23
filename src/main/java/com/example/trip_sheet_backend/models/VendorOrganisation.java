@@ -63,7 +63,7 @@ public class VendorOrganisation extends BaseModel {
   @Nullable
   @Enumerated(EnumType.STRING)
   private ContractStatus contractStatus;
-  // ACTIVE, REJECTED, SUSPENDED, TERMINATED, PENDING_APPROVAL
+  // ACTIVE, REJECTED, SUSPENDED, TERMINATED, EXPIRED, PENDING_APPROVAL
 
   private Long contractStartDate;
 
@@ -86,6 +86,7 @@ public class VendorOrganisation extends BaseModel {
     REJECTED,
     SUSPENDED,
     TERMINATED,
+    EXPIRED,
     PENDING_APPROVAL
   }
 
