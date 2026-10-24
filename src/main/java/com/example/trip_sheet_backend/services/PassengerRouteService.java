@@ -2,7 +2,7 @@ package com.example.trip_sheet_backend.services;
 
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -268,12 +268,12 @@ public class PassengerRouteService {
         return normalize(passenger.getDropAddress());
     }
 
-        private Map<String, List<PassengerRouteDtos.Passenger>> groupByRoute(
+    private Map<String, List<PassengerRouteDtos.Passenger>> groupByRoute(
             List<PassengerRouteDtos.Passenger> passengers,
-                String organisationId,
+            String organisationId,
             String companyName) {
-        Map<String, List<PassengerRouteDtos.Passenger>> groups = new HashMap<>();
-        Map<String, PassengerGeocodingService.GeoPoint> coordinates = new HashMap<>();
+        Map<String, List<PassengerRouteDtos.Passenger>> groups = new LinkedHashMap<>();
+        Map<String, PassengerGeocodingService.GeoPoint> coordinates = new LinkedHashMap<>();
 
         for (PassengerRouteDtos.Passenger passenger : passengers) {
             PassengerGeocodingService.GeoPoint pickup = geocodePickup(passenger, coordinates);
@@ -282,23 +282,24 @@ public class PassengerRouteService {
             passenger.setLongitude(pickup.longitude());
             passenger.setDestinationLatitude(destination.latitude());
             passenger.setDestinationLongitude(destination.longitude());
-            double bearing = bearing(pickup, destination);
-                String destinationKey = normalize(organisationId) + "|"
+            String destinationKey = normalize(organisationId) + "|"
                     + normalize(companyName) + "|" + routeKey(passenger);
+            double passengerBearing = bearing(pickup, destination);
 
             List<PassengerRouteDtos.Passenger> matchingGroup = null;
             for (List<PassengerRouteDtos.Passenger> candidate : groups.values()) {
                 PassengerRouteDtos.Passenger representative = candidate.get(0);
-                String representativeKey = normalize(organisationId) + "|"
-                    + normalize(companyName) + "|" + routeKey(representative);
-                if (!destinationKey.equals(representativeKey)) {
+                String representativeDestinationKey = normalize(organisationId) + "|"
+                        + normalize(companyName) + "|" + routeKey(representative);
+                if (!destinationKey.equals(representativeDestinationKey)) {
                     continue;
                 }
+
                 PassengerGeocodingService.GeoPoint representativePickup = geocodePickup(representative, coordinates);
                 double representativeBearing = bearing(representativePickup,
                         geocodeDestination(representative, coordinates));
                 if (distanceKm(pickup, representativePickup) <= 10.0
-                        && angularDifference(bearing, representativeBearing) <= 45.0) {
+                        && angularDifference(passengerBearing, representativeBearing) <= 45.0) {
                     matchingGroup = candidate;
                     break;
                 }
