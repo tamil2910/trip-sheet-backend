@@ -7,26 +7,51 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Instant;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.dtos.PassengerRouteDtos;
 import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.CreatePeopleRequestDto;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripStopRequestDTO;
 import com.example.trip_sheet_backend.models.PeopleTenant;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.Trip;
+import com.example.trip_sheet_backend.models.TripStop;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.services.PeopleTenantService.PeopleTenantServiceImp;
+import com.example.trip_sheet_backend.services.TripService.TripServiceImp;
 
 @Service
 public class PassengerRouteService {
+    private static final int DEFAULT_SEAT_CAPACITY = 3;
 
     private final PeopleTenantRepository peopleTenantRepository;
     private final PeopleTenantServiceImp peopleTenantService;
     private final PassengerGeocodingService geocodingService;
     private final TenantRepository tenantRepository;
     private final PassengerRouteEstimateService routeEstimateService;
+    private final TripServiceImp tripService;
+
+    @Autowired
+    public PassengerRouteService(
+            PeopleTenantRepository peopleTenantRepository,
+            PeopleTenantServiceImp peopleTenantService,
+            PassengerGeocodingService geocodingService,
+            TenantRepository tenantRepository,
+            PassengerRouteEstimateService routeEstimateService,
+            TripServiceImp tripService) {
+        this.peopleTenantRepository = peopleTenantRepository;
+        this.peopleTenantService = peopleTenantService;
+        this.geocodingService = geocodingService;
+        this.tenantRepository = tenantRepository;
+        this.routeEstimateService = routeEstimateService;
+        this.tripService = tripService;
+    }
 
     public PassengerRouteService(
             PeopleTenantRepository peopleTenantRepository,
@@ -34,17 +59,18 @@ public class PassengerRouteService {
             PassengerGeocodingService geocodingService,
             TenantRepository tenantRepository,
             PassengerRouteEstimateService routeEstimateService) {
-        this.peopleTenantRepository = peopleTenantRepository;
-        this.peopleTenantService = peopleTenantService;
-        this.geocodingService = geocodingService;
-        this.tenantRepository = tenantRepository;
-        this.routeEstimateService = routeEstimateService;
+        this(peopleTenantRepository, peopleTenantService, geocodingService, tenantRepository, routeEstimateService, null);
     }
 
     @Transactional(readOnly = true)
     public PassengerRouteDtos.Response analyse(PassengerRouteDtos.AnalyseRequest request) {
         requireRequest(request);
+        int seatCapacity = effectiveSeatCapacity(request.getSeatCapacity());
+        validateSeatCapacity(seatCapacity);
         PassengerRouteDtos.Response response = new PassengerRouteDtos.Response(request.getArrivalTime());
+        response.setSeatCapacity(seatCapacity);
+        response.setVehicleTypeId(request.getVehicleTypeId());
+        response.setDutyTypeId(request.getDutyTypeId());
         List<Tenant> organisationMatches = resolveOrganisationMatches(request.getOrganisationId(), request.getCompanyName());
         Tenant resolvedOrganisation = selectOrganisation(organisationMatches, request.getOrganisationId(), request.getCompanyName());
         if (resolvedOrganisation != null) {
@@ -59,7 +85,7 @@ public class PassengerRouteService {
                 ? resolvedOrganisation.getId().toString()
                 : request.getOrganisationId() != null ? request.getOrganisationId() : request.getCompanyName();
         Map<String, List<PassengerRouteDtos.Passenger>> grouped = groupByRoute(
-                request.getPassengers(), groupingOrganisationId, request.getCompanyName());
+                request.getPassengers(), groupingOrganisationId, request.getCompanyName(), seatCapacity);
 
         int groupNumber = 1;
         for (List<PassengerRouteDtos.Passenger> passengers : grouped.values()) {
@@ -80,6 +106,10 @@ public class PassengerRouteService {
             Tenant organisation,
             UUID createdBy) {
         requireRequest(request);
+        int seatCapacity = effectiveSeatCapacity(request.getSeatCapacity());
+        validateSeatCapacity(seatCapacity);
+        requireText(request.getVehicleTypeId(), "vehicleTypeId is required to confirm passenger groups");
+        requireText(request.getDutyTypeId(), "dutyTypeId is required to confirm passenger groups");
         if (organisation == null || organisation.getId() == null) {
             throw new IllegalArgumentException("Tenant not found in token");
         }
@@ -88,7 +118,14 @@ public class PassengerRouteService {
         }
 
         Tenant targetOrganisation = resolveOrganisation(request.getOrganisationId(), request.getCompanyName(), organisation);
+        if (request.getGroups() == null || request.getGroups().stream()
+                .noneMatch(group -> group != null && group.getPassengers() != null && !group.getPassengers().isEmpty())) {
+            throw new IllegalArgumentException("At least one passenger group is required to create trips");
+        }
         PassengerRouteDtos.Response response = new PassengerRouteDtos.Response(request.getArrivalTime());
+        response.setSeatCapacity(seatCapacity);
+        response.setVehicleTypeId(request.getVehicleTypeId());
+        response.setDutyTypeId(request.getDutyTypeId());
         response.setOrganisationId(targetOrganisation.getId());
         response.setName(targetOrganisation.getTenantName());
         int groupNumber = 1;
@@ -99,6 +136,10 @@ public class PassengerRouteService {
             }
 
             List<PassengerRouteDtos.Passenger> passengers = submittedGroup.getPassengers();
+            if (passengers.size() > seatCapacity) {
+                throw new IllegalArgumentException("Group " + submittedGroup.getGroupId()
+                        + " exceeds seatCapacity of " + seatCapacity);
+            }
             for (PassengerRouteDtos.Passenger passenger : passengers) {
                 resolvePassengerId(passenger, targetOrganisation, organisation, createdBy);
             }
@@ -109,6 +150,10 @@ public class PassengerRouteService {
             }
             PassengerRouteDtos.Group group = buildGroup(groupId, passengers, request.getArrivalTime());
             group.setCompanyName(request.getCompanyName());
+            Trip trip = createTripForGroup(
+                    request, targetOrganisation, organisation, createdBy, group.getPassengers());
+            group.setTripId(trip.getId().toString());
+            group.setRouteStatus("TRIP_CREATED");
             response.getGroups().add(group);
             groupNumber++;
         }
@@ -203,6 +248,73 @@ public class PassengerRouteService {
         return group;
     }
 
+    private Trip createTripForGroup(
+            PassengerRouteDtos.ConfirmationRequest request,
+            Tenant targetOrganisation,
+            Tenant authenticatedTenant,
+            UUID createdBy,
+            List<PassengerRouteDtos.Passenger> passengers) {
+        if (tripService == null) {
+            throw new IllegalStateException("Trip service is unavailable");
+        }
+
+        TripCreateRequestDTO tripRequest = new TripCreateRequestDTO();
+        tripRequest.setTripType(Trip.TripType.SINGLE);
+        tripRequest.setOrganisationId(targetOrganisation.getId().toString());
+        tripRequest.setVehicleTypeId(request.getVehicleTypeId());
+        tripRequest.setDutyTypeId(request.getDutyTypeId());
+        tripRequest.setCity(passengers.stream()
+                .map(PassengerRouteDtos.Passenger::getCity)
+                .filter(city -> city != null && !city.isBlank())
+                .findFirst()
+                .orElse(null));
+        tripRequest.setPassengerIds(passengers.stream()
+                .map(PassengerRouteDtos.Passenger::getPassengerId)
+                .filter(java.util.Objects::nonNull)
+                .map(UUID::toString)
+                .toList());
+        Instant startPickupTime = passengers.stream()
+                .map(PassengerRouteDtos.Passenger::getPickupTime)
+                .filter(java.util.Objects::nonNull)
+                .min(Comparator.naturalOrder())
+                .orElse(null);
+        if (startPickupTime != null) {
+            tripRequest.setPickupTime(startPickupTime.getEpochSecond());
+        }
+
+        List<TripStopRequestDTO> stops = new ArrayList<>();
+        int sequence = 1;
+        for (PassengerRouteDtos.Passenger passenger : passengers) {
+            TripStopRequestDTO pickup = new TripStopRequestDTO();
+            pickup.setSequenceNumber(sequence++);
+            pickup.setStopType(TripStop.StopType.PICKUP);
+            pickup.setAddressText(passenger.getReportingAddress() != null
+                    && !passenger.getReportingAddress().isBlank()
+                            ? passenger.getReportingAddress()
+                            : passenger.getLocation());
+            pickup.setFormattedAddress(String.join(", ",
+                    nonBlank(passenger.getReportingAddress()),
+                    nonBlank(passenger.getLocation()),
+                    nonBlank(passenger.getCity())));
+            pickup.setLatitude(passenger.getLatitude());
+            pickup.setLongitude(passenger.getLongitude());
+            stops.add(pickup);
+        }
+
+        PassengerRouteDtos.Passenger finalPassenger = passengers.get(passengers.size() - 1);
+        TripStopRequestDTO drop = new TripStopRequestDTO();
+        drop.setSequenceNumber(sequence);
+        drop.setStopType(TripStop.StopType.DROP);
+        drop.setAddressText(finalPassenger.getDropAddress());
+        drop.setFormattedAddress(finalPassenger.getDropAddress());
+        drop.setLatitude(finalPassenger.getDestinationLatitude());
+        drop.setLongitude(finalPassenger.getDestinationLongitude());
+        stops.add(drop);
+        tripRequest.setStops(stops);
+
+        return tripService.createTrip(tripRequest, authenticatedTenant, createdBy);
+    }
+
     private void addRouteEstimates(PassengerRouteDtos.Group group) {
         List<PassengerRouteDtos.Passenger> passengers = group.getPassengers();
         List<PassengerGeocodingService.GeoPoint> pickupPoints = passengers.stream()
@@ -245,12 +357,15 @@ public class PassengerRouteService {
                     || !targetOrganisation.getId().equals(existing.getOrganisation().getId())) {
                 throw new IllegalArgumentException("Passenger does not belong to this organisation");
             }
-                if (authenticatedTenant.getTenantType() == Tenant.TenantType.VENDOR
+            if (authenticatedTenant.getTenantType() == Tenant.TenantType.VENDOR
                     && existing.getAttachedVendors().stream()
                         .noneMatch(vendor -> authenticatedTenant.getId().equals(vendor.getId()))) {
                 existing.getAttachedVendors().add(authenticatedTenant);
-                peopleTenantRepository.save(existing);
-                }
+            }
+            existing.setName(passenger.getName());
+            existing.setPhone(passenger.getPhone());
+            existing.setEmail(passenger.getEmail());
+            peopleTenantRepository.save(existing);
             return;
         }
 
@@ -261,6 +376,10 @@ public class PassengerRouteService {
         create.setOrganisationId(targetOrganisation.getId().toString());
         create.setPeopleType(PeopleTenant.PeopleType.PASSENGER);
         PeopleTenant person = peopleTenantService.createOrGetPerson(create, authenticatedTenant, createdBy);
+        person.setName(passenger.getName());
+        person.setPhone(passenger.getPhone());
+        person.setEmail(passenger.getEmail());
+        peopleTenantRepository.save(person);
         passenger.setPassengerId(person.getId());
     }
 
@@ -271,7 +390,8 @@ public class PassengerRouteService {
     private Map<String, List<PassengerRouteDtos.Passenger>> groupByRoute(
             List<PassengerRouteDtos.Passenger> passengers,
             String organisationId,
-            String companyName) {
+            String companyName,
+            Integer seatCapacity) {
         Map<String, List<PassengerRouteDtos.Passenger>> groups = new LinkedHashMap<>();
         Map<String, PassengerGeocodingService.GeoPoint> coordinates = new LinkedHashMap<>();
 
@@ -286,9 +406,9 @@ public class PassengerRouteService {
                     + normalize(companyName) + "|" + routeKey(passenger);
             double passengerBearing = bearing(pickup, destination);
 
-            List<PassengerRouteDtos.Passenger> matchingGroup = null;
-            for (List<PassengerRouteDtos.Passenger> candidate : groups.values()) {
-                boolean sharesRoute = candidate.stream().anyMatch(existing -> {
+            List<String> matchingGroupKeys = new ArrayList<>();
+            for (Map.Entry<String, List<PassengerRouteDtos.Passenger>> entry : groups.entrySet()) {
+                boolean sharesRoute = entry.getValue().stream().anyMatch(existing -> {
                     String existingDestinationKey = normalize(organisationId) + "|"
                             + normalize(companyName) + "|" + routeKey(existing);
                     if (!destinationKey.equals(existingDestinationKey)) {
@@ -301,14 +421,39 @@ public class PassengerRouteService {
                             && angularDifference(passengerBearing, existingBearing) <= 45.0;
                 });
                 if (sharesRoute) {
-                    matchingGroup = candidate;
-                    break;
+                    matchingGroupKeys.add(entry.getKey());
                 }
             }
 
-            if (matchingGroup == null) {
-                matchingGroup = new ArrayList<>();
-                groups.put(destinationKey + "|" + groups.size(), matchingGroup);
+            if (matchingGroupKeys.isEmpty()) {
+                groups.put(destinationKey + "|" + UUID.randomUUID(), new ArrayList<>(List.of(passenger)));
+                continue;
+            }
+
+            int combinedSize = 1;
+            for (String groupKey : matchingGroupKeys) {
+                combinedSize += groups.get(groupKey).size();
+            }
+
+            List<PassengerRouteDtos.Passenger> matchingGroup;
+            if (seatCapacity == null || combinedSize <= seatCapacity) {
+                matchingGroup = groups.get(matchingGroupKeys.get(0));
+                for (int index = 1; index < matchingGroupKeys.size(); index++) {
+                    List<PassengerRouteDtos.Passenger> groupToMerge = groups.remove(matchingGroupKeys.get(index));
+                    if (groupToMerge != null) {
+                        matchingGroup.addAll(groupToMerge);
+                    }
+                }
+            } else {
+                matchingGroup = matchingGroupKeys.stream()
+                        .map(groups::get)
+                        .filter(group -> group.size() < seatCapacity)
+                        .findFirst()
+                        .orElse(null);
+                if (matchingGroup == null) {
+                    groups.put(destinationKey + "|" + UUID.randomUUID(), new ArrayList<>(List.of(passenger)));
+                    continue;
+                }
             }
             matchingGroup.add(passenger);
         }
@@ -381,6 +526,22 @@ public class PassengerRouteService {
     private void requireRequest(Object request) {
         if (request == null) {
             throw new IllegalArgumentException("Request payload is required");
+        }
+    }
+
+    private void validateSeatCapacity(Integer seatCapacity) {
+        if (seatCapacity != null && seatCapacity < 1) {
+            throw new IllegalArgumentException("seatCapacity must be greater than zero");
+        }
+    }
+
+    private int effectiveSeatCapacity(Integer seatCapacity) {
+        return seatCapacity == null ? DEFAULT_SEAT_CAPACITY : seatCapacity;
+    }
+
+    private void requireText(String value, String message) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(message);
         }
     }
 }

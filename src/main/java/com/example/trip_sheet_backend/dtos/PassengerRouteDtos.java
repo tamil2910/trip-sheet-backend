@@ -20,7 +20,10 @@ public final class PassengerRouteDtos {
     public static class AnalyseRequest {
         private String organisationId;
         private String companyName;
+        private String vehicleTypeId;
+        private String dutyTypeId;
         private Instant arrivalTime;
+        private Integer seatCapacity;
         private Boolean isEstimatedHrKm;
         private List<Passenger> passengers = new ArrayList<>();
     }
@@ -31,7 +34,10 @@ public final class PassengerRouteDtos {
     public static class ConfirmationRequest {
         private String organisationId;
         private String companyName;
+        private String vehicleTypeId;
+        private String dutyTypeId;
         private Instant arrivalTime;
+        private Integer seatCapacity;
         private List<Group> groups = new ArrayList<>();
         private List<Passenger> unmatchedPassengers = new ArrayList<>();
     }
@@ -63,6 +69,7 @@ public final class PassengerRouteDtos {
     @NoArgsConstructor
     public static class Group {
         private String groupId;
+        private String tripId;
         private String companyName;
         private String destination;
         private Instant startPickupTime;
@@ -78,6 +85,9 @@ public final class PassengerRouteDtos {
     @NoArgsConstructor
     public static class Response {
         private Instant arrivalTime;
+        private Integer seatCapacity;
+        private String vehicleTypeId;
+        private String dutyTypeId;
         private UUID organisationId;
         private String name;
         private List<OrganisationMatch> organisationMatches = new ArrayList<>();
