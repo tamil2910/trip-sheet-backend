@@ -288,18 +288,19 @@ public class PassengerRouteService {
 
             List<PassengerRouteDtos.Passenger> matchingGroup = null;
             for (List<PassengerRouteDtos.Passenger> candidate : groups.values()) {
-                PassengerRouteDtos.Passenger representative = candidate.get(0);
-                String representativeDestinationKey = normalize(organisationId) + "|"
-                        + normalize(companyName) + "|" + routeKey(representative);
-                if (!destinationKey.equals(representativeDestinationKey)) {
-                    continue;
-                }
+                boolean sharesRoute = candidate.stream().anyMatch(existing -> {
+                    String existingDestinationKey = normalize(organisationId) + "|"
+                            + normalize(companyName) + "|" + routeKey(existing);
+                    if (!destinationKey.equals(existingDestinationKey)) {
+                        return false;
+                    }
 
-                PassengerGeocodingService.GeoPoint representativePickup = geocodePickup(representative, coordinates);
-                double representativeBearing = bearing(representativePickup,
-                        geocodeDestination(representative, coordinates));
-                if (distanceKm(pickup, representativePickup) <= 10.0
-                        && angularDifference(passengerBearing, representativeBearing) <= 45.0) {
+                    PassengerGeocodingService.GeoPoint existingPickup = geocodePickup(existing, coordinates);
+                    double existingBearing = bearing(existingPickup, geocodeDestination(existing, coordinates));
+                    return distanceKm(pickup, existingPickup) <= 10.0
+                            && angularDifference(passengerBearing, existingBearing) <= 45.0;
+                });
+                if (sharesRoute) {
                     matchingGroup = candidate;
                     break;
                 }
