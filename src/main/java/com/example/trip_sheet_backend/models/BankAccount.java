@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.models;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.*;
 import jakarta.validation.Valid;
@@ -20,6 +21,7 @@ import lombok.Setter;
 public class BankAccount extends BaseModel implements TenantScoped {
 
     @Valid
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tenant_id", nullable = false)
     private Tenant tenant;
