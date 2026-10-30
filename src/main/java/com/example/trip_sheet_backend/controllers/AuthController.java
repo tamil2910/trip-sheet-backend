@@ -524,6 +524,12 @@ public class AuthController {
             dto.setRole(user.getRole() != null ? user.getRole().getName() : null);
             dto.setRoleGroups(roleGroups);
             dto.setUsername(user.getUsername());
+            Tenant responseTenant = tokenTenant != null ? tokenTenant : user.getTenant();
+            dto.setTenantId(responseTenant != null ? responseTenant.getId() : null);
+            dto.setTenantName(responseTenant != null ? responseTenant.getTenantName() : null);
+            dto.setTenantType(responseTenant != null && responseTenant.getTenantType() != null
+                    ? responseTenant.getTenantType().name()
+                    : null);
             dto.setPermissions(effectivePermissions);
 
             List<Permission> permissionObjects = permissionRepository.findAllByNameIn(effectivePermissions);
@@ -537,6 +543,9 @@ public class AuthController {
 
             Map<String, Object> response = new HashMap<>();
             response.put("token", token);
+            response.put("tenantId", tokenTenant != null
+                    ? tokenTenant.getId()
+                    : (user.getTenant() != null ? user.getTenant().getId() : null));
             response.put("user", dto);
             response.put("newUser", newUser);
             response.put("roleGroups", roleGroups);
