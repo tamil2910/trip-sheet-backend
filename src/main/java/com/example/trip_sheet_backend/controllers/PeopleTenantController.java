@@ -191,6 +191,7 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
     item.put("designation", person.getDesignation());
     item.put("gender", person.getGender());
     item.put("peopleType", person.getPeopleType());
+    item.put("organisationPersonType", person.getOrganisationPersonType());
 
     if (person.getOrganisation() == null) {
       item.put("organisation", null);
@@ -250,6 +251,9 @@ public class PeopleTenantController extends BaseController<PeopleTenant, UUID> {
 
       if (person.getCreatorType() == CreatorType.ORGANISATION) {
         applyUpdates(person, body);
+      }
+      if (body.getOrganisationPersonType() != null) {
+        person.setOrganisationPersonType(body.getOrganisationPersonType());
       }
       peopleTenantServiceImp.replaceCustomFieldValues(person, body.getCustomFields(), tenant, createdBy);
 

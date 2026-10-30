@@ -686,3 +686,27 @@ CREATE TABLE IF NOT EXISTS rate_card_package_items (
     OR (vendor_partner_rate_card_id IS NULL AND vendor_organisation_rate_card_id IS NOT NULL)
   )
 );
+
+CREATE TABLE IF NOT EXISTS vendor_employees (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT NULL,
+  updated_at BIGINT NULL,
+  deleted_at BIGINT NULL,
+  created_by VARCHAR(255) NULL,
+  updated_by VARCHAR(255) NULL,
+  deleted_by VARCHAR(255) NULL,
+  is_deleted BIT NULL,
+  name VARCHAR(255) NULL,
+  email VARCHAR(255) NULL,
+  phone VARCHAR(255) NULL,
+  employee_number VARCHAR(255) NULL,
+  is_user BIT NOT NULL DEFAULT b'0',
+  tenant_id BINARY(16) NOT NULL,
+  user_account_id BINARY(16) NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_vendor_employee_user_account (user_account_id),
+  KEY idx_vendor_employee_tenant (tenant_id),
+  UNIQUE KEY uq_vendor_employee_tenant_number (tenant_id, employee_number),
+  CONSTRAINT fk_vendor_employee_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id),
+  CONSTRAINT fk_vendor_employee_user_account FOREIGN KEY (user_account_id) REFERENCES user_accounts (id)
+);

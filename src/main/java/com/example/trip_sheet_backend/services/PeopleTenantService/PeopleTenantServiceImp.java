@@ -121,6 +121,7 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
       }
       PeopleTenant person = mapper.map(dto, PeopleTenant.class);
       person.setOrganisation(tokenTenant);
+      person.setOrganisationPersonType(dto.getOrganisationPersonType());
       person.setCreatedBy(createdBy.toString());
       person.setCreatorType(CreatorType.ORGANISATION);
       person.setAdditionalContact(additionalContact);
@@ -137,6 +138,7 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
           .orElseGet(() -> {
               PeopleTenant person = mapper.map(dto, PeopleTenant.class);
               person.setTenantType(PeopleTenant.PeopleTenantType.WALKIN);
+              person.setOrganisationPersonType(null);
               person.setCreatedBy(createdBy.toString());
               applyCustomFields(person, dto.getCustomFields(), tokenTenant, null, null);
               return repository.save(person);
@@ -170,6 +172,7 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
     // create new person for organisation
     PeopleTenant person = mapper.map(dto, PeopleTenant.class);
     person.setOrganisation(organisation);
+    person.setOrganisationPersonType(null);
     person.setOwnerVendorPartner(ownerVendorPartner);
     person.getAttachedVendors().add(tokenTenant);
     person.setCreatedBy(createdBy.toString());

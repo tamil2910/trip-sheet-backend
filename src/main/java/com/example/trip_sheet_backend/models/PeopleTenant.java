@@ -76,6 +76,13 @@ public class PeopleTenant extends BaseModel implements TenantScoped {
   }
 
   @Enumerated(EnumType.STRING)
+  private OrganisationPersonType organisationPersonType;
+
+  public enum OrganisationPersonType {
+    EMPLOYEE, VISITOR
+  }
+
+  @Enumerated(EnumType.STRING)
   private CreatorType creatorType;
 
   public enum CreatorType {

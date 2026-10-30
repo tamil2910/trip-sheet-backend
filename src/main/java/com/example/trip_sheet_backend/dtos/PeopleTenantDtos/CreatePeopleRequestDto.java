@@ -25,6 +25,7 @@ public class CreatePeopleRequestDto {
 
   private PeopleTenant.PeopleTenantType tenantType;
   private PeopleTenant.PeopleType peopleType;
+  private PeopleTenant.OrganisationPersonType organisationPersonType;
   private PeopleTenant.CreatorType creatorType;
   
   private String additionalContactId;

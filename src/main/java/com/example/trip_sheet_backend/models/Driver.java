@@ -10,6 +10,7 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
@@ -56,6 +57,10 @@ public class Driver extends BaseModel {
 
     @Enumerated(EnumType.STRING)
     private DriverType driverType = DriverType.PERMANENT;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "current_tenant_id")
+    private Tenant currentTenant;
 
     // Link to the auth record
     @OneToOne(fetch = FetchType.LAZY, cascade = CascadeType.ALL)

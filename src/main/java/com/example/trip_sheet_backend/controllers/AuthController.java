@@ -29,6 +29,7 @@ import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.AdminRepository;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
+import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
 import com.example.trip_sheet_backend.repositories.PermissionRepository;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
@@ -69,6 +70,7 @@ public class AuthController {
   private final TenantRepository tenantRepository;
   private final PermissionRepository permissionRepository;
   private final DriverRepository driverRepository;
+  private final DriverTenantMappingRepository driverTenantMappingRepository;
   private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
   private final ModelMapper mapper;
   private final PeopleTenantRepository peopleTenantRepository;
@@ -78,7 +80,7 @@ public class AuthController {
   private String googleClientId; // 👈 inject env variable here
   
   public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, GoogleAuthService googleAuthService,
-      PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository, DriverRepository driverRepository, UniqueCodeGeneratorService uniqueCodeGeneratorService, PeopleTenantRepository peopleTenantRepository, PasswordResetService passwordResetService) {
+        PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository, DriverRepository driverRepository, DriverTenantMappingRepository driverTenantMappingRepository, UniqueCodeGeneratorService uniqueCodeGeneratorService, PeopleTenantRepository peopleTenantRepository, PasswordResetService passwordResetService) {
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
     this.roleGroupRepository = roleGroupRepository;
@@ -90,6 +92,7 @@ public class AuthController {
     this.permissionRepository = permissionRepository;
     this.roleRepository = roleRepository;
         this.driverRepository = driverRepository;
+        this.driverTenantMappingRepository = driverTenantMappingRepository;
         this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
         this.peopleTenantRepository = peopleTenantRepository;
           this.passwordResetService = passwordResetService;
@@ -494,11 +497,26 @@ public class AuthController {
                     : Set.of();
 
             // 5️⃣ GENERATE TOKEN
+            Tenant tokenTenant = null;
+            if (user.getRole() != null && "DRIVER".equalsIgnoreCase(user.getRole().getName())) {
+                Optional<Driver> driverOpt = driverRepository.findByAccount_Id(user.getId());
+                if (driverOpt.isPresent()) {
+                    Driver driver = driverOpt.get();
+                    tokenTenant = driverTenantMappingRepository
+                            .findFirstByDriver_IdAndActiveTrueOrderByLinkedAtDesc(driver.getId())
+                            .map(mapping -> mapping.getTenant())
+                            .orElse(null);
+                    driver.setCurrentTenant(tokenTenant);
+                    driverRepository.save(driver);
+                }
+            }
+
             String token = jwtTokenUtil.generateToken(
                     user,
                     effectivePermissions,
                     "google_login",
-                    user.getEmail()
+                    user.getEmail(),
+                    tokenTenant != null ? tokenTenant : user.getTenant()
             );
 
             LoginUserResponseDTO dto = new LoginUserResponseDTO();
