@@ -54,7 +54,7 @@ public class TenantInterceptor implements HandlerInterceptor {
     }
 
     // ---------------- ADMIN WITHOUT TENANT (PRE TENANT) ----------------
-    if (user.getTenant() == null) {
+    if (user.getTenant() == null && !"DRIVER".equalsIgnoreCase(role)) {
         // ✅ Allow admin to create tenant
         setCommonAttributes(request, user);
         request.setAttribute("tenantId", null);
@@ -63,7 +63,7 @@ public class TenantInterceptor implements HandlerInterceptor {
     }
 
     // ---------------- NORMAL TENANT USERS ----------------
-    Tenant tenant = user.getTenant();
+    Tenant tenant = "DRIVER".equalsIgnoreCase(role) ? null : user.getTenant();
 
     if (tenant == null) {
       String tenantIdFromToken = jwtTokenUtil.getTenantIdFromToken(token);

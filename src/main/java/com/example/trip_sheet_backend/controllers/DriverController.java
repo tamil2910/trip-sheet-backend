@@ -349,15 +349,13 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
       throw new RuntimeException("User not found in token");
     }
 
-    if (currentUser.getTenant() == null) {
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    if (tenant == null) {
       throw new RuntimeException("Tenant not found in token");
     }
 
     Driver driver = driverRepository.findByAccount_Id(currentUser.getId())
         .orElseThrow(() -> new RuntimeException("Driver profile not found for current user"));
-
-    Tenant tenant = tenantRepository.findById(currentUser.getTenant().getId())
-        .orElseThrow(() -> new RuntimeException("Tenant not found"));
 
     Vehicle vehicle = vehicleRepository.findById(vehicleId)
         .orElseThrow(() -> new RuntimeException("Vehicle not found"));
