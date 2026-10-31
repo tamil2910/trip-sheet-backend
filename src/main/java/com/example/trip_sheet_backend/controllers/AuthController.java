@@ -41,6 +41,7 @@ import com.example.trip_sheet_backend.common.services.UniqueCodeGeneratorService
 import com.example.trip_sheet_backend.security.GoogleAuthService;
 import com.example.trip_sheet_backend.security.JwtTokenUtil;
 import com.example.trip_sheet_backend.services.PasswordResetService;
+import com.example.trip_sheet_backend.services.VendorEmployeeAttendanceService;
 
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdToken.Payload;
 import com.google.api.client.util.Value;
@@ -75,12 +76,13 @@ public class AuthController {
   private final ModelMapper mapper;
   private final PeopleTenantRepository peopleTenantRepository;
     private final PasswordResetService passwordResetService;
+    private final VendorEmployeeAttendanceService attendanceService;
 
   @Value("${GOOGLE_AUTH_CLIENT_ID}")
   private String googleClientId; // 👈 inject env variable here
   
   public AuthController(UserAccountRepository userAccountRepository, JwtTokenUtil jwtTokenUtil, GoogleAuthService googleAuthService,
-        PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository, DriverRepository driverRepository, DriverTenantMappingRepository driverTenantMappingRepository, UniqueCodeGeneratorService uniqueCodeGeneratorService, PeopleTenantRepository peopleTenantRepository, PasswordResetService passwordResetService) {
+        PasswordEncoder passwordEncoder, AdminRepository adminRepository, TenantRepository tenantRepository, ModelMapper mapper, PermissionRepository permissionRepository, RoleRepository roleRepository,RoleGroupRepository roleGroupRepository, DriverRepository driverRepository, DriverTenantMappingRepository driverTenantMappingRepository, UniqueCodeGeneratorService uniqueCodeGeneratorService, PeopleTenantRepository peopleTenantRepository, PasswordResetService passwordResetService, VendorEmployeeAttendanceService attendanceService) {
     this.userAccountRepository = userAccountRepository;
     this.jwtTokenUtil = jwtTokenUtil;
     this.roleGroupRepository = roleGroupRepository;
@@ -96,6 +98,7 @@ public class AuthController {
         this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
         this.peopleTenantRepository = peopleTenantRepository;
           this.passwordResetService = passwordResetService;
+          this.attendanceService = attendanceService;
   }
 
   @PreAuthorize("permitAll()")
@@ -185,6 +188,7 @@ public class AuthController {
     }
 
     UserAccount user = foundUser.get();
+    attendanceService.recordLogin(user);
         Tenant resolvedTenant = user.getTenant();
 
         if (resolvedTenant == null) {
@@ -511,6 +515,7 @@ public class AuthController {
                 }
             }
 
+            attendanceService.recordLogin(user);
             String token = jwtTokenUtil.generateToken(
                     user,
                     effectivePermissions,
@@ -645,3 +650,4 @@ public class AuthController {
 
 
 }
+

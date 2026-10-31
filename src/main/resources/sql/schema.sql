@@ -740,3 +740,25 @@ CREATE TABLE IF NOT EXISTS expense_invoices (
   CONSTRAINT fk_expense_invoice_expense FOREIGN KEY (expense_id) REFERENCES expenses (id),
   CONSTRAINT fk_expense_invoice_invoice FOREIGN KEY (invoice_id) REFERENCES invoices (id)
 );
+
+CREATE TABLE IF NOT EXISTS vendor_employee_attendance (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT NULL,
+  updated_at BIGINT NULL,
+  deleted_at BIGINT NULL,
+  created_by VARCHAR(255) NULL,
+  updated_by VARCHAR(255) NULL,
+  deleted_by VARCHAR(255) NULL,
+  is_deleted BIT NULL,
+  vendor_employee_id BINARY(16) NOT NULL,
+  tenant_id BINARY(16) NOT NULL,
+  attendance_date DATE NOT NULL,
+  clock_in_at BIGINT NOT NULL,
+  clock_out_at BIGINT NULL,
+  worked_duration_minutes BIGINT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_vendor_employee_attendance_day (vendor_employee_id, attendance_date),
+  KEY idx_vendor_employee_attendance_tenant_day (tenant_id, attendance_date),
+  CONSTRAINT fk_vendor_employee_attendance_employee FOREIGN KEY (vendor_employee_id) REFERENCES vendor_employees (id),
+  CONSTRAINT fk_vendor_employee_attendance_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)
+);

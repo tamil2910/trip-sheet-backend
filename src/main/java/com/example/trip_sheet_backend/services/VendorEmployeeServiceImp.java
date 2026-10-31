@@ -3,8 +3,9 @@ package com.example.trip_sheet_backend.services;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -109,6 +110,42 @@ public class VendorEmployeeServiceImp implements VendorEmployeeService {
         return new VendorEmployeeResponseDto(employeeRepository.save(employee));
     }
 
+    @Override
+    @Transactional(readOnly = true)
+    public VendorEmployeeResponseDto getById(Tenant tenant, UUID employeeId) {
+        if (tenant == null || tenant.getId() == null || tenant.getTenantType() != Tenant.TenantType.VENDOR) {
+            throw new RuntimeException("A vendor tenant is required to retrieve a vendor employee");
+        }
+        VendorEmployee employee = employeeRepository.findByIdAndTenant_Id(employeeId, tenant.getId())
+                .orElseThrow(() -> new RuntimeException("Vendor employee not found for this tenant"));
+        return new VendorEmployeeResponseDto(employee);
+    }
+    @Override
+    @Transactional(readOnly = true)
+    public Page<VendorEmployeeResponseDto> search(
+            Tenant tenant,
+            String query,
+            String name,
+            String email,
+            String phone,
+            String employeeNumber,
+            Boolean isUser,
+            Pageable pageable) {
+        if (tenant == null || tenant.getId() == null || tenant.getTenantType() != Tenant.TenantType.VENDOR) {
+            throw new RuntimeException("A vendor tenant is required to search vendor employees");
+        }
+        return employeeRepository.searchByTenant(
+                tenant.getId(),
+                normalize(query),
+                normalize(name),
+                normalize(email),
+                normalize(phone),
+                normalize(employeeNumber),
+                isUser,
+                pageable)
+            .map(VendorEmployeeResponseDto::new);
+    }
+
     private String normalize(String value) {
         if (value == null || value.isBlank()) {
             return null;
@@ -116,4 +153,6 @@ public class VendorEmployeeServiceImp implements VendorEmployeeService {
         return value.trim();
     }
 }
+
+
 
