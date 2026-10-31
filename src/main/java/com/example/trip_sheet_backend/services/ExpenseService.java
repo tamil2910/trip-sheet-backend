@@ -136,6 +136,12 @@ public class ExpenseService {
     if(!Boolean.TRUE.equals(ledger.getIsActive())) throw new IllegalArgumentException("Selected ledger must be active");
     row.setTenant(refTenant(tenant)); row.setLedger(ledger); row.setCategory(null); row.setSubCategory(null);
     row.setRequestedDate(body.requestedDate()); row.setPaymentType(body.paymentType()); row.setAmount(body.amount()); row.setTdsDeducted(body.tdsDeducted()); row.setAdjustments(body.adjustments()); row.setExpenseName(body.expenseName().trim()); row.setComment(body.comment()); row.setPaymentMode(body.paymentMode()); row.setBankDebitDate(body.bankDebitDate());
+    row.setInvoices(body.invoices() == null ? new ArrayList<>() : body.invoices().stream().map(invoice -> {
+      Expense.ExpenseInvoiceReference reference = new Expense.ExpenseInvoiceReference();
+      reference.setInvoiceId(invoice.invoiceId());
+      reference.setInvoiceNumber(invoice.invoiceNumber());
+      return reference;
+    }).toList());
     if(body.paymentMode()==Expense.PaymentMode.CASH) { if(body.bankAccountId()!=null) throw new IllegalArgumentException("Cash payments must not specify a bank account"); row.setBankAccount(null); }
     else { if(body.bankAccountId()==null) throw new IllegalArgumentException("A bank account is required for this payment mode"); row.setBankAccount(banks.findByIdAndTenant_IdAndIsDeletedFalse(body.bankAccountId(),tenant).filter(b->Boolean.TRUE.equals(b.getIs_active())).orElseThrow(()->notFound("Active bank account"))); }
     if(body.paymentMode()!=Expense.PaymentMode.CASH && body.bankDebitDate()==null) throw new IllegalArgumentException("Bank debit date is required for non-cash payments");

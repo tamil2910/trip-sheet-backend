@@ -728,3 +728,15 @@ CREATE TABLE IF NOT EXISTS vendor_employees (
   CONSTRAINT fk_vendor_employee_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id),
   CONSTRAINT fk_vendor_employee_user_account FOREIGN KEY (user_account_id) REFERENCES user_accounts (id)
 );
+
+
+-- Optional invoice references attached to expenses.
+CREATE TABLE IF NOT EXISTS expense_invoices (
+  expense_id BINARY(16) NOT NULL,
+  invoice_id BINARY(16) NULL,
+  invoice_number VARCHAR(100) NULL,
+  INDEX idx_expense_invoice_expense (expense_id),
+  INDEX idx_expense_invoice_invoice (invoice_id),
+  CONSTRAINT fk_expense_invoice_expense FOREIGN KEY (expense_id) REFERENCES expenses (id),
+  CONSTRAINT fk_expense_invoice_invoice FOREIGN KEY (invoice_id) REFERENCES invoices (id)
+);

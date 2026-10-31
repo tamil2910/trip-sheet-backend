@@ -22,7 +22,8 @@ public final class ExpenseRequests {
       @NotNull @DecimalMin("0.00") @Digits(integer=10,fraction=2) BigDecimal tdsDeducted,
       @NotNull @DecimalMin("0.00") @Digits(integer=10,fraction=2) BigDecimal adjustments,
       @NotBlank @Size(max=250) String expenseName, String comment, @NotNull PaymentMode paymentMode,
-      UUID bankAccountId, LocalDate bankDebitDate, List<@Valid ProofFileRequest> proofs) {}
+      UUID bankAccountId, LocalDate bankDebitDate, List<@Valid ProofFileRequest> proofs, List<@Valid ExpenseInvoiceRequest> invoices) {}
+  public record ExpenseInvoiceRequest(UUID invoiceId, @Size(max=100) String invoiceNumber) {}
   public record ProofFileRequest(@NotBlank @Size(max=255) String fileName,
       @NotBlank String contentType, @NotBlank String base64Data) {}
   public record ProofResponse(UUID id, String fileName, String contentType, Long fileSize, String downloadUrl) {}

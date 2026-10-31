@@ -2,11 +2,15 @@ package com.example.trip_sheet_backend.models;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -87,4 +91,19 @@ public class Expense extends BaseModel implements TenantScoped {
   private BankAccount bankAccount;
 
   private LocalDate bankDebitDate;
+
+  @ElementCollection
+  @CollectionTable(name = "expense_invoices", joinColumns = @JoinColumn(name = "expense_id"))
+  private List<ExpenseInvoiceReference> invoices = new ArrayList<>();
+
+  @lombok.Getter
+  @lombok.Setter
+  @lombok.NoArgsConstructor
+  @jakarta.persistence.Embeddable
+  public static class ExpenseInvoiceReference {
+    @Column(name = "invoice_id")
+    private java.util.UUID invoiceId;
+    @Column(name = "invoice_number")
+    private String invoiceNumber;
+  }
 }
