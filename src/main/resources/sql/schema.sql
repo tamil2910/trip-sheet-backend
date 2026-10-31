@@ -92,6 +92,24 @@ CREATE TABLE IF NOT EXISTS vendor_partner_driver_vehicles (
     REFERENCES vehicle_types (id)
 );
 
+-- Vehicle model names are labels, not identifiers. Remove the legacy
+-- tenant/model-name unique index while keeping tenant/vehicle-number unique.
+SELECT index_name INTO @legacy_vehicle_model_unique_index
+FROM information_schema.statistics
+WHERE table_schema = DATABASE() AND table_name = 'vehicles'
+  AND non_unique = 0 AND index_name <> 'PRIMARY'
+GROUP BY index_name
+HAVING COUNT(DISTINCT column_name) = 2
+  AND SUM(column_name IN ('tenant_id', 'model_name')) = 2
+LIMIT 1;
+SET @legacy_vehicle_model_unique_sql := IF(@legacy_vehicle_model_unique_index IS NULL,
+  'SELECT 1',
+  CONCAT('ALTER TABLE vehicles DROP INDEX `', @legacy_vehicle_model_unique_index, '`')
+);
+PREPARE legacy_vehicle_model_unique_statement FROM @legacy_vehicle_model_unique_sql;
+EXECUTE legacy_vehicle_model_unique_statement;
+DEALLOCATE PREPARE legacy_vehicle_model_unique_statement;
+
 -- Private payable raised for each adjacent vendor delegation hop.
 CREATE TABLE IF NOT EXISTS purchase_invoices (
   id BINARY(16) NOT NULL,

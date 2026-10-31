@@ -139,12 +139,6 @@ public class VehicleServiceImp extends GlobalBaseServiceImp<Vehicle, UUID> imple
 
     String normalizedModelName = normalizeText(body.getModelName());
     if (normalizedModelName != null) {
-      VehicleTenantMapping existingByModelName = vehicleTenantMappingRepository
-          .findByTenant_IdAndVehicle_ModelNameIgnoreCase(tokenTenant.getId(), normalizedModelName)
-          .orElse(null);
-      if (existingByModelName != null && !existingByModelName.getVehicle().getId().equals(vehicle.getId())) {
-        throw new RuntimeException("Model name already exists for this tenant");
-      }
       vehicle.setModelName(normalizedModelName);
     }
 

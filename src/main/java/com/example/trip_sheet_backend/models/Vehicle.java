@@ -27,7 +27,6 @@ import jakarta.validation.constraints.NotBlank;
   @Table(
     name = "vehicles",
     uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"tenant_id", "model_name"}),
         @UniqueConstraint(columnNames = {"tenant_id", "vehicle_number"})
     }
   )
