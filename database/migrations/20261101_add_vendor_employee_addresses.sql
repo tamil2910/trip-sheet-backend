@@ -1,0 +1,23 @@
+CREATE TABLE IF NOT EXISTS vendor_employee_addresses (
+    id BINARY(16) NOT NULL,
+    created_at BIGINT NULL,
+    updated_at BIGINT NULL,
+    deleted_at BIGINT NULL,
+    created_by VARCHAR(255) NULL,
+    updated_by VARCHAR(255) NULL,
+    deleted_by VARCHAR(255) NULL,
+    is_deleted BIT NULL,
+    vendor_employee_id BINARY(16) NOT NULL,
+    category VARCHAR(20) NOT NULL,
+    address_line_1 VARCHAR(255) NOT NULL,
+    address_line_2 VARCHAR(255) NULL,
+    landmark VARCHAR(255) NULL,
+    city VARCHAR(255) NULL,
+    district VARCHAR(255) NULL,
+    state VARCHAR(255) NULL,
+    postal_code VARCHAR(255) NULL,
+    country VARCHAR(255) NULL,
+    PRIMARY KEY (id),
+    KEY idx_vendor_employee_address_employee (vendor_employee_id),
+    CONSTRAINT fk_vendor_employee_address_employee FOREIGN KEY (vendor_employee_id) REFERENCES vendor_employees (id)
+);

@@ -762,3 +762,33 @@ CREATE TABLE IF NOT EXISTS vendor_employee_attendance (
   CONSTRAINT fk_vendor_employee_attendance_employee FOREIGN KEY (vendor_employee_id) REFERENCES vendor_employees (id),
   CONSTRAINT fk_vendor_employee_attendance_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)
 );
+
+CREATE TABLE IF NOT EXISTS vendor_employee_addresses (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT NULL,
+  updated_at BIGINT NULL,
+  deleted_at BIGINT NULL,
+  created_by VARCHAR(255) NULL,
+  updated_by VARCHAR(255) NULL,
+  deleted_by VARCHAR(255) NULL,
+  is_deleted BIT NULL,
+  vendor_employee_id BINARY(16) NOT NULL,
+  category VARCHAR(20) NOT NULL,
+  address_line_1 VARCHAR(255) NOT NULL,
+  address_line_2 VARCHAR(255) NULL,
+  landmark VARCHAR(255) NULL,
+  city VARCHAR(255) NULL,
+  district VARCHAR(255) NULL,
+  state VARCHAR(255) NULL,
+  postal_code VARCHAR(255) NULL,
+  country VARCHAR(255) NULL,
+  latitude DOUBLE NULL,
+  longitude DOUBLE NULL,
+  home_employee_slot BINARY(16) GENERATED ALWAYS AS (CASE WHEN category = 'HOME' THEN vendor_employee_id ELSE NULL END) STORED,
+  office_employee_slot BINARY(16) GENERATED ALWAYS AS (CASE WHEN category = 'OFFICE' THEN vendor_employee_id ELSE NULL END) STORED,
+  UNIQUE KEY uq_vendor_employee_home_address (home_employee_slot),
+  UNIQUE KEY uq_vendor_employee_office_address (office_employee_slot),
+  PRIMARY KEY (id),
+  KEY idx_vendor_employee_address_employee (vendor_employee_id),
+  CONSTRAINT fk_vendor_employee_address_employee FOREIGN KEY (vendor_employee_id) REFERENCES vendor_employees (id)
+);
