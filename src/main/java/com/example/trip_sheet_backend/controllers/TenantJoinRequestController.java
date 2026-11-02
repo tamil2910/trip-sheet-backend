@@ -68,7 +68,7 @@ public class TenantJoinRequestController {
     }
 
     @GetMapping("/pending")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('CAN_READ_TENANTJOINREQUEST')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('GUEST_TENANT_LINK_APPROVER') or hasAuthority('CAN_READ_TENANTJOINREQUEST')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getPending(
             Pageable pageable,
             HttpServletRequest request) {
@@ -78,7 +78,7 @@ public class TenantJoinRequestController {
     }
 
     @PatchMapping("/{requestId}/approve")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('CAN_UPDATE_TENANTJOINREQUEST')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('GUEST_TENANT_LINK_APPROVER')")
     public ResponseEntity<ApiResponse<TenantJoinRequestResponseDto>> approve(
             @PathVariable UUID requestId,
             @RequestBody DecideTenantJoinRequestDto body,
@@ -90,7 +90,7 @@ public class TenantJoinRequestController {
     }
 
     @PatchMapping("/{requestId}/reject")
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('CAN_UPDATE_TENANTJOINREQUEST')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('GUEST_TENANT_LINK_APPROVER')")
     public ResponseEntity<ApiResponse<TenantJoinRequestResponseDto>> reject(
             @PathVariable UUID requestId,
             @RequestBody(required = false) DecideTenantJoinRequestDto body,

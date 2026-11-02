@@ -810,10 +810,14 @@ CREATE TABLE IF NOT EXISTS tenant_join_requests (
   decision_note VARCHAR(1000) NULL,
   decided_at BIGINT NULL,
   decided_by_user_id BINARY(16) NULL,
+  approver_user_account_id BINARY(16) NULL,
+  approver_name VARCHAR(255) NULL,
+  approver_email VARCHAR(255) NULL,
   PRIMARY KEY (id),
   UNIQUE KEY uq_tenant_join_request_user_tenant (user_account_id, tenant_id),
   KEY idx_tenant_join_request_tenant_status (tenant_id, status),
   CONSTRAINT fk_tenant_join_request_user FOREIGN KEY (user_account_id) REFERENCES user_accounts (id),
   CONSTRAINT fk_tenant_join_request_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id),
-  CONSTRAINT fk_tenant_join_request_decided_by FOREIGN KEY (decided_by_user_id) REFERENCES user_accounts (id)
+  CONSTRAINT fk_tenant_join_request_decided_by FOREIGN KEY (decided_by_user_id) REFERENCES user_accounts (id),
+  CONSTRAINT fk_tenant_join_request_approver FOREIGN KEY (approver_user_account_id) REFERENCES user_accounts (id)
 );

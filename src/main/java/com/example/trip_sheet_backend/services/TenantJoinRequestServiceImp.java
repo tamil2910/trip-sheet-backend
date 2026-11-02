@@ -65,10 +65,6 @@ public class TenantJoinRequestServiceImp implements TenantJoinRequestService {
         if (request.getId() != null && request.getStatus() == RequestStatus.APPROVED) {
             throw new RuntimeException("This join request has already been approved");
         }
-        if (request.getId() != null && request.getStatus() == RequestStatus.PENDING) {
-            return new TenantJoinRequestResponseDto(request);
-        }
-
         request.setUserAccount(user);
         request.setTenant(tenant);
         request.setStatus(RequestStatus.PENDING);
@@ -77,6 +73,25 @@ public class TenantJoinRequestServiceImp implements TenantJoinRequestService {
         request.setDecidedAt(null);
         request.setDecidedByUser(null);
         request.setRequestMessage(normalize(body.getMessage()));
+        if (body.getApproverUserAccountId() != null) {
+            UserAccount approver = userAccountRepository.findById(body.getApproverUserAccountId())
+                    .orElseThrow(() -> new RuntimeException("Approver user account not found"));
+            if (approver.getTenant() == null || !tenant.getId().equals(approver.getTenant().getId())) {
+                throw new RuntimeException("Approver must belong to the requested organisation");
+            }
+            request.setApproverUserAccount(approver);
+            request.setApproverName(null);
+            request.setApproverEmail(null);
+        } else {
+            String approverName = normalize(body.getApproverName());
+            String approverEmail = normalize(body.getApproverEmail());
+            if (approverName == null || approverEmail == null) {
+                throw new RuntimeException("Provide approverUserAccountId or both approverName and approverEmail");
+            }
+            request.setApproverUserAccount(null);
+            request.setApproverName(approverName);
+            request.setApproverEmail(approverEmail);
+        }
         request.setCreatedBy(user.getId().toString());
         request.setUpdatedBy(user.getId().toString());
         return new TenantJoinRequestResponseDto(requestRepository.save(request));
@@ -103,24 +118,26 @@ public class TenantJoinRequestServiceImp implements TenantJoinRequestService {
     @Transactional(rollbackFor = Exception.class)
     public TenantJoinRequestResponseDto approve(
             Tenant tenant, UUID requestId, UserAccount admin, DecideTenantJoinRequestDto decision) {
-        requireOrganisationTenant(tenant);
+        Tenant decisionTenant = resolveDecisionTenant(tenant, requestId, admin);
+        requireOrganisationTenant(decisionTenant);
         if (decision == null || decision.getPersonType() == null) {
             throw new RuntimeException("personType must be EMPLOYEE or VISITOR");
         }
-        TenantJoinRequest request = requirePendingRequest(tenant, requestId);
+        TenantJoinRequest request = requirePendingRequest(decisionTenant, requestId);
+        requireDesignatedApprover(request, admin);
         UserAccount user = request.getUserAccount();
-        if (user.getTenant() != null && !tenant.getId().equals(user.getTenant().getId())) {
+        if (user.getTenant() != null && !decisionTenant.getId().equals(user.getTenant().getId())) {
             throw new RuntimeException("This account is already linked to another tenant");
         }
 
         PeopleTenant person = peopleTenantRepository
-                .findFirstByUserAccount_IdAndOrganisation_Id(user.getId(), tenant.getId())
-                .orElseGet(() -> findExistingPersonByIdentity(user, tenant).orElseGet(PeopleTenant::new));
+                .findFirstByUserAccount_IdAndOrganisation_Id(user.getId(), decisionTenant.getId())
+                .orElseGet(() -> findExistingPersonByIdentity(user, decisionTenant).orElseGet(PeopleTenant::new));
         if (person.getId() == null) {
             person.setName(user.getUsername());
             person.setEmail(user.getEmail());
             person.setPhone(user.getPhone());
-            person.setOrganisation(tenant);
+            person.setOrganisation(decisionTenant);
             person.setTenantType(PeopleTenant.PeopleTenantType.ORGANISATION);
             person.setCreatorType(PeopleTenant.CreatorType.ORGANISATION);
             person.setCreatedBy(admin.getId().toString());
@@ -132,7 +149,7 @@ public class TenantJoinRequestServiceImp implements TenantJoinRequestService {
         person.setUpdatedBy(admin.getId().toString());
         peopleTenantRepository.save(person);
 
-        user.setTenant(tenant);
+        user.setTenant(decisionTenant);
         user.setTenantType(UserAccount.TenantType.ORGANISATION);
         user.setUpdatedBy(admin.getId().toString());
         userAccountRepository.save(user);
@@ -150,8 +167,10 @@ public class TenantJoinRequestServiceImp implements TenantJoinRequestService {
     @Transactional(rollbackFor = Exception.class)
     public TenantJoinRequestResponseDto reject(
             Tenant tenant, UUID requestId, UserAccount admin, DecideTenantJoinRequestDto decision) {
-        requireOrganisationTenant(tenant);
-        TenantJoinRequest request = requirePendingRequest(tenant, requestId);
+        Tenant decisionTenant = resolveDecisionTenant(tenant, requestId, admin);
+        requireOrganisationTenant(decisionTenant);
+        TenantJoinRequest request = requirePendingRequest(decisionTenant, requestId);
+        requireDesignatedApprover(request, admin);
         request.setStatus(RequestStatus.REJECTED);
         request.setDecisionNote(decision == null ? null : normalize(decision.getDecisionNote()));
         request.setDecidedAt(Instant.now().toEpochMilli());
@@ -215,6 +234,31 @@ public class TenantJoinRequestServiceImp implements TenantJoinRequestService {
             throw new RuntimeException("Only pending requests can be decided");
         }
         return request;
+    }
+
+    private Tenant resolveDecisionTenant(Tenant tenant, UUID requestId, UserAccount actingUser) {
+        if (tenant != null) {
+            return tenant;
+        }
+        if (actingUser != null && actingUser.getRole() != null
+                && "SUPER_ADMIN".equalsIgnoreCase(actingUser.getRole().getName())) {
+            return requestRepository.findById(requestId)
+                    .map(TenantJoinRequest::getTenant)
+                    .orElseThrow(() -> new RuntimeException("Tenant join request not found"));
+        }
+        return tenant;
+    }
+
+    private void requireDesignatedApprover(TenantJoinRequest request, UserAccount actingUser) {
+        if (request.getApproverUserAccount() == null) {
+            return;
+        }
+        String role = actingUser == null || actingUser.getRole() == null
+                ? null : actingUser.getRole().getName();
+        boolean adminOverride = "ADMIN".equalsIgnoreCase(role) || "SUPER_ADMIN".equalsIgnoreCase(role);
+        if (!adminOverride && !request.getApproverUserAccount().getId().equals(actingUser.getId())) {
+            throw new RuntimeException("Only the designated approver or an administrator can decide this request");
+        }
     }
 
     private void requireGuest(UserAccount user) {

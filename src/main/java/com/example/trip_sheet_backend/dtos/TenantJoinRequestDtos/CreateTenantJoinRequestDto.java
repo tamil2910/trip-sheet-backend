@@ -4,6 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import java.util.UUID;
 
 @Getter
 @Setter
@@ -13,4 +14,10 @@ public class CreateTenantJoinRequestDto {
     private String tenantCode;
 
     private String message;
+
+    private UUID approverUserAccountId;
+
+    private String approverName;
+
+    private String approverEmail;
 }

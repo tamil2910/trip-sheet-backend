@@ -17,6 +17,9 @@ public class TenantJoinRequestResponseDto {
     private UUID userAccountId;
     private String name;
     private String email;
+    private UUID approverUserAccountId;
+    private String approverName;
+    private String approverEmail;
     private String phone;
     private String message;
     private RequestStatus status;
@@ -32,6 +35,10 @@ public class TenantJoinRequestResponseDto {
         this.userAccountId = request.getUserAccount().getId();
         this.name = request.getUserAccount().getUsername();
         this.email = request.getUserAccount().getEmail();
+        this.approverUserAccountId = request.getApproverUserAccount() == null
+                ? null : request.getApproverUserAccount().getId();
+        this.approverName = request.getApproverName();
+        this.approverEmail = request.getApproverEmail();
         this.phone = request.getUserAccount().getPhone();
         this.message = request.getRequestMessage();
         this.status = request.getStatus();

@@ -61,6 +61,16 @@ public class TenantJoinRequest extends BaseModel {
     @JoinColumn(name = "decided_by_user_id")
     private UserAccount decidedByUser;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "approver_user_account_id")
+    private UserAccount approverUserAccount;
+
+    @Column(name = "approver_name", length = 255)
+    private String approverName;
+
+    @Column(name = "approver_email", length = 255)
+    private String approverEmail;
+
     public enum RequestStatus {
         PENDING, APPROVED, REJECTED, WITHDRAWN
     }

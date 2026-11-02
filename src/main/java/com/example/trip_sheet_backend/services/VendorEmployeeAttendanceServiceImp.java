@@ -56,6 +56,16 @@ public class VendorEmployeeAttendanceServiceImp implements VendorEmployeeAttenda
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public AttendanceResponseDto getDutyLoginStatus(UserAccount user) {
+        VendorEmployee employee = requireCurrentVendorEmployee(user);
+        LocalDate today = LocalDate.now(ATTENDANCE_ZONE);
+        return attendanceRepository.findByVendorEmployee_IdAndAttendanceDate(employee.getId(), today)
+                .map(AttendanceResponseDto::new)
+                .orElse(null);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public AttendanceResponseDto clockOut(UserAccount user) {
         VendorEmployee employee = requireCurrentVendorEmployee(user);
