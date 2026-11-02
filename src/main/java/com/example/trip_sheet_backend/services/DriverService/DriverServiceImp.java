@@ -27,8 +27,10 @@ import com.example.trip_sheet_backend.models.Role;
 import com.example.trip_sheet_backend.models.RoleGroup;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.models.VehicleDriverMapping;
 import com.example.trip_sheet_backend.repositories.DriverRepository;
 import com.example.trip_sheet_backend.repositories.DriverTenantMappingRepository;
+import com.example.trip_sheet_backend.repositories.VehicleDriverMappingRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.UserAccountRepository;
@@ -44,6 +46,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
   private final RoleRepository roleRepository;
   private final UserAccountRepository userAccountRepository;
   private final DriverTenantMappingRepository driverTenantMappingRepository;
+  private final VehicleDriverMappingRepository vehicleDriverMappingRepository;
   private final RoleGroupRepository roleGroupRepository;
   private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
   private final PasswordEncoder passwordEncoder;
@@ -55,6 +58,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
       RoleRepository roleRepository,
       UserAccountRepository userAccountRepository,
       DriverTenantMappingRepository driverTenantMappingRepository,
+      VehicleDriverMappingRepository vehicleDriverMappingRepository,
       RoleGroupRepository roleGroupRepository,
       UniqueCodeGeneratorService uniqueCodeGeneratorService,
         PasswordEncoder passwordEncoder,
@@ -66,6 +70,7 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     this.roleRepository = roleRepository;
     this.userAccountRepository = userAccountRepository;
     this.driverTenantMappingRepository = driverTenantMappingRepository;
+    this.vehicleDriverMappingRepository = vehicleDriverMappingRepository;
     this.roleGroupRepository = roleGroupRepository;
     this.uniqueCodeGeneratorService = uniqueCodeGeneratorService;
     this.passwordEncoder = passwordEncoder;
@@ -261,20 +266,43 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
         .orElseThrow(() -> new RuntimeException("Driver profile not found for current user"));
     DriverTenantMapping mapping = driverTenantMappingRepository.findByTenant_IdAndDriver_Id(tenantId, driver.getId())
         .filter(existing -> !Boolean.TRUE.equals(existing.getIsDeleted()))
-        .filter(existing -> Boolean.TRUE.equals(existing.getActive()))
         .orElseThrow(() -> new RuntimeException("Driver is not actively linked with the specified tenant"));
 
     mapping.setActive(false);
     mapping.setUpdatedBy(updatedBy.toString());
     DriverTenantMapping savedMapping = driverTenantMappingRepository.save(mapping);
 
+    List<VehicleDriverMapping> activeVehicleMappings =
+        vehicleDriverMappingRepository.findAllByDriver_IdAndTenant_IdAndIsActiveTrueAndIsDeletedFalse(
+            driver.getId(), tenantId);
+    for (VehicleDriverMapping vehicleMapping : activeVehicleMappings) {
+      vehicleMapping.setIsActive(false);
+      vehicleMapping.setUpdatedBy(updatedBy.toString());
+    }
+    if (!activeVehicleMappings.isEmpty()) {
+      vehicleDriverMappingRepository.saveAll(activeVehicleMappings);
+    }
+
+    Tenant activeTenant = driverTenantMappingRepository
+        .findFirstByDriver_IdAndActiveTrueAndIsDeletedFalseOrderByLinkedAtDesc(driver.getId())
+        .map(DriverTenantMapping::getTenant)
+        .orElse(null);
+    driver.setCurrentTenant(activeTenant);
+    repository.save(driver);
+
     UserAccount account = driver.getAccount();
-    if (account != null && account.getTenant() != null
-        && tenantId.equals(account.getTenant().getId())) {
-      account.setTenant(null);
+    if (account != null) {
+      account.setTenant(activeTenant);
       account.setUpdatedBy(updatedBy.toString());
       userAccountRepository.save(account);
     }
+
+    emailService.sendDriverUnlinkedNotification(
+        mapping.getTenant().getContactEmail(),
+        mapping.getTenant().getTenantName(),
+        driver.getFullName(),
+        driver.getDriverCode()
+    );
 
     return DriverTenantResponseDto.fromEntity(savedMapping);
   }

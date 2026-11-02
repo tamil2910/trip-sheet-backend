@@ -50,6 +50,11 @@ public class PeopleTenant extends BaseModel implements TenantScoped {
 
   @JsonIgnore
   @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "user_account_id")
+  private UserAccount userAccount;
+
+  @JsonIgnore
+  @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "owner_vendor_partner_id")
   private VendorPartner ownerVendorPartner;
 

@@ -224,10 +224,12 @@ public class UserAccountController extends BaseController<UserAccount, UUID>{
             List<Map<String, Object>> tenantDataList = new ArrayList<>();
     
             if (tenants != null && !tenants.isEmpty()) {
-              Map<String, Object> tenantData = new HashMap<>();
               tenants.stream()
+              .filter(t -> Boolean.TRUE.equals(t.getActive()))
+              .filter(t -> !Boolean.TRUE.equals(t.getIsDeleted()))
               .filter(t -> t.getTenant() != null)
               .forEach(t -> {
+                Map<String, Object> tenantData = new HashMap<>();
                 tenantData.put("id", t.getTenant().getId());
                 tenantData.put("name", t.getTenant().getTenantName());
                 tenantDataList.add(tenantData);

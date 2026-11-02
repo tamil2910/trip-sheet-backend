@@ -49,7 +49,7 @@ public interface DriverTenantMappingRepository extends BaseRepository<DriverTena
   Optional<DriverTenantMapping> findByDriver_IdAndActiveTrue(UUID driverId);
 
   @EntityGraph(attributePaths = {"tenant", "driver", "driver.account"})
-  Optional<DriverTenantMapping> findFirstByDriver_IdAndActiveTrueOrderByLinkedAtDesc(UUID driverId);
+  Optional<DriverTenantMapping> findFirstByDriver_IdAndActiveTrueAndIsDeletedFalseOrderByLinkedAtDesc(UUID driverId);
 
 
 }

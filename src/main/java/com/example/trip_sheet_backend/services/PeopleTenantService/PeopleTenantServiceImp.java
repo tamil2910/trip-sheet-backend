@@ -14,6 +14,9 @@ import com.example.trip_sheet_backend.dtos.PeopleTenantDtos.CreatePeopleRequestD
 import com.example.trip_sheet_backend.dtos.PeopleTenantCustomFieldValueDtos.PeopleTenantCustomFieldValueDto;
 import com.example.trip_sheet_backend.models.CustomField;
 import com.example.trip_sheet_backend.models.PeopleTenant;
+import com.example.trip_sheet_backend.models.Role;
+import com.example.trip_sheet_backend.repositories.RoleRepository;
+import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import com.example.trip_sheet_backend.models.PeopleTenantCustomFieldValue;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.PeopleTenant.CreatorType;
@@ -38,12 +41,15 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
   private final CustomFieldRepository customFieldRepository;
   private final PeopleTenantCustomFieldValueRepository customFieldValueRepository;
   private final ModelMapper mapper;
+  private final UserAccountRepository userAccountRepository;
+  private final RoleRepository roleRepository;
 
   public PeopleTenantServiceImp(PeopleTenantRepository repository,
     TenantRepository tenantRepository, VendorPartnerRepository vendorPartnerRepository,
     VendorOrganisationRepository vendorOrganisationRepository,
     CustomFieldRepository customFieldRepository,
-    PeopleTenantCustomFieldValueRepository customFieldValueRepository, ModelMapper mapper
+    PeopleTenantCustomFieldValueRepository customFieldValueRepository, ModelMapper mapper,
+    UserAccountRepository userAccountRepository, RoleRepository roleRepository
   ) {
     super(repository);
     this.repository = repository;
@@ -53,6 +59,8 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
     this.customFieldRepository = customFieldRepository;
     this.customFieldValueRepository = customFieldValueRepository;
     this.mapper = mapper;
+    this.userAccountRepository = userAccountRepository;
+    this.roleRepository = roleRepository;
   }
 
   @Transactional(rollbackOn = Exception.class)
@@ -110,18 +118,22 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
 
     // Organisation creates
     if (tokenTenant.getTenantType() == TenantType.ORGANISATION) {
-      Optional<PeopleTenant> existingOrganisationPerson = repository
-          .findByPhoneAndOrganisation_Id(dto.getPhone(), tokenTenant.getId());
+      Optional<PeopleTenant> existingOrganisationPerson = dto.getPhone() == null || dto.getPhone().isBlank()
+          ? Optional.empty()
+          : repository.findByPhoneAndOrganisation_Id(dto.getPhone(), tokenTenant.getId());
       if (existingOrganisationPerson.isPresent()) {
         PeopleTenant person = existingOrganisationPerson.get();
+        person.setOrganisationPersonType(dto.getOrganisationPersonType());
+        ensureOrganisationUserAccount(person, dto, tokenTenant, createdBy);
         if (dto.getCustomFields() != null) {
           replaceCustomFieldValues(person, dto.getCustomFields(), tokenTenant, createdBy);
         }
-        return person;
+        return repository.save(person);
       }
       PeopleTenant person = mapper.map(dto, PeopleTenant.class);
       person.setOrganisation(tokenTenant);
       person.setOrganisationPersonType(dto.getOrganisationPersonType());
+      ensureOrganisationUserAccount(person, dto, tokenTenant, createdBy);
       person.setCreatedBy(createdBy.toString());
       person.setCreatorType(CreatorType.ORGANISATION);
       person.setAdditionalContact(additionalContact);
@@ -184,6 +196,55 @@ public class PeopleTenantServiceImp extends BaseServiceImp<PeopleTenant, UUID> i
     return repository.save(person);
   }
 
+  private void ensureOrganisationUserAccount(PeopleTenant person, CreatePeopleRequestDto dto, Tenant organisation, UUID createdBy) {
+    if (!Boolean.TRUE.equals(dto.getIsUser())) {
+      return;
+    }
+    UserAccount account = person.getUserAccount();
+    String email = dto.getEmail() == null || dto.getEmail().isBlank() ? null : dto.getEmail().trim();
+    String phone = dto.getPhone() == null || dto.getPhone().isBlank() ? null : dto.getPhone().trim();
+
+    UserAccount emailAccount = email == null ? null : userAccountRepository.findByEmail(email).orElse(null);
+    UserAccount phoneAccount = phone == null ? null : userAccountRepository.findByPhone(phone).orElse(null);
+    if (emailAccount != null && phoneAccount != null && !emailAccount.getId().equals(phoneAccount.getId())) {
+      throw new RuntimeException("Email and phone belong to different user accounts");
+    }
+    if (account == null) {
+      account = emailAccount != null ? emailAccount : phoneAccount;
+    }
+
+    if (account == null && !Boolean.TRUE.equals(dto.getIsUser())) {
+      return;
+    }
+    if (account == null) {
+      if (email == null) {
+        throw new RuntimeException("Email is required to create a customer login account");
+      }
+      Role guestRole = roleRepository.findByName("GUEST")
+          .orElseThrow(() -> new RuntimeException("GUEST role not found"));
+      account = new UserAccount();
+      account.setUsername("guest_" + UUID.randomUUID().toString().replace("-", ""));
+      account.setEmail(email);
+      account.setPhone(phone);
+      account.setRole(guestRole);
+      account.setLoginType(UserAccount.LoginType.GOOGLE);
+      account.setIsActive(true);
+      account.setCreatedBy(createdBy == null ? null : createdBy.toString());
+      account.setUpdatedBy(createdBy == null ? null : createdBy.toString());
+      if (createdBy != null) {
+        UserAccount creator = userAccountRepository.findById(createdBy).orElse(null);
+        if (creator != null) account.setCreatedByUser(creator);
+      }
+    }
+
+    if (account.getTenant() != null && !organisation.getId().equals(account.getTenant().getId())) {
+      throw new RuntimeException("This user account is already linked to another tenant");
+    }
+    account.setTenant(organisation);
+    account.setTenantType(UserAccount.TenantType.ORGANISATION);
+    account.setUpdatedBy(createdBy == null ? null : createdBy.toString());
+    person.setUserAccount(userAccountRepository.save(account));
+  }
   private void applyCustomFields(
       PeopleTenant person,
       List<PeopleTenantCustomFieldValueDto> customFields,

@@ -44,6 +44,13 @@ public class TenantInterceptor implements HandlerInterceptor {
 
     String role = jwtTokenUtil.getRoleFromToken(token);
 
+    // A public GUEST without a tenant must not reuse an old tenant-scoped JWT claim.
+    if ("GUEST".equalsIgnoreCase(role) && user.getTenant() == null) {
+        setCommonAttributes(request, user);
+        request.setAttribute("tenantId", null);
+        request.setAttribute("tenant", null);
+        return true;
+    }
     // ---------------- SUPER ADMIN ----------------
     if ("SUPER_ADMIN".equals(role)) {
         setCommonAttributes(request, user);

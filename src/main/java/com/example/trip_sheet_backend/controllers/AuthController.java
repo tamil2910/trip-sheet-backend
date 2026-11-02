@@ -397,7 +397,7 @@ public class AuthController {
                        user.setPhone(peopleTenantOpt.getPhone());
                        user.setRole(guestRole);
                        user.setLoginType(UserAccount.LoginType.GOOGLE);
-                       user.setTenant(peopleTenantOpt.getOrganisation());
+                       user.setTenant(null);
                        user.setProfilePicture(picture);
                        user.setIsActive(true);
                        user.setGoogleId(googleId);
@@ -405,20 +405,13 @@ public class AuthController {
                        userAccountRepository.saveAndFlush(user);
                        guestUserHandled = true;
                     } else {
-                        Tenant organisation = null;
-                        if (resolvedOrganisationId != null) {
-                            organisation = tenantRepository.findById(UUID.fromString(resolvedOrganisationId))
-                                    .orElseThrow(() -> new RuntimeException("Organisation not found for ID: " + resolvedOrganisationId));
-                        }
-
                         PeopleTenant peopleTenant = new PeopleTenant();
                         peopleTenant.setEmail(email);
                         peopleTenant.setName(requestedFullName);
                         peopleTenant.setPhone(null);
-                        peopleTenant.setOrganisation(organisation);
                         peopleTenant.setTenantType(PeopleTenant.PeopleTenantType.WALKIN);
                         peopleTenant.setGender(null);
-                        peopleTenant.setCreatorType(organisation != null ? PeopleTenant.CreatorType.ORGANISATION : null);
+                        peopleTenant.setCreatorType(null);
                         peopleTenantRepository.saveAndFlush(peopleTenant);
 
                         newUser = true;
@@ -427,7 +420,7 @@ public class AuthController {
                         user.setPhone(peopleTenant.getPhone());
                         user.setRole(guestRole);
                         user.setLoginType(UserAccount.LoginType.GOOGLE);
-                        user.setTenant(organisation);
+                        user.setTenant(null);
                         user.setProfilePicture(picture);
                         user.setIsActive(true);
                         user.setGoogleId(googleId);
@@ -483,6 +476,10 @@ public class AuthController {
             }
 
             // 4️⃣ LOAD PERMISSIONS FROM ROLE GROUPS
+            if (user.getRole() != null && "GUEST".equalsIgnoreCase(user.getRole().getName())) {
+                linkGuestAccountToPeopleTenant(user, email);
+            }
+
             Set<String> effectivePermissions;
 
             if (user.getRoleGroups() != null && !user.getRoleGroups().isEmpty()) {
@@ -507,7 +504,7 @@ public class AuthController {
                 if (driverOpt.isPresent()) {
                     Driver driver = driverOpt.get();
                     tokenTenant = driverTenantMappingRepository
-                            .findFirstByDriver_IdAndActiveTrueOrderByLinkedAtDesc(driver.getId())
+                            .findFirstByDriver_IdAndActiveTrueAndIsDeletedFalseOrderByLinkedAtDesc(driver.getId())
                             .map(mapping -> mapping.getTenant())
                             .orElse(null);
                     driver.setCurrentTenant(tokenTenant);
@@ -564,6 +561,18 @@ public class AuthController {
         }
     }
 
+    private void linkGuestAccountToPeopleTenant(UserAccount user, String email) {
+        List<PeopleTenant> peopleTenants = peopleTenantRepository.findAllByEmailIgnoreCaseOrderByCreatedAtDesc(email);
+        if (peopleTenants == null || peopleTenants.isEmpty()) {
+            return;
+        }
+        for (PeopleTenant person : peopleTenants) {
+            if (person.getUserAccount() == null || user.getId().equals(person.getUserAccount().getId())) {
+                person.setUserAccount(user);
+                peopleTenantRepository.save(person);
+            }
+        }
+    }
   private String generateUniqueUsername(String baseUsername) {
     String sanitized = baseUsername.trim().replaceAll("\\s+", "_").toLowerCase();
     Optional<UserAccount> existing = this.userAccountRepository.findByUsername(sanitized);

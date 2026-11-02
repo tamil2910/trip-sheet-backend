@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.repositories;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -14,6 +15,11 @@ import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.VehicleDriverMapping;
 
 public interface VehicleDriverMappingRepository extends BaseRepository<VehicleDriverMapping, UUID> {
+    List<VehicleDriverMapping> findAllByDriver_IdAndTenant_IdAndIsActiveTrueAndIsDeletedFalse(
+      UUID driverId,
+      UUID tenantId
+    );
+
     Optional<VehicleDriverMapping> findByDriverIdAndTenantIdAndIsActive(
       UUID driverId,
       UUID tenantId,

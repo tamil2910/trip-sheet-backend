@@ -143,6 +143,51 @@ public class EmailService {
         }
     }
 
+    public void sendDriverUnlinkedNotification(
+            String toEmail,
+            String tenantName,
+            String driverName,
+            String driverCode) {
+        if (toEmail == null || toEmail.isBlank()) {
+            throw new RuntimeException("Vendor contact email is required to notify the vendor");
+        }
+        if (fromEmail == null || fromEmail.isBlank()) {
+            throw new RuntimeException("SendGrid sender email is not configured. Set SENDGRID_FROM_EMAIL or sendgrid.from.email");
+        }
+        if (sendGridApiKey == null || sendGridApiKey.isBlank()) {
+            throw new RuntimeException("SendGrid API key is not configured. Set SENDGRID_API_KEY or email_config_key");
+        }
+
+        String safeDriverName = driverName == null || driverName.isBlank() ? "The driver" : driverName;
+        String safeDriverCode = driverCode == null || driverCode.isBlank() ? "(not available)" : driverCode;
+        String safeTenantName = tenantName == null || tenantName.isBlank() ? "your vendor account" : tenantName;
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("from", Map.of("email", fromEmail));
+        payload.put("personalizations", List.of(Map.of("to", List.of(Map.of("email", toEmail)))));
+        payload.put("subject", "Driver unlinked from " + safeTenantName);
+        payload.put("content", List.of(Map.of(
+                "type", "text/plain",
+                "value", safeDriverName + " (" + safeDriverCode + ") has unlinked from " + safeTenantName
+                        + ". Their active vehicle assignments under your tenant have also been removed."
+        )));
+
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + sendGridApiKey);
+            ResponseEntity<String> response = restTemplate.postForEntity(
+                    SENDGRID_API_URL,
+                    new HttpEntity<>(payload, headers),
+                    String.class);
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException("SendGrid rejected the notification. Status="
+                        + response.getStatusCodeValue() + ", Body=" + response.getBody());
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error sending driver unlink notification: " + e.getMessage(), e);
+        }
+    }
+
     public void sendTripFeedbackEmail(String toEmail, String passengerName, String feedbackLink) {
         if (toEmail == null || toEmail.isBlank()) {
             throw new RuntimeException("Recipient email is required");
