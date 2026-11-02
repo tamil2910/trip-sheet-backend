@@ -14,9 +14,12 @@ public interface UserAccountRepository extends BaseRepository<UserAccount, UUID>
   @EntityGraph(attributePaths = {"role", "tenant", "roleGroups", "roleGroups.permissions"})
   Optional<UserAccount> findById(UUID id);
 
+  @EntityGraph(attributePaths = {"role", "tenant", "roleGroups", "roleGroups.permissions"})
   Optional<UserAccount> findByEmail(String email);
   List<UserAccount> findAllByEmailOrderByCreatedAtDesc(String email);
+  @EntityGraph(attributePaths = {"role", "tenant", "roleGroups", "roleGroups.permissions"})
   Optional<UserAccount> findByPhone(String phone);
+  @EntityGraph(attributePaths = {"role", "tenant", "roleGroups", "roleGroups.permissions"})
   Optional<UserAccount> findByUsername(String username);
 
   boolean existsByEmail(String email);
