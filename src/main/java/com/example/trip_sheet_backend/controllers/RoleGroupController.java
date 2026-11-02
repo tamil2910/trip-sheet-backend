@@ -57,7 +57,7 @@ public class RoleGroupController extends BaseController<RoleGroup, UUID>{
     this.permissionRepository = permissionRepository;
   }
 
-  @PreAuthorize("hasAuthority('CAN_CREATE_ROLEGROUP') or hasRole('SUPER_ADMIN')")
+  @PreAuthorize("hasAuthority('CAN_CREATE_ROLEGROUP') or hasAuthority('ROLE_GROUP_VIEW') or hasRole('SUPER_ADMIN')")
   @PostMapping("/create")
   public ResponseEntity<ApiResponse<RoleGroupDTO>> createRoleGroup(HttpServletRequest request,
      @Valid @RequestBody RoleGroupCreateDTO body) {
