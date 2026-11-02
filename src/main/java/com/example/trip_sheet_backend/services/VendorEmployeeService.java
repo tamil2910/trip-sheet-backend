@@ -7,10 +7,13 @@ import org.springframework.data.domain.Pageable;
 
 import com.example.trip_sheet_backend.dtos.VendorEmployeeDtos.VendorEmployeeCreateRequestDto;
 import com.example.trip_sheet_backend.dtos.VendorEmployeeDtos.VendorEmployeeResponseDto;
+import com.example.trip_sheet_backend.dtos.VendorEmployeeDtos.VendorEmployeeUpdateRequestDto;
 import com.example.trip_sheet_backend.models.Tenant;
 
 public interface VendorEmployeeService {
     VendorEmployeeResponseDto create(VendorEmployeeCreateRequestDto request, Tenant tenant, UUID createdBy);
+
+    VendorEmployeeResponseDto update(UUID employeeId, VendorEmployeeUpdateRequestDto request, Tenant tenant, UUID updatedBy);
 
     VendorEmployeeResponseDto getById(Tenant tenant, UUID employeeId);
 

@@ -3,12 +3,17 @@ package com.example.trip_sheet_backend.security;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Component;
+import com.example.trip_sheet_backend.models.Permission;
+import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.repositories.UserAccountRepository;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import jakarta.servlet.FilterChain;
@@ -20,9 +25,11 @@ import jakarta.servlet.http.HttpServletResponse;
 public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtTokenUtil jwtTokenUtil;
+    private final UserAccountRepository userAccountRepository;
 
-    public JwtAuthFilter(JwtTokenUtil jwtTokenUtil) {
+    public JwtAuthFilter(JwtTokenUtil jwtTokenUtil, UserAccountRepository userAccountRepository) {
         this.jwtTokenUtil = jwtTokenUtil;
+        this.userAccountRepository = userAccountRepository;
     }
 
     @Override
@@ -44,6 +51,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
                 String role = jwtTokenUtil.getRoleFromToken(token);
                 String accountId = jwtTokenUtil.getUserIdFromToken(token);
                 List<String> permissions = jwtTokenUtil.getPermissionsFromToken(token);
+
+                // Resolve permissions from current assignments so role-group changes take
+                // effect without relying on an old JWT permission snapshot.
+                if (accountId != null) {
+                    UserAccount account = userAccountRepository.findById(UUID.fromString(accountId))
+                            .orElse(null);
+                    if (account != null) {
+                        role = account.getRole() != null ? account.getRole().getName() : role;
+                        permissions = account.getRoleGroups() == null
+                                ? List.of()
+                                : account.getRoleGroups().stream()
+                                        .filter(group -> group.getPermissions() != null)
+                                        .flatMap(group -> group.getPermissions().stream())
+                                        .map(Permission::getName)
+                                        .filter(permission -> permission != null)
+                                        .collect(Collectors.toList());
+                    }
+                }
 
                 if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
 

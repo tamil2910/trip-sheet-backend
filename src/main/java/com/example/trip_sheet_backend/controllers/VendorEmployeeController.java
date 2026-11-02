@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.VendorEmployeeDtos.VendorEmployeeCreateRequestDto;
 import com.example.trip_sheet_backend.dtos.VendorEmployeeDtos.VendorEmployeeResponseDto;
+import com.example.trip_sheet_backend.dtos.VendorEmployeeDtos.VendorEmployeeUpdateRequestDto;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
@@ -49,6 +51,18 @@ public class VendorEmployeeController {
                 .body(new ApiResponse<>(true, "Vendor employee created successfully", result));
     }
 
+    @PreAuthorize("hasAuthority('CAN_UPDATE_USERACCOUNT')")
+    @PatchMapping("/{id}")
+    public ResponseEntity<ApiResponse<VendorEmployeeResponseDto>> update(
+            @PathVariable UUID id,
+            @Valid @RequestBody VendorEmployeeUpdateRequestDto body,
+            HttpServletRequest request) {
+        Tenant tenant = (Tenant) request.getAttribute("tenant");
+        UserAccount currentUser = (UserAccount) request.getAttribute("user");
+        UUID updatedBy = currentUser == null ? null : currentUser.getId();
+        VendorEmployeeResponseDto result = service.update(id, body, tenant, updatedBy);
+        return ResponseEntity.ok(new ApiResponse<>(true, "Vendor employee updated successfully", result));
+    }
     @PreAuthorize("hasAuthority('CAN_READ_USERACCOUNT')")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<VendorEmployeeResponseDto>> getById(
