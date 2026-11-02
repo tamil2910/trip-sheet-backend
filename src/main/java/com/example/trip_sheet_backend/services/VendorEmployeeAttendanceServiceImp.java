@@ -34,20 +34,15 @@ public class VendorEmployeeAttendanceServiceImp implements VendorEmployeeAttenda
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void recordLogin(UserAccount user) {
-        if (user == null || user.getId() == null) {
-            return;
+    public AttendanceResponseDto clockIn(UserAccount user, Boolean isDutyLogin) {
+        if (!Boolean.TRUE.equals(isDutyLogin)) {
+            throw new RuntimeException("isDutyLogin must be true to record duty login");
         }
-        VendorEmployee employee = employeeRepository.findByAccount_IdAndIsUserTrue(user.getId()).orElse(null);
-        if (employee == null || employee.getTenant() == null
-                || employee.getTenant().getTenantType() != Tenant.TenantType.VENDOR) {
-            return;
-        }
-
+        VendorEmployee employee = requireCurrentVendorEmployee(user);
         long now = Instant.now().toEpochMilli();
         LocalDate today = Instant.ofEpochMilli(now).atZone(ATTENDANCE_ZONE).toLocalDate();
         if (attendanceRepository.findByVendorEmployee_IdAndAttendanceDate(employee.getId(), today).isPresent()) {
-            return;
+            throw new RuntimeException("Duty login has already been recorded for today");
         }
 
         VendorEmployeeAttendance attendance = new VendorEmployeeAttendance();
@@ -57,7 +52,7 @@ public class VendorEmployeeAttendanceServiceImp implements VendorEmployeeAttenda
         attendance.setClockInAt(now);
         attendance.setCreatedBy(user.getId().toString());
         attendance.setUpdatedBy(user.getId().toString());
-        attendanceRepository.save(attendance);
+        return new AttendanceResponseDto(attendanceRepository.save(attendance));
     }
 
     @Override

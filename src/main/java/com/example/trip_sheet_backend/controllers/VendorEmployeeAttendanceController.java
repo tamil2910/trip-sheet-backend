@@ -37,6 +37,23 @@ public class VendorEmployeeAttendanceController {
         return ResponseEntity.ok(new ApiResponse<>(true, "Duty logout recorded", result));
     }
 
+    @PostMapping("/duty-login")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<AttendanceResponseDto>> dutyLogin(
+            @RequestBody DutyLoginRequest body,
+            HttpServletRequest request) {
+        UserAccount user = (UserAccount) request.getAttribute("user");
+        AttendanceResponseDto result = attendanceService.clockIn(user, body.getIsDutyLogin());
+        return ResponseEntity.ok(new ApiResponse<>(true, "Duty login recorded", result));
+    }
+
+    public static class DutyLoginRequest {
+        private Boolean isDutyLogin;
+
+        public Boolean getIsDutyLogin() { return isDutyLogin; }
+        public void setIsDutyLogin(Boolean isDutyLogin) { this.isDutyLogin = isDutyLogin; }
+    }
+
     @PatchMapping("/{attendanceId}")
     @PreAuthorize("hasAuthority('CAN_UPDATE_ATTENDANCE')")
     public ResponseEntity<ApiResponse<AttendanceResponseDto>> updateAttendance(

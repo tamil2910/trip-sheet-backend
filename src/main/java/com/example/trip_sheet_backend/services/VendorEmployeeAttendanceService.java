@@ -8,7 +8,7 @@ import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 
 public interface VendorEmployeeAttendanceService {
-    void recordLogin(UserAccount user);
+    AttendanceResponseDto clockIn(UserAccount user, Boolean isDutyLogin);
     AttendanceResponseDto clockOut(UserAccount user);
     AttendanceResponseDto update(UUID attendanceId, Tenant tenant, UUID updatedBy, AttendanceTimeUpdateRequestDto request);
 }
