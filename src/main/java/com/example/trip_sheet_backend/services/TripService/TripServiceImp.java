@@ -39,6 +39,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.ManualTripExecuteRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripSupplierAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStopRequestDTO;
@@ -81,6 +82,9 @@ import com.example.trip_sheet_backend.repositories.VendorDelegationHistoryReposi
 import com.example.trip_sheet_backend.repositories.VehicleRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
+import com.example.trip_sheet_backend.repositories.VendorPartnerRepository;
+import com.example.trip_sheet_backend.repositories.SupplierDriverVehiclesRepository;
+import com.example.trip_sheet_backend.repositories.VehicleTenantMappingRepository;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -119,6 +123,13 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private final UniqueCodeGeneratorService uniqueCodeGeneratorService;
     private final TripRealtimePublisher tripRealtimePublisher;
     private final RailwayBucketStorageService bucketStorage;
+
+    @Autowired
+    private VendorPartnerRepository vendorPartnerRepository;
+    @Autowired
+    private SupplierDriverVehiclesRepository supplierDriverVehiclesRepository;
+    @Autowired
+    private VehicleTenantMappingRepository vehicleTenantMappingRepository;
 
     private final ModelMapper mapper;
 
@@ -707,6 +718,78 @@ public Trip assignVendorToTrip(
     trip.setUpdatedBy(updatedBy.toString());
   }
 
+  Trip savedTrip = repository.save(trip);
+  tripRealtimePublisher.publishUpdated(savedTrip);
+  return savedTrip;
+}
+
+@Override
+@Transactional(rollbackFor = Exception.class)
+public Trip allotTripToSupplier(Tenant tokenTenant, UUID tokenTenantId, UUID tripId,
+    TripSupplierAllotRequestDTO payload, UUID updatedBy) {
+  if (tokenTenant == null || tokenTenant.getTenantType() != Tenant.TenantType.VENDOR
+      || tokenTenantId == null || !tokenTenantId.equals(tokenTenant.getId())) {
+    throw new RuntimeException("Vendor tenant context is required");
+  }
+  if (payload == null || payload.getSupplierId() == null || payload.getVehicleId() == null
+      || payload.getDriverId() == null || payload.getDispatchId() == null) {
+    throw new RuntimeException("supplierId, vehicleId, driverId, and dispatchId are required");
+  }
+
+  Trip trip = findTripForTenant(tokenTenantId, tripId);
+  ensureTripStatus(trip, Trip.TripStatus.CREATED, Trip.TripStatus.CONFIRMED);
+  if (trip.getVendor() == null || !tokenTenantId.equals(trip.getVendor().getId())) {
+    throw new RuntimeException("Only the vendor currently assigned to the trip can allot it to a supplier");
+  }
+
+  Tenant supplier = tenantRepository.findById(payload.getSupplierId())
+      .filter(candidate -> candidate.getTenantType() == Tenant.TenantType.VENDOR)
+      .orElseThrow(() -> new RuntimeException("Supplier vendor not found"));
+  VendorPartner supplierLink = vendorPartnerRepository.findByPrimaryVendorAndPartnerVendor(tokenTenant, supplier)
+      .filter(link -> !Boolean.TRUE.equals(link.getIsDeleted()))
+      .filter(link -> !Boolean.FALSE.equals(link.getIsActive()))
+      .filter(link -> Boolean.TRUE.equals(link.getIsAssociateSupplier()))
+      .orElseThrow(() -> new RuntimeException("Selected vendor is not an active supplier of this vendor"));
+
+  Driver driver = driverRepository.findById(payload.getDriverId())
+      .orElseThrow(() -> new RuntimeException("Driver not found"));
+  boolean driverListedForSupplier = supplierDriverVehiclesRepository
+      .existsByPrimaryVendor_IdAndPartnerVendor_IdAndDriver_IdAndTypeAndIsDeletedFalse(
+          tokenTenantId, supplier.getId(), driver.getId(), com.example.trip_sheet_backend.models.SupplierDriverVehicles.Type.DRIVER);
+  if (!driverListedForSupplier) {
+    throw new RuntimeException("Driver is not registered for the selected supplier");
+  }
+
+  var supplierVehicle = supplierDriverVehiclesRepository
+      .findByIdAndPrimaryVendor_IdAndPartnerVendor_IdAndTypeAndIsDeletedFalse(
+          payload.getVehicleId(), tokenTenantId, supplier.getId(),
+          com.example.trip_sheet_backend.models.SupplierDriverVehicles.Type.VEHICLE)
+      .orElseThrow(() -> new RuntimeException("Vehicle is not registered for the selected supplier"));
+  Vehicle vehicle = vehicleRepository.findByVehicleNumberAndTenant_Id(
+      supplierVehicle.getVehicleNumber(), supplier.getId());
+  if (vehicle == null) {
+    throw new RuntimeException("Supplier vehicle must also exist as a vehicle under the supplier tenant");
+  }
+  var vehicleMapping = vehicleTenantMappingRepository.findByTenant_IdAndVehicle_Id(supplier.getId(), vehicle.getId())
+      .filter(mapping -> !Boolean.TRUE.equals(mapping.getIsDeleted()))
+      .filter(mapping -> !Boolean.FALSE.equals(mapping.getActive()))
+      .orElseThrow(() -> new RuntimeException("Vehicle is not linked to the selected supplier"));
+
+  DispatchCenter dispatchCenter = dispatchCenterRepo.findById(payload.getDispatchId())
+      .filter(center -> center.getTenant() != null && supplier.getId().equals(center.getTenant().getId()))
+      .filter(center -> !Boolean.TRUE.equals(center.getIsDeleted()))
+      .orElseThrow(() -> new RuntimeException("Dispatch center is not linked to the selected supplier"));
+
+  trip.setPreviousVendor(trip.getVendor());
+  trip.setAssignedByVendor(tokenTenant);
+  trip.setVendor(supplierLink.getPartnerVendor());
+  trip.setDriver(driver);
+  trip.setVehicle(vehicleMapping.getVehicle());
+  trip.setDispatchCenter(dispatchCenter);
+  trip.setTripStatus(Trip.TripStatus.ALLOTTED);
+  if (updatedBy != null) {
+    trip.setUpdatedBy(updatedBy.toString());
+  }
   Trip savedTrip = repository.save(trip);
   tripRealtimePublisher.publishUpdated(savedTrip);
   return savedTrip;

@@ -32,6 +32,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.ManualTripExecuteRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripLabelAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripSupplierAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
@@ -645,6 +646,24 @@ public class TripController {
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip assigned to partner vendor successfully", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
+  @PutMapping("/allot/supplier/{tripId}")
+  public ResponseEntity<ApiResponse<?>> allotTripToSupplier(
+      @PathVariable @NotNull UUID tripId,
+      @Valid @RequestBody TripSupplierAllotRequestDTO payload,
+      HttpServletRequest request
+  ) {
+    Tenant tokenTenant = (Tenant) request.getAttribute("tenant");
+    UUID tokenTenantId = (UUID) request.getAttribute("tenantId");
+    UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+    try {
+      Trip trip = tripServiceImp.allotTripToSupplier(tokenTenant, tokenTenantId, tripId, payload, updatedBy);
+      return ResponseEntity.ok(new ApiResponse<>(true, "Trip allotted to supplier successfully", mapTripForViewer(trip, request)));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, ex.getMessage(), null));
     }
   }
 
