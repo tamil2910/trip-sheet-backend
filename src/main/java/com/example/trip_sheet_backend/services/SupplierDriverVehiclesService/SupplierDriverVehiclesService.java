@@ -136,6 +136,20 @@ public class SupplierDriverVehiclesService {
         primaryVendor.getId(), partnerVendorId);
   }
 
+  @Transactional(readOnly = true)
+  public List<SupplierDriverVehicles> getDriversByPartner(Tenant primaryVendor, UUID partnerVendorId) {
+    return getByPartner(primaryVendor, partnerVendorId).stream()
+        .filter(entry -> entry.getType() == SupplierDriverVehicles.Type.DRIVER)
+        .toList();
+  }
+
+  @Transactional(readOnly = true)
+  public List<SupplierDriverVehicles> getVehiclesByPartner(Tenant primaryVendor, UUID partnerVendorId) {
+    return getByPartner(primaryVendor, partnerVendorId).stream()
+        .filter(entry -> entry.getType() == SupplierDriverVehicles.Type.VEHICLE)
+        .toList();
+  }
+
   private Tenant resolvePartnerVendor(java.util.UUID partnerVendorId) {
     if (partnerVendorId == null) {
       throw new RuntimeException("Partner vendor is required");
