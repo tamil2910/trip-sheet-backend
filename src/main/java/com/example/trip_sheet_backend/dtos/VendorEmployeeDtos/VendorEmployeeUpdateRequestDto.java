@@ -15,6 +15,7 @@ public class VendorEmployeeUpdateRequestDto {
     private String email;
     private String phone;
     private String employeeNumber;
+    private String password;
     private Boolean isUser;
     private Set<UUID> roleGroupIds;
 }

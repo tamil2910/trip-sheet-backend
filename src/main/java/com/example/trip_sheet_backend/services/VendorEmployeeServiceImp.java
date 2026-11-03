@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import com.example.trip_sheet_backend.dtos.VendorEmployeeDtos.VendorEmployeeCreateRequestDto;
 import com.example.trip_sheet_backend.dtos.VendorEmployeeDtos.VendorEmployeeResponseDto;
@@ -28,16 +29,19 @@ public class VendorEmployeeServiceImp implements VendorEmployeeService {
     private final UserAccountRepository userAccountRepository;
     private final RoleGroupRepository roleGroupRepository;
     private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public VendorEmployeeServiceImp(
             VendorEmployeeRepository employeeRepository,
             UserAccountRepository userAccountRepository,
             RoleGroupRepository roleGroupRepository,
-            RoleRepository roleRepository) {
+            RoleRepository roleRepository,
+            PasswordEncoder passwordEncoder) {
         this.employeeRepository = employeeRepository;
         this.userAccountRepository = userAccountRepository;
         this.roleGroupRepository = roleGroupRepository;
         this.roleRepository = roleRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -141,6 +145,9 @@ public class VendorEmployeeServiceImp implements VendorEmployeeService {
         if (!makeUser && employee.getAccount() != null) {
             throw new RuntimeException("A linked user account cannot be removed through this update API");
         }
+        if (!makeUser && request.getPassword() != null && !request.getPassword().isBlank()) {
+            throw new RuntimeException("Password can only be updated for a user account");
+        }
         if (!makeUser && request.getRoleGroupIds() != null && !request.getRoleGroupIds().isEmpty()) {
             throw new RuntimeException("Role groups can only be assigned when isUser is true");
         }
@@ -187,6 +194,9 @@ public class VendorEmployeeServiceImp implements VendorEmployeeService {
             account.setEmail(email);
             account.setPhone(phone);
             account.setLoginType(email != null ? UserAccount.LoginType.EMAIL : UserAccount.LoginType.PHONE);
+            if (request.getPassword() != null && !request.getPassword().isBlank()) {
+                account.setPassword(passwordEncoder.encode(request.getPassword()));
+            }
             account.setUpdatedBy(updatedBy == null ? null : updatedBy.toString());
             employee.setAccount(userAccountRepository.save(account));
         }
