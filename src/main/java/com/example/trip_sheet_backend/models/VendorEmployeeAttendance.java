@@ -11,6 +11,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -42,8 +44,16 @@ public class VendorEmployeeAttendance extends BaseModel {
     @Column(name = "attendance_date", nullable = false)
     private LocalDate attendanceDate;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "attendance_status", length = 16)
+    private AttendanceStatus status;
+
+    public enum AttendanceStatus {
+        OFF, ABSENT, PRESENT, HALFDAY
+    }
+
     /** Unix epoch milliseconds. */
-    @Column(name = "clock_in_at", nullable = false)
+    @Column(name = "clock_in_at")
     private Long clockInAt;
 
     /** Unix epoch milliseconds. */

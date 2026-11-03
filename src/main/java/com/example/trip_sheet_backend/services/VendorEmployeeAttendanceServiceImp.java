@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.dtos.AttendanceDtos.AttendanceResponseDto;
 import com.example.trip_sheet_backend.dtos.AttendanceDtos.AttendanceTimeUpdateRequestDto;
+import com.example.trip_sheet_backend.dtos.AttendanceDtos.VendorEmployeeAttendanceRecordDto;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VendorEmployee;
@@ -41,14 +42,16 @@ public class VendorEmployeeAttendanceServiceImp implements VendorEmployeeAttenda
         VendorEmployee employee = requireCurrentVendorEmployee(user);
         long now = Instant.now().toEpochMilli();
         LocalDate today = Instant.ofEpochMilli(now).atZone(ATTENDANCE_ZONE).toLocalDate();
-        if (attendanceRepository.findByVendorEmployee_IdAndAttendanceDate(employee.getId(), today).isPresent()) {
+        VendorEmployeeAttendance attendance = attendanceRepository
+                .findByVendorEmployee_IdAndAttendanceDate(employee.getId(), today)
+                .orElseGet(VendorEmployeeAttendance::new);
+        if (attendance.getId() != null && !isCleared(attendance)) {
             throw new RuntimeException("Duty login has already been recorded for today");
         }
-
-        VendorEmployeeAttendance attendance = new VendorEmployeeAttendance();
         attendance.setVendorEmployee(employee);
         attendance.setTenant(employee.getTenant());
         attendance.setAttendanceDate(today);
+        attendance.setStatus(VendorEmployeeAttendance.AttendanceStatus.PRESENT);
         attendance.setClockInAt(now);
         attendance.setCreatedBy(user.getId().toString());
         attendance.setUpdatedBy(user.getId().toString());
@@ -75,6 +78,9 @@ public class VendorEmployeeAttendanceServiceImp implements VendorEmployeeAttenda
                 .orElseThrow(() -> new RuntimeException("No attendance record found for today"));
         if (attendance.getClockOutAt() != null) {
             throw new RuntimeException("Duty has already been logged out for today");
+        }
+        if (attendance.getClockInAt() == null) {
+            throw new RuntimeException("No check-in recorded for today");
         }
 
         long now = Instant.now().toEpochMilli();
@@ -123,6 +129,136 @@ public class VendorEmployeeAttendanceServiceImp implements VendorEmployeeAttenda
                 : Duration.ofMillis(clockOutAt - clockInAt).toMinutes());
         attendance.setUpdatedBy(updatedBy == null ? null : updatedBy.toString());
         return new AttendanceResponseDto(attendanceRepository.save(attendance));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public VendorEmployeeAttendanceRecordDto createForEmployee(UUID employeeId, Tenant tenant, UUID createdBy,
+            VendorEmployeeAttendanceRecordDto request) {
+        validateManualRequest(tenant, request);
+        VendorEmployee employee = requireEmployeeForTenant(employeeId, tenant);
+        VendorEmployeeAttendance attendance = attendanceRepository.findByVendorEmployee_IdAndAttendanceDateAndTenant_Id(
+                employeeId, request.getDate(), tenant.getId()).orElse(null);
+        if (attendance != null && !isCleared(attendance)) {
+            throw new RuntimeException("Attendance already exists for this employee and date; use update");
+        }
+        if (attendance == null) {
+            attendance = new VendorEmployeeAttendance();
+        }
+        attendance.setVendorEmployee(employee);
+        attendance.setTenant(tenant);
+        applyRecord(attendance, request, createdBy, true);
+        return toRecord(attendanceRepository.save(attendance));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public VendorEmployeeAttendanceRecordDto updateForEmployee(UUID employeeId, Tenant tenant, UUID updatedBy,
+            VendorEmployeeAttendanceRecordDto request) {
+        validateManualRequest(tenant, request);
+        VendorEmployee employee = requireEmployeeForTenant(employeeId, tenant);
+        VendorEmployeeAttendance attendance = attendanceRepository
+                .findByVendorEmployee_IdAndAttendanceDateAndTenant_Id(employeeId, request.getDate(), tenant.getId())
+                .orElseThrow(() -> new RuntimeException("Attendance not found for this employee and date"));
+        applyRecord(attendance, request, updatedBy, false);
+        return toRecord(attendanceRepository.save(attendance));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void clearForEmployee(UUID employeeId, Tenant tenant, UUID updatedBy, LocalDate date) {
+        if (tenant == null || tenant.getTenantType() != Tenant.TenantType.VENDOR) {
+            throw new RuntimeException("Vendor tenant context is required");
+        }
+        if (date == null) {
+            throw new RuntimeException("date is required");
+        }
+        requireEmployeeForTenant(employeeId, tenant);
+        VendorEmployeeAttendance attendance = attendanceRepository
+                .findByVendorEmployee_IdAndAttendanceDateAndTenant_Id(employeeId, date, tenant.getId())
+                .orElseThrow(() -> new RuntimeException("Attendance not found for this employee and date"));
+        attendance.setStatus(null);
+        attendance.setClockInAt(null);
+        attendance.setClockOutAt(null);
+        attendance.setWorkedDurationMinutes(null);
+        attendance.setUpdatedBy(updatedBy == null ? null : updatedBy.toString());
+        attendanceRepository.save(attendance);
+    }
+
+    private boolean isCleared(VendorEmployeeAttendance attendance) {
+        return attendance.getStatus() == null && attendance.getClockInAt() == null
+                && attendance.getClockOutAt() == null && attendance.getWorkedDurationMinutes() == null;
+    }
+
+    private void validateManualRequest(Tenant tenant, VendorEmployeeAttendanceRecordDto request) {
+        if (tenant == null || tenant.getTenantType() != Tenant.TenantType.VENDOR) {
+            throw new RuntimeException("Vendor tenant context is required");
+        }
+        if (request == null || request.getDate() == null || request.getStatus() == null) {
+            throw new RuntimeException("date and status are required");
+        }
+        if (request.getWorkedMinutes() != null && request.getWorkedMinutes() < 0) {
+            throw new RuntimeException("workedMinutes cannot be negative");
+        }
+        if (request.getWorkedMinutes() != null && request.getWorkedMinutes() > 24 * 60) {
+            throw new RuntimeException("workedMinutes cannot exceed 1440 minutes per day");
+        }
+        if (request.getCheckIn() != null && request.getCheckOut() != null
+                && request.getCheckOut().isBefore(request.getCheckIn())) {
+            throw new RuntimeException("checkOut must be after checkIn");
+        }
+        if (request.getWorkedMinutes() != null && request.getCheckIn() != null && request.getCheckOut() != null) {
+            long calculatedMinutes = Duration.between(request.getCheckIn(), request.getCheckOut()).toMinutes();
+            if (request.getWorkedMinutes() != calculatedMinutes) {
+                throw new RuntimeException("workedMinutes must match the duration between checkIn and checkOut");
+            }
+        }
+    }
+
+    private VendorEmployee requireEmployeeForTenant(UUID employeeId, Tenant tenant) {
+        if (employeeId == null) {
+            throw new RuntimeException("employeeId is required");
+        }
+        return employeeRepository.findByIdAndTenant_Id(employeeId, tenant.getId())
+                .orElseThrow(() -> new RuntimeException("Employee not found for this vendor"));
+    }
+
+    private void applyRecord(VendorEmployeeAttendance attendance, VendorEmployeeAttendanceRecordDto request,
+            UUID actorId, boolean creating) {
+        attendance.setAttendanceDate(request.getDate());
+        attendance.setStatus(request.getStatus());
+        Long checkIn = toEpochMillis(request.getDate(), request.getCheckIn());
+        Long checkOut = toEpochMillis(request.getDate(), request.getCheckOut());
+        attendance.setClockInAt(checkIn);
+        attendance.setClockOutAt(checkOut);
+        Long minutes = request.getWorkedMinutes();
+        if (minutes == null && checkIn != null && checkOut != null) {
+            minutes = Duration.ofMillis(checkOut - checkIn).toMinutes();
+        }
+        attendance.setWorkedDurationMinutes(minutes);
+        if (creating) {
+            attendance.setCreatedBy(actorId == null ? null : actorId.toString());
+        }
+        attendance.setUpdatedBy(actorId == null ? null : actorId.toString());
+    }
+
+    private Long toEpochMillis(LocalDate date, java.time.LocalTime time) {
+        return time == null ? null : date.atTime(time).atZone(ATTENDANCE_ZONE).toInstant().toEpochMilli();
+    }
+
+    private VendorEmployeeAttendanceRecordDto toRecord(VendorEmployeeAttendance attendance) {
+        VendorEmployeeAttendanceRecordDto result = new VendorEmployeeAttendanceRecordDto();
+        result.setEmployeeId(attendance.getVendorEmployee().getId());
+        result.setDate(attendance.getAttendanceDate());
+        result.setStatus(attendance.getStatus());
+        result.setCheckIn(toLocalTime(attendance.getAttendanceDate(), attendance.getClockInAt()));
+        result.setCheckOut(toLocalTime(attendance.getAttendanceDate(), attendance.getClockOutAt()));
+        result.setWorkedMinutes(attendance.getWorkedDurationMinutes());
+        return result;
+    }
+
+    private java.time.LocalTime toLocalTime(LocalDate date, Long epochMillis) {
+        return epochMillis == null ? null : Instant.ofEpochMilli(epochMillis).atZone(ATTENDANCE_ZONE).toLocalTime();
     }
 
     private VendorEmployee requireCurrentVendorEmployee(UserAccount user) {
