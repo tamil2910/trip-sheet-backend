@@ -5,6 +5,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.UUID;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.HashMap;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,10 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 import com.example.trip_sheet_backend.dtos.AttendanceDtos.AttendanceResponseDto;
 import com.example.trip_sheet_backend.dtos.AttendanceDtos.AttendanceTimeUpdateRequestDto;
 import com.example.trip_sheet_backend.dtos.AttendanceDtos.VendorEmployeeAttendanceRecordDto;
+import com.example.trip_sheet_backend.dtos.AttendanceDtos.VendorEmployeeAttendanceListDto;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VendorEmployee;
 import com.example.trip_sheet_backend.models.VendorEmployeeAttendance;
+import com.example.trip_sheet_backend.models.VendorEmployeeAttendance.AttendanceStatus;
 import com.example.trip_sheet_backend.repositories.VendorEmployeeAttendanceRepository;
 import com.example.trip_sheet_backend.repositories.VendorEmployeeRepository;
 
@@ -188,6 +194,60 @@ public class VendorEmployeeAttendanceServiceImp implements VendorEmployeeAttenda
     private boolean isCleared(VendorEmployeeAttendance attendance) {
         return attendance.getStatus() == null && attendance.getClockInAt() == null
                 && attendance.getClockOutAt() == null && attendance.getWorkedDurationMinutes() == null;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<VendorEmployeeAttendanceListDto> listByDateRange(Tenant tenant, Long startEpochMillis,
+            Long endEpochMillis, UUID employeeId, String employeeName, AttendanceStatus status) {
+        if (tenant == null || tenant.getTenantType() != Tenant.TenantType.VENDOR) {
+            throw new RuntimeException("Vendor tenant context is required");
+        }
+        if (startEpochMillis == null || endEpochMillis == null) {
+            throw new RuntimeException("startDate and endDate epoch milliseconds are required");
+        }
+        if (startEpochMillis > endEpochMillis) {
+            throw new RuntimeException("startDate must be before or equal to endDate");
+        }
+        LocalDate startDate = Instant.ofEpochMilli(startEpochMillis).atZone(ATTENDANCE_ZONE).toLocalDate();
+        LocalDate endDate = Instant.ofEpochMilli(endEpochMillis).atZone(ATTENDANCE_ZONE).toLocalDate();
+
+        List<VendorEmployee> employees = employeeRepository
+                .findAllByTenant_IdAndIsDeletedFalseOrderByNameAsc(tenant.getId());
+        String normalizedName = employeeName == null ? null : employeeName.trim().toLowerCase(java.util.Locale.ROOT);
+        employees = employees.stream()
+                .filter(employee -> employeeId == null || employeeId.equals(employee.getId()))
+                .filter(employee -> normalizedName == null || normalizedName.isEmpty()
+                        || (employee.getName() != null
+                                && employee.getName().toLowerCase(java.util.Locale.ROOT).contains(normalizedName)))
+                .toList();
+        if (employees.isEmpty()) {
+            return List.of();
+        }
+
+        List<UUID> employeeIds = employees.stream().map(VendorEmployee::getId).toList();
+        List<VendorEmployeeAttendance> attendanceRows = attendanceRepository
+                .findAllByTenant_IdAndVendorEmployee_IdInAndAttendanceDateBetweenOrderByAttendanceDateAsc(
+                        tenant.getId(), employeeIds, startDate, endDate);
+        Map<UUID, List<VendorEmployeeAttendanceRecordDto>> recordsByEmployee = new HashMap<>();
+        for (VendorEmployeeAttendance attendance : attendanceRows) {
+            if (status != null && attendance.getStatus() != status) {
+                continue;
+            }
+            recordsByEmployee.computeIfAbsent(attendance.getVendorEmployee().getId(), ignored -> new ArrayList<>())
+                    .add(toRecord(attendance));
+        }
+
+        List<VendorEmployeeAttendanceListDto> result = new ArrayList<>();
+        for (VendorEmployee employee : employees) {
+            List<VendorEmployeeAttendanceRecordDto> records = recordsByEmployee
+                    .getOrDefault(employee.getId(), List.of());
+            if (status != null && records.isEmpty()) {
+                continue;
+            }
+            result.add(new VendorEmployeeAttendanceListDto(employee.getId(), employee.getName(), records));
+        }
+        return result;
     }
 
     private void validateManualRequest(Tenant tenant, VendorEmployeeAttendanceRecordDto request) {

@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.repositories;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -13,6 +14,7 @@ import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.VendorEmployee;
 
 public interface VendorEmployeeRepository extends BaseRepository<VendorEmployee, UUID> {
+    List<VendorEmployee> findAllByTenant_IdAndIsDeletedFalseOrderByNameAsc(UUID tenantId);
     boolean existsByTenant_IdAndEmployeeNumber(UUID tenantId, String employeeNumber);
     boolean existsByTenant_IdAndEmployeeNumberAndIdNot(UUID tenantId, String employeeNumber, UUID employeeId);
     Optional<VendorEmployee> findByAccount_IdAndIsUserTrue(UUID accountId);

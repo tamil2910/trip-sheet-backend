@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.controllers;
 
 import java.util.UUID;
 import java.time.LocalDate;
+import java.util.List;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -19,8 +20,10 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.dtos.AttendanceDtos.AttendanceResponseDto;
 import com.example.trip_sheet_backend.dtos.AttendanceDtos.AttendanceTimeUpdateRequestDto;
 import com.example.trip_sheet_backend.dtos.AttendanceDtos.VendorEmployeeAttendanceRecordDto;
+import com.example.trip_sheet_backend.dtos.AttendanceDtos.VendorEmployeeAttendanceListDto;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.UserAccount;
+import com.example.trip_sheet_backend.models.VendorEmployeeAttendance.AttendanceStatus;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.VendorEmployeeAttendanceService;
 
@@ -33,6 +36,21 @@ public class VendorEmployeeAttendanceController {
 
     public VendorEmployeeAttendanceController(VendorEmployeeAttendanceService attendanceService) {
         this.attendanceService = attendanceService;
+    }
+
+    @GetMapping("/vendor-employees")
+    @PreAuthorize("hasAuthority('CAN_READ_ATTENDANCE')")
+    public ResponseEntity<ApiResponse<List<VendorEmployeeAttendanceListDto>>> listEmployeeAttendance(
+            @RequestParam Long startDate,
+            @RequestParam Long endDate,
+            @RequestParam(required = false) UUID employeeId,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) AttendanceStatus status,
+            HttpServletRequest request) {
+        Tenant tenant = (Tenant) request.getAttribute("tenant");
+        List<VendorEmployeeAttendanceListDto> result = attendanceService.listByDateRange(
+                tenant, startDate, endDate, employeeId, name, status);
+        return ResponseEntity.ok(new ApiResponse<>(true, "Employee attendance fetched successfully", result));
     }
 
     @PostMapping("/duty-logout")
