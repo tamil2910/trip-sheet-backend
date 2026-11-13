@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import com.example.trip_sheet_backend.models.TransportRoute;
+import com.example.trip_sheet_backend.models.Shift;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -15,6 +16,7 @@ public class TransportRequestRouteGroupDTO {
     private String shiftName;
     private String shiftStartTime;
     private String shiftEndTime;
+    private Shift.ShiftType shiftType;
     private List<RouteGroup> routes;
 
     @Getter

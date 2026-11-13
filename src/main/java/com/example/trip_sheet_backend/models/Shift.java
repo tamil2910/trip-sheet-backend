@@ -4,6 +4,8 @@ import com.example.trip_sheet_backend.common.models.BaseModel;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
@@ -35,6 +37,11 @@ public class Shift extends BaseModel implements TenantScoped {
     @Column(name = "end_time", nullable = false)
     private String endTime;
 
+    @NotNull(message = "Shift type is required")
+    @Enumerated(EnumType.STRING)
+    @Column(name = "shift_type", nullable = false)
+    private ShiftType shiftType;
+
     @NotNull(message = "Organisation is required")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "organisation_id", nullable = false)
@@ -44,4 +51,19 @@ public class Shift extends BaseModel implements TenantScoped {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tenant_id", nullable = false)
     private Tenant tenant;
+
+    public enum ShiftType {
+        LOGIN,
+        LOGOUT
+    }
+
+    @Override
+    public Tenant getTenant() {
+        return tenant;
+    }
+
+    @Override
+    public void setTenant(Tenant tenant) {
+        this.tenant = tenant;
+    }
 }

@@ -834,6 +834,7 @@ CREATE TABLE IF NOT EXISTS shifts (
     shift_name VARCHAR(255) NOT NULL,
     start_time VARCHAR(255) NOT NULL,
     end_time VARCHAR(255) NOT NULL,
+    shift_type VARCHAR(255) NOT NULL,
     tenant_id BINARY(16) NOT NULL,
     organisation_id BINARY(16) NOT NULL,
     PRIMARY KEY (id),

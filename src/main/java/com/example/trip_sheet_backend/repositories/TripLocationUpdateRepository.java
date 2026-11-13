@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.repositories;
 
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -13,6 +14,9 @@ import com.example.trip_sheet_backend.models.TripLocationUpdate;
 
 public interface TripLocationUpdateRepository extends JpaRepository<TripLocationUpdate, UUID> {
   Optional<TripLocationUpdate> findFirstByTrip_IdOrderByRecordedAtDesc(UUID tripId);
+
+  List<TripLocationUpdate> findByTrip_IdAndRecordedAtBetweenOrderByRecordedAtAscReceivedAtAsc(
+      UUID tripId, Long fromTime, Long toTime);
 
   @Query("select point from TripLocationUpdate point where point.trip.id = :tripId "
       + "and (:fromTime is null or point.recordedAt >= :fromTime) "

@@ -63,6 +63,7 @@ public class TripSummary extends BaseModel implements TenantScoped {
   private Long tripEndGPSKM;
 
   private Long tripGPSDuration;
+  /** Cumulative GPS path distance in meters between trip start and end. */
   private Long tripGPSDistance;
 
   // Dispatch coordinates

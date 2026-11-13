@@ -325,6 +325,7 @@ public class TransportRequestController {
                     first.getShift() == null ? null : first.getShift().getName(),
                     first.getShift() == null ? null : first.getShift().getStartTime(),
                     first.getShift() == null ? null : first.getShift().getEndTime(),
+                    first.getShift() == null ? null : first.getShift().getShiftType(),
                     routes));
         }
         return ResponseEntity.ok(new ApiResponse<>(true,

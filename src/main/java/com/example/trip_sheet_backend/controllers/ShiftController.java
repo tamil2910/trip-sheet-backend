@@ -54,6 +54,7 @@ public class ShiftController {
         shift.setName(body.getName().trim());
         shift.setStartTime(body.getStartTime());
         shift.setEndTime(body.getEndTime());
+        shift.setShiftType(body.getShiftType());
         shift.setTenant(tenant);
         shift.setOrganisation(organisation);
         Object createdBy = request.getAttribute("createdBy");
@@ -89,6 +90,7 @@ public class ShiftController {
         shift.setName(body.getName().trim());
         shift.setStartTime(body.getStartTime());
         shift.setEndTime(body.getEndTime());
+        shift.setShiftType(body.getShiftType());
         Object updatedBy = request.getAttribute("updatedBy");
         if (updatedBy != null) {
             shift.setUpdatedBy(updatedBy.toString());

@@ -57,6 +57,7 @@ import com.example.trip_sheet_backend.models.Trip;
 import com.example.trip_sheet_backend.models.TripPassengerCustomFieldValue;
 import com.example.trip_sheet_backend.models.TripStop;
 import com.example.trip_sheet_backend.models.TripSummary;
+import com.example.trip_sheet_backend.models.TripLocationUpdate;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VendorDelegationHistory;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
@@ -78,6 +79,7 @@ import com.example.trip_sheet_backend.repositories.DispatchCenterRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.TripRepository;
 import com.example.trip_sheet_backend.repositories.TripSummaryRepository;
+import com.example.trip_sheet_backend.repositories.TripLocationUpdateRepository;
 import com.example.trip_sheet_backend.repositories.VendorDelegationHistoryRepository;
 import com.example.trip_sheet_backend.repositories.VehicleRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeRepository;
@@ -130,6 +132,8 @@ public class TripServiceImp extends BaseServiceImp<Trip, UUID> implements TripSe
     private SupplierDriverVehiclesRepository supplierDriverVehiclesRepository;
     @Autowired
     private VehicleTenantMappingRepository vehicleTenantMappingRepository;
+    @Autowired
+    private TripLocationUpdateRepository tripLocationUpdateRepository;
 
     private final ModelMapper mapper;
 
@@ -2036,6 +2040,7 @@ public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, U
   summary.setGarageEndLat(dropData.getTripEndLat());
   summary.setGarageEndLng(dropData.getTripEndLng());
   summary.setGarageEndTime(resolveLifecycleTime(trip, dropData.getGarageEndTime(), "garageEndTime"));
+  summary.setTripGPSDistance(calculateTripGPSDistance(trip.getId(), summary));
   calculateDutyExtras(trip, summary);
   tripSummaryRepository.save(summary);
 
@@ -2047,7 +2052,64 @@ public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, U
   return completedTrip;
 }
 
-@Override
+private Long calculateTripGPSDistance(UUID tripId, TripSummary summary) {
+  Long startTime = summary.getTripStartTime();
+  Long endTime = summary.getTripEndTime();
+  if (startTime == null || endTime == null || endTime < startTime) {
+    return null;
+  }
+
+  List<GeoCoordinate> points = new ArrayList<>();
+  addCoordinate(points, summary.getTripStartLat(), summary.getTripStartLng());
+  if (tripLocationUpdateRepository != null) {
+    List<TripLocationUpdate> updates = tripLocationUpdateRepository
+        .findByTrip_IdAndRecordedAtBetweenOrderByRecordedAtAscReceivedAtAsc(tripId, startTime, endTime);
+    for (TripLocationUpdate update : updates) {
+      addCoordinate(points, update.getLatitude(), update.getLongitude());
+    }
+  }
+  addCoordinate(points, summary.getTripEndLat(), summary.getTripEndLng());
+
+  if (points.size() < 2) {
+    return null;
+  }
+
+  double distanceMeters = 0.0;
+  for (int index = 1; index < points.size(); index++) {
+    distanceMeters += distanceBetweenMeters(points.get(index - 1), points.get(index));
+  }
+  return Math.round(distanceMeters);
+}
+
+private void addCoordinate(List<GeoCoordinate> points, Double latitude, Double longitude) {
+  if (latitude == null || longitude == null
+      || latitude < -90.0 || latitude > 90.0
+      || longitude < -180.0 || longitude > 180.0) {
+    return;
+  }
+  GeoCoordinate next = new GeoCoordinate(latitude, longitude);
+  if (!points.isEmpty()) {
+    GeoCoordinate previous = points.get(points.size() - 1);
+    if (Double.compare(previous.latitude(), next.latitude()) == 0
+        && Double.compare(previous.longitude(), next.longitude()) == 0) {
+      return;
+    }
+  }
+  points.add(next);
+}
+
+private double distanceBetweenMeters(GeoCoordinate from, GeoCoordinate to) {
+  final double earthRadiusMeters = 6_371_000.0;
+  double latitudeDelta = Math.toRadians(to.latitude() - from.latitude());
+  double longitudeDelta = Math.toRadians(to.longitude() - from.longitude());
+  double a = Math.sin(latitudeDelta / 2.0) * Math.sin(latitudeDelta / 2.0)
+      + Math.cos(Math.toRadians(from.latitude())) * Math.cos(Math.toRadians(to.latitude()))
+      * Math.sin(longitudeDelta / 2.0) * Math.sin(longitudeDelta / 2.0);
+  return earthRadiusMeters * 2.0 * Math.atan2(Math.sqrt(a), Math.sqrt(1.0 - a));
+}
+
+private record GeoCoordinate(double latitude, double longitude) {}
+
 @Transactional(rollbackFor = Exception.class)
 public Trip executeManualTrip(
     UUID tokenTenantId,
