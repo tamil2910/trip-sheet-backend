@@ -768,6 +768,29 @@ CREATE TABLE IF NOT EXISTS vendor_employee_attendance (
   CONSTRAINT fk_vendor_employee_attendance_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)
 );
 
+CREATE TABLE IF NOT EXISTS driver_attendance (
+  id BINARY(16) NOT NULL,
+  created_at BIGINT NULL,
+  updated_at BIGINT NULL,
+  deleted_at BIGINT NULL,
+  created_by VARCHAR(255) NULL,
+  updated_by VARCHAR(255) NULL,
+  deleted_by VARCHAR(255) NULL,
+  is_deleted BIT NULL,
+  driver_id BINARY(16) NOT NULL,
+  tenant_id BINARY(16) NOT NULL,
+  attendance_date DATE NOT NULL,
+  attendance_status VARCHAR(16) NULL,
+  clock_in_at BIGINT NULL,
+  clock_out_at BIGINT NULL,
+  worked_duration_minutes BIGINT NULL,
+  PRIMARY KEY (id),
+  UNIQUE KEY uq_driver_attendance_day (driver_id, attendance_date),
+  KEY idx_driver_attendance_tenant_day (tenant_id, attendance_date),
+  CONSTRAINT fk_driver_attendance_driver FOREIGN KEY (driver_id) REFERENCES drivers (id),
+  CONSTRAINT fk_driver_attendance_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)
+);
+
 CREATE TABLE IF NOT EXISTS vendor_employee_addresses (
   id BINARY(16) NOT NULL,
   created_at BIGINT NULL,
