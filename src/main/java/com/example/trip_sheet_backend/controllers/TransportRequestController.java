@@ -383,7 +383,7 @@ public class TransportRequestController {
             } catch (IllegalArgumentException exception) {
                 throw new RuntimeException("shiftId must be a valid UUID");
             }
-            Shift shift = shiftRepository.findByIdAndTenant_IdAndIsDeletedFalse(shiftId, organisation.getId())
+            Shift shift = shiftRepository.findByIdAndOrganisation_IdAndIsDeletedFalse(shiftId, organisation.getId())
                     .orElseThrow(() -> new RuntimeException("Shift not found for this tenant"));
             request.setShift(shift);
             TransportRoute route = resolveOrCreateRoute(organisation, shift, request);

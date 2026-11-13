@@ -10,6 +10,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class ShiftRequestDTO {
+    /** Required for vendor-created shifts; organisation users default to their own tenant. */
+    private String organisationId;
+
     @NotBlank(message = "Shift name is required")
     private String name;
 

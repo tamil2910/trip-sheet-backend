@@ -11,9 +11,12 @@ CREATE TABLE IF NOT EXISTS shifts (
     start_time VARCHAR(255) NOT NULL,
     end_time VARCHAR(255) NOT NULL,
     tenant_id BINARY(16) NOT NULL,
+    organisation_id BINARY(16) NOT NULL,
     PRIMARY KEY (id),
     KEY idx_shift_tenant_deleted (tenant_id, is_deleted),
-    CONSTRAINT fk_shift_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id)
+    KEY idx_shift_organisation_deleted (organisation_id, is_deleted),
+    CONSTRAINT fk_shift_tenant FOREIGN KEY (tenant_id) REFERENCES tenants (id),
+    CONSTRAINT fk_shift_organisation FOREIGN KEY (organisation_id) REFERENCES tenants (id)
 );
 
 CREATE TABLE IF NOT EXISTS transport_requests (

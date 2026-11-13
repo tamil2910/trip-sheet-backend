@@ -35,6 +35,11 @@ public class Shift extends BaseModel implements TenantScoped {
     @Column(name = "end_time", nullable = false)
     private String endTime;
 
+    @NotNull(message = "Organisation is required")
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organisation_id", nullable = false)
+    private Tenant organisation;
+
     @NotNull(message = "Tenant is required")
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tenant_id", nullable = false)

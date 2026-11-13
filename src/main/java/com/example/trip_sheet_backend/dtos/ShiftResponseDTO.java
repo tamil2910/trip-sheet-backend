@@ -15,9 +15,11 @@ public class ShiftResponseDTO {
     private String startTime;
     private String endTime;
     private UUID tenantId;
+    private UUID organisationId;
 
     public static ShiftResponseDTO fromEntity(Shift shift) {
         return new ShiftResponseDTO(shift.getId(), shift.getName(), shift.getStartTime(), shift.getEndTime(),
-                shift.getTenant() == null ? null : shift.getTenant().getId());
+                shift.getTenant() == null ? null : shift.getTenant().getId(),
+                shift.getOrganisation() == null ? null : shift.getOrganisation().getId());
     }
 }
