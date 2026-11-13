@@ -4,6 +4,8 @@ import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
+import com.example.trip_sheet_backend.models.TripLocationUpdate.DrivingEventSource;
+import com.example.trip_sheet_backend.models.TripLocationUpdate.DrivingEventType;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -25,4 +27,13 @@ public class TripLocationRequestDTO {
 
   @PositiveOrZero
   private Double speedMetersPerSecond;
+
+  private DrivingEventType eventType;
+
+  @PositiveOrZero
+  private Double previousSpeedMetersPerSecond;
+
+  private Double accelerationMetersPerSecondSquared;
+
+  private DrivingEventSource eventSource;
 }

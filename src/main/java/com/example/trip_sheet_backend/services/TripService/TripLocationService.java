@@ -68,6 +68,10 @@ public class TripLocationService {
     update.setRecordedAt(request.getRecordedAt());
     update.setAccuracyMeters(request.getAccuracyMeters());
     update.setSpeedMetersPerSecond(request.getSpeedMetersPerSecond());
+    update.setEventType(request.getEventType());
+    update.setPreviousSpeedMetersPerSecond(request.getPreviousSpeedMetersPerSecond());
+    update.setAccelerationMetersPerSecondSquared(request.getAccelerationMetersPerSecondSquared());
+    update.setEventSource(request.getEventSource());
     update.setReceivedAt(receivedAt);
     TripLocationUpdate saved = locationRepository.save(update);
     TripLocationResponseDTO payload = TripLocationResponseDTO.from(saved);

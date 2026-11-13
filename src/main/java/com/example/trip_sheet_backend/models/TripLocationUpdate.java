@@ -5,6 +5,8 @@ import java.util.UUID;
 import org.hibernate.annotations.CreationTimestamp;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -25,6 +27,9 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 public class TripLocationUpdate {
+  public enum DrivingEventType { HARSH_BRAKING, RAPID_ACCELERATION, SPEEDING, SHARP_TURN }
+  public enum DrivingEventSource { GPS, ACCELEROMETER, FUSED }
+
   @Id
   @GeneratedValue
   private UUID id;
@@ -44,6 +49,17 @@ public class TripLocationUpdate {
 
   private Double accuracyMeters;
   private Double speedMetersPerSecond;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "event_type", length = 40)
+  private DrivingEventType eventType;
+
+  private Double previousSpeedMetersPerSecond;
+  private Double accelerationMetersPerSecondSquared;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "event_source", length = 20)
+  private DrivingEventSource eventSource;
 
   @Column(name = "received_at", nullable = false)
   private Long receivedAt;
