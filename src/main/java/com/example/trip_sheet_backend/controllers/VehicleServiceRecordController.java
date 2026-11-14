@@ -26,6 +26,8 @@ public class VehicleServiceRecordController {
   public ResponseEntity<ApiResponse<VehicleServiceRecord>> create(@Valid @RequestBody VehicleServiceRequest body,HttpServletRequest req) { return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(true,"Vehicle service created successfully",service.create(tenantId(req),body))); }
   @PutMapping("/{id}") @PreAuthorize("hasAuthority('CAN_UPDATE_VEHICLESERVICE')")
   public ResponseEntity<ApiResponse<VehicleServiceRecord>> update(@PathVariable UUID id,@Valid @RequestBody VehicleServiceRequest body,HttpServletRequest req) { return ResponseEntity.ok(new ApiResponse<>(true,"Vehicle service updated successfully",service.update(tenantId(req),id,body))); }
+  @PutMapping("/{id}/status/{status}") @PreAuthorize("hasAuthority('CAN_UPDATE_VEHICLESERVICE')")
+  public ResponseEntity<ApiResponse<VehicleServiceRecord>> updateStatus(@PathVariable UUID id,@PathVariable VehicleServiceRecord.ServiceStatus status,HttpServletRequest req) { return ResponseEntity.ok(new ApiResponse<>(true,"Vehicle service status updated successfully",service.updateStatus(tenantId(req),id,status))); }
   @DeleteMapping("/{id}") @PreAuthorize("hasAuthority('CAN_DELETE_VEHICLESERVICE')")
   public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id,HttpServletRequest req) { service.delete(tenantId(req),id); return ResponseEntity.ok(new ApiResponse<>(true,"Vehicle service deleted successfully",null)); }
   private static UUID tenantId(HttpServletRequest req) { return ((Tenant)req.getAttribute("tenant")).getId(); }

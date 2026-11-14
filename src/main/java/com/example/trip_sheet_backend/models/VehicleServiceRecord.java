@@ -34,6 +34,13 @@ public class VehicleServiceRecord extends BaseModel implements TenantScoped {
     DEEP_CLEAN
   }
 
+  public enum ServiceStatus {
+    PENDING,
+    IN_SERVICE,
+    COMPLETED,
+    CANCELLED
+  }
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
@@ -45,6 +52,10 @@ public class VehicleServiceRecord extends BaseModel implements TenantScoped {
   @Enumerated(EnumType.STRING)
   @Column(name = "service_type", nullable = false, length = 40)
   private ServiceType serviceType;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "status", nullable = false, length = 20)
+  private ServiceStatus status = ServiceStatus.PENDING;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "authorized_service_center_id")

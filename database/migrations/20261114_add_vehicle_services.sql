@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS vehicle_services (
   tenant_id BINARY(16) NOT NULL,
   vehicle_id BINARY(16) NOT NULL,
   service_type VARCHAR(40) NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
   authorized_service_center_id BINARY(16) NULL,
   center_name VARCHAR(180) NULL,
   calling_person_name VARCHAR(160) NULL,

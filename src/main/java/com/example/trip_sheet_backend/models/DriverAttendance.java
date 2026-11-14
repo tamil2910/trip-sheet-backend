@@ -1,4 +1,4 @@
-﻿package com.example.trip_sheet_backend.models;
+package com.example.trip_sheet_backend.models;
 
 import java.time.LocalDate;
 

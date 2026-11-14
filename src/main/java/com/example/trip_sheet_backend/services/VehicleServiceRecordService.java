@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.example.trip_sheet_backend.dtos.VehicleServiceRequest;
 import com.example.trip_sheet_backend.exceptions.ResourceNotFoundException;
 import com.example.trip_sheet_backend.models.*;
 import com.example.trip_sheet_backend.repositories.*;
@@ -20,8 +21,9 @@ public class VehicleServiceRecordService {
   }
   public List<VehicleServiceRecord> list(UUID tenantId) { return repository.findByTenant_IdAndIsDeletedFalseOrderByRequestDateDesc(tenantId); }
   public VehicleServiceRecord get(UUID tenantId, UUID id) { return repository.findByIdAndTenant_IdAndIsDeletedFalse(id, tenantId).orElseThrow(() -> new ResourceNotFoundException("Vehicle service not found")); }
-  public VehicleServiceRecord create(UUID tenantId, VehicleServiceRequest body) { VehicleServiceRecord record = new VehicleServiceRecord(); apply(record, tenantId, body); return repository.save(record); }
+  public VehicleServiceRecord create(UUID tenantId, VehicleServiceRequest body) { VehicleServiceRecord record = new VehicleServiceRecord(); record.setStatus(VehicleServiceRecord.ServiceStatus.PENDING); apply(record, tenantId, body); return repository.save(record); }
   public VehicleServiceRecord update(UUID tenantId, UUID id, VehicleServiceRequest body) { VehicleServiceRecord record=get(tenantId,id); apply(record,tenantId,body); return repository.save(record); }
+  public VehicleServiceRecord updateStatus(UUID tenantId, UUID id, VehicleServiceRecord.ServiceStatus status) { VehicleServiceRecord record = get(tenantId, id); record.setStatus(status); return repository.save(record); }
   public void delete(UUID tenantId, UUID id) { VehicleServiceRecord record=get(tenantId,id); record.setIsDeleted(true); repository.save(record); }
   private void apply(VehicleServiceRecord r, UUID tenantId, VehicleServiceRequest b) {
     Vehicle vehicle=vehicleRepository.findById(b.getVehicleId()).orElseThrow(() -> new ResourceNotFoundException("Vehicle not found"));
