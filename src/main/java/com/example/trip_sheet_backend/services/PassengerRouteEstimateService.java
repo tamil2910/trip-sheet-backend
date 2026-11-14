@@ -32,7 +32,7 @@ public class PassengerRouteEstimateService {
             throw new IllegalArgumentException("At least one passenger pickup is required for route estimation");
         }
         if (apiKey == null || apiKey.isBlank()) {
-            throw new IllegalArgumentException("Google Maps API key is required when isEstimatedHrKm is true");
+            return estimateWithoutGoogleRoutes(orderedPickups, destination);
         }
 
         PassengerGeocodingService.GeoPoint origin = orderedPickups.get(0);
@@ -76,6 +76,41 @@ public class PassengerRouteEstimateService {
                 route.path("distanceMeters").asDouble() / 1000.0,
                 secondsToMinutes(route.path("duration").asText()),
                 legs);
+    }
+
+    private RouteEstimate estimateWithoutGoogleRoutes(
+            List<PassengerGeocodingService.GeoPoint> orderedPickups,
+            PassengerGeocodingService.GeoPoint destination) {
+        List<RouteLeg> legs = new ArrayList<>();
+        double totalKm = 0;
+        for (int index = 0; index < orderedPickups.size() - 1; index++) {
+            PassengerGeocodingService.GeoPoint from = orderedPickups.get(index);
+            PassengerGeocodingService.GeoPoint to = orderedPickups.get(index + 1);
+            double distanceKm = straightLineDistanceKm(from, to) * 1.3;
+            legs.add(new RouteLeg(distanceKm, estimatedMinutes(distanceKm)));
+            totalKm += distanceKm;
+        }
+        double finalLegKm = straightLineDistanceKm(orderedPickups.get(orderedPickups.size() - 1), destination) * 1.3;
+        legs.add(new RouteLeg(finalLegKm, estimatedMinutes(finalLegKm)));
+        totalKm += finalLegKm;
+        long totalMinutes = legs.stream().mapToLong(RouteLeg::durationMinutes).sum();
+        return new RouteEstimate(totalKm, totalMinutes, legs);
+    }
+
+    private double straightLineDistanceKm(
+            PassengerGeocodingService.GeoPoint from,
+            PassengerGeocodingService.GeoPoint to) {
+        double earthRadiusKm = 6371.0;
+        double latitudeDelta = Math.toRadians(to.latitude() - from.latitude());
+        double longitudeDelta = Math.toRadians(to.longitude() - from.longitude());
+        double a = Math.sin(latitudeDelta / 2) * Math.sin(latitudeDelta / 2)
+                + Math.cos(Math.toRadians(from.latitude())) * Math.cos(Math.toRadians(to.latitude()))
+                * Math.sin(longitudeDelta / 2) * Math.sin(longitudeDelta / 2);
+        return earthRadiusKm * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    private long estimatedMinutes(double distanceKm) {
+        return Math.round(distanceKm / 30.0 * 60.0);
     }
 
     private Map<String, Object> waypoint(PassengerGeocodingService.GeoPoint point) {
