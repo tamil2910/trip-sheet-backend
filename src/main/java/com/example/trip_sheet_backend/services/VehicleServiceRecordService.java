@@ -63,8 +63,8 @@ public class VehicleServiceRecordService {
     apply(record, tenantId, body);
     record = repository.save(record);
     if (body.getExpenseItems() != null) replaceExpenseItems(record, tenantId, body.getExpenseItems());
-    if (body.getInvoiceAttachments() != null && !body.getInvoiceAttachments().isEmpty()) {
-      uploadInvoicesBase64(tenantId, record.getId(), body.getInvoiceAttachments());
+    if (body.getInvoices() != null && !body.getInvoices().isEmpty()) {
+      uploadInvoicesBase64(tenantId, record.getId(), body.getInvoices());
     }
     return record;
   }
@@ -81,8 +81,8 @@ public class VehicleServiceRecordService {
     apply(record,tenantId,body);
     record = repository.save(record);
     if (body.getExpenseItems() != null) replaceExpenseItems(record, tenantId, body.getExpenseItems());
-    if (body.getInvoiceAttachments() != null && !body.getInvoiceAttachments().isEmpty()) {
-      uploadInvoicesBase64(tenantId, record.getId(), body.getInvoiceAttachments());
+    if (body.getInvoices() != null && !body.getInvoices().isEmpty()) {
+      uploadInvoicesBase64(tenantId, record.getId(), body.getInvoices());
     }
     return record;
   }

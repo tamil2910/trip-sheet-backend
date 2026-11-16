@@ -3,6 +3,7 @@ package com.example.trip_sheet_backend.dtos;
 import java.math.BigDecimal;
 import java.util.UUID;
 import java.util.List;
+import com.fasterxml.jackson.annotation.JsonAlias;
 import com.example.trip_sheet_backend.models.VehicleServiceRecord.ServiceType;
 import jakarta.validation.constraints.*;
 import jakarta.validation.Valid;
@@ -26,5 +27,6 @@ public class VehicleServiceRequest {
   @DecimalMin("0.00") private BigDecimal estimatedAmount;
   @DecimalMin("0.00") private BigDecimal paidAmount;
   private List<@Valid VehicleServiceExpenseItemRequest> expenseItems;
-  private List<@Valid VehicleServiceInvoiceRequest> invoiceAttachments;
+  @JsonAlias("invoiceAttachments")
+  private List<@Valid VehicleServiceInvoiceRequest> invoices;
 }
