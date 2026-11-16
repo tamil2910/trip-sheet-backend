@@ -14,9 +14,13 @@ import com.example.trip_sheet_backend.dtos.VehicleServiceExpenseDtos.InvoiceResp
 import com.example.trip_sheet_backend.dtos.VehicleServiceExpenseDtos.ItemResponse;
 import com.example.trip_sheet_backend.dtos.VehicleServiceExpenseDtos.InvoiceUploadRequest;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VehicleServiceRecord;
+import com.example.trip_sheet_backend.dtos.VehicleServiceProgressUpdateDtos.Request;
+import com.example.trip_sheet_backend.dtos.VehicleServiceProgressUpdateDtos.Response;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.VehicleServiceRecordService;
+import com.example.trip_sheet_backend.services.VehicleServiceProgressUpdateService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.multipart.MultipartFile;
@@ -24,7 +28,9 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController @RequestMapping("/vehicle-services")
 public class VehicleServiceRecordController {
   private final VehicleServiceRecordService service;
-  public VehicleServiceRecordController(VehicleServiceRecordService service) { this.service=service; }
+  private final VehicleServiceProgressUpdateService progressUpdates;
+  public VehicleServiceRecordController(VehicleServiceRecordService service,
+      VehicleServiceProgressUpdateService progressUpdates) { this.service=service; this.progressUpdates=progressUpdates; }
   @GetMapping @PreAuthorize("hasAuthority('CAN_READ_VEHICLESERVICE')")
   public ResponseEntity<ApiResponse<List<VehicleServiceRecord>>> list(HttpServletRequest req) { return ResponseEntity.ok(new ApiResponse<>(true,"Vehicle services fetched successfully",service.list(tenantId(req)))); }
   @GetMapping("/metrics/services-logged") @PreAuthorize("hasAuthority('CAN_READ_VEHICLESERVICE')")
@@ -49,6 +55,16 @@ public class VehicleServiceRecordController {
   public ResponseEntity<ApiResponse<List<ItemResponse>>> expenseItems(@PathVariable UUID id,HttpServletRequest req) { return ResponseEntity.ok(new ApiResponse<>(true,"Vehicle service expense items fetched successfully",service.expenseItems(tenantId(req),id))); }
   @GetMapping("/{id}/invoices") @PreAuthorize("hasAuthority('CAN_READ_VEHICLESERVICE')")
   public ResponseEntity<ApiResponse<List<InvoiceResponse>>> invoices(@PathVariable UUID id,HttpServletRequest req) { return ResponseEntity.ok(new ApiResponse<>(true,"Vehicle service invoices fetched successfully",service.listInvoices(tenantId(req),id))); }
+  @GetMapping("/{id}/reports-updation") @PreAuthorize("hasAuthority('CAN_READ_VEHICLESERVICE')")
+  public ResponseEntity<ApiResponse<List<Response>>> progressUpdates(@PathVariable UUID id,HttpServletRequest req) { return ResponseEntity.ok(new ApiResponse<>(true,"Vehicle service progress updates fetched successfully",progressUpdates.list(tenantId(req),id))); }
+  @GetMapping("/{id}/reports-updation/{updateId}") @PreAuthorize("hasAuthority('CAN_READ_VEHICLESERVICE')")
+  public ResponseEntity<ApiResponse<Response>> progressUpdate(@PathVariable UUID id,@PathVariable UUID updateId,HttpServletRequest req) { return ResponseEntity.ok(new ApiResponse<>(true,"Vehicle service progress update fetched successfully",progressUpdates.get(tenantId(req),id,updateId))); }
+  @PostMapping(value = "/{id}/reports-updation", consumes = MediaType.APPLICATION_JSON_VALUE) @PreAuthorize("hasAuthority('CAN_UPDATE_VEHICLESERVICE')")
+  public ResponseEntity<ApiResponse<Response>> createProgressUpdate(@PathVariable UUID id,@Valid @RequestBody Request body,HttpServletRequest req) { return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(true,"Vehicle service progress update created successfully",progressUpdates.create(tenantId(req),id,userName(req),body))); }
+  @PutMapping(value = "/{id}/reports-updation/{updateId}", consumes = MediaType.APPLICATION_JSON_VALUE) @PreAuthorize("hasAuthority('CAN_UPDATE_VEHICLESERVICE')")
+  public ResponseEntity<ApiResponse<Response>> updateProgressUpdate(@PathVariable UUID id,@PathVariable UUID updateId,@Valid @RequestBody Request body,HttpServletRequest req) { return ResponseEntity.ok(new ApiResponse<>(true,"Vehicle service progress update updated successfully",progressUpdates.update(tenantId(req),id,updateId,userName(req),body))); }
+  @DeleteMapping("/{id}/reports-updation/{updateId}") @PreAuthorize("hasAuthority('CAN_DELETE_VEHICLESERVICE')")
+  public ResponseEntity<ApiResponse<Void>> deleteProgressUpdate(@PathVariable UUID id,@PathVariable UUID updateId,HttpServletRequest req) { progressUpdates.delete(tenantId(req),id,updateId,userName(req)); return ResponseEntity.ok(new ApiResponse<>(true,"Vehicle service progress update deleted successfully",null)); }
   @GetMapping("/{id}") @PreAuthorize("hasAuthority('CAN_READ_VEHICLESERVICE')")
   public ResponseEntity<ApiResponse<VehicleServiceRecord>> get(@PathVariable UUID id,HttpServletRequest req) { return ResponseEntity.ok(new ApiResponse<>(true,"Vehicle service fetched successfully",service.get(tenantId(req),id))); }
   @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE) @PreAuthorize("hasAuthority('CAN_CREATE_VEHICLESERVICE')")
@@ -76,5 +92,12 @@ public class VehicleServiceRecordController {
   @DeleteMapping("/{id}") @PreAuthorize("hasAuthority('CAN_DELETE_VEHICLESERVICE')")
   public ResponseEntity<ApiResponse<Void>> delete(@PathVariable UUID id,HttpServletRequest req) { service.delete(tenantId(req),id); return ResponseEntity.ok(new ApiResponse<>(true,"Vehicle service deleted successfully",null)); }
   private static UUID tenantId(HttpServletRequest req) { return ((Tenant)req.getAttribute("tenant")).getId(); }
+  private static String userName(HttpServletRequest req) {
+    UserAccount user = (UserAccount) req.getAttribute("user");
+    if (user == null) throw new IllegalArgumentException("Authenticated user not found");
+    if (user.getUsername() != null && !user.getUsername().isBlank()) return user.getUsername().trim();
+    if (user.getEmail() != null && !user.getEmail().isBlank()) return user.getEmail().trim();
+    return user.getId().toString();
+  }
   private static void validateDateRange(Long fromDate,Long toDate) { if(fromDate!=null && toDate!=null && toDate<fromDate) throw new IllegalArgumentException("toDate must be greater than or equal to fromDate"); }
 }
