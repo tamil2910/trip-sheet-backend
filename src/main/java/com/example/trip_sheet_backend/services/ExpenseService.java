@@ -134,7 +134,7 @@ public class ExpenseService {
     Expense row=id==null?new Expense():expense(tenant,id);
     ExpenseLedger ledger=ledgers.findByIdAndTenant_IdAndIsDeletedFalse(body.ledgerId(),tenant).orElseThrow(()->notFound("Ledger"));
     if(!Boolean.TRUE.equals(ledger.getIsActive())) throw new IllegalArgumentException("Selected ledger must be active");
-    row.setTenant(refTenant(tenant)); row.setLedger(ledger); row.setCategory(null); row.setSubCategory(null);
+    row.setTenant(refTenant(tenant)); row.setLedger(ledger); row.setCategory(ledger.getCategory()); row.setSubCategory(null);
     row.setRequestedDate(body.requestedDate()); row.setPaymentType(body.paymentType()); row.setAmount(body.amount()); row.setTdsDeducted(body.tdsDeducted()); row.setAdjustments(body.adjustments()); row.setExpenseName(body.expenseName().trim()); row.setComment(body.comment()); row.setPaymentMode(body.paymentMode()); row.setBankDebitDate(body.bankDebitDate());
     row.setInvoices(body.invoices() == null ? new ArrayList<>() : body.invoices().stream().map(invoice -> {
       Expense.ExpenseInvoiceReference reference = new Expense.ExpenseInvoiceReference();

@@ -160,7 +160,24 @@ public class VehicleServiceRecordService {
     return invoices.findByVehicleService_IdAndVehicleService_Tenant_IdAndIsDeletedFalseOrderByCreatedAtAsc(serviceId, tenantId)
         .stream().map(this::toInvoiceResponse).toList();
   }
-  public VehicleServiceRecord updateStatus(UUID tenantId, UUID id, VehicleServiceRecord.ServiceStatus status) { VehicleServiceRecord record = get(tenantId, id); record.setStatus(status); return repository.save(record); }
+  public VehicleServiceRecord updateStatus(UUID tenantId, UUID id, VehicleServiceRecord.ServiceStatus status) {
+    VehicleServiceRecord record = get(tenantId, id);
+    if (status == VehicleServiceRecord.ServiceStatus.COMPLETED) {
+      List<VehicleServiceExpenseItem> savedItems = expenseItems
+          .findByVehicleService_IdAndVehicleService_Tenant_IdAndIsDeletedFalseOrderByCreatedAtAsc(id, tenantId);
+      if (savedItems.isEmpty()) {
+        throw new IllegalArgumentException("Add expense items before completing the vehicle service");
+      }
+      validateExpenseItems(null, record.getPaidAmount(), savedItems);
+      List<VehicleServiceInvoice> savedInvoices = invoices
+          .findByVehicleService_IdAndVehicleService_Tenant_IdAndIsDeletedFalseOrderByCreatedAtAsc(id, tenantId);
+      if (savedInvoices.isEmpty()) {
+        throw new IllegalArgumentException("Attach at least one invoice before completing the vehicle service");
+      }
+    }
+    record.setStatus(status);
+    return repository.save(record);
+  }
   public void delete(UUID tenantId, UUID id) { VehicleServiceRecord record=get(tenantId,id); record.setIsDeleted(true); repository.save(record); }
   private void apply(VehicleServiceRecord r, UUID tenantId, VehicleServiceRequest b) {
     Vehicle vehicle=vehicleRepository.findById(b.getVehicleId()).orElseThrow(() -> new ResourceNotFoundException("Vehicle not found"));
