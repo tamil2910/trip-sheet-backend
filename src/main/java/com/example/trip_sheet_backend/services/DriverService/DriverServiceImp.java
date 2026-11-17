@@ -234,7 +234,14 @@ public class DriverServiceImp extends GlobalBaseServiceImp<Driver, UUID> impleme
     Driver driver = repository.findByAccount_Id(currentUser.getId())
         .orElseThrow(() -> new RuntimeException("Driver profile not found for current user"));
 
-    return DriverTenantResponseDto.fromDriver(driver);
+    DriverTenantResponseDto response = DriverTenantResponseDto.fromDriver(driver);
+    String profilePicture = response.getDriver().getProfilePicture();
+    if (profilePicture != null && !profilePicture.isBlank()
+        && !profilePicture.startsWith("http://") && !profilePicture.startsWith("https://")
+        && !profilePicture.startsWith("data:") && profilePicture.contains("/")) {
+      response.getDriver().setProfilePicture(bucketStorage.createDownloadUrl(profilePicture));
+    }
+    return response;
   }
 
   @Transactional(rollbackFor = Exception.class)

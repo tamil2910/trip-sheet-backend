@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.controllers;
 
 import java.util.HashMap;
 import java.util.List;
+import org.springframework.web.bind.annotation.RequestParam;
 import java.util.Map;
 import java.util.UUID;
 
@@ -20,9 +21,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.EventDtos.EventCreateRequest;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventMutationResponse;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventParticipantAdminResponse;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventParticipantDecisionRequest;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.UpdateEventVehicleTypesRequest;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.EventParticipantRequest;
+import com.example.trip_sheet_backend.services.EventParticipantRequestService;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.TransportEventService;
 
@@ -34,9 +39,11 @@ import jakarta.validation.Valid;
 @PreAuthorize("isAuthenticated()")
 public class TransportEventController {
   private final TransportEventService eventService;
+  private final EventParticipantRequestService participantRequestService;
 
-  public TransportEventController(TransportEventService eventService) {
+  public TransportEventController(TransportEventService eventService, EventParticipantRequestService participantRequestService) {
     this.eventService = eventService;
+    this.participantRequestService = participantRequestService;
   }
 
   @PostMapping
@@ -82,6 +89,24 @@ public class TransportEventController {
     UUID updatedBy = (UUID) request.getAttribute("createdBy");
     return new ApiResponse<>(true, "Event vehicle types updated successfully",
         eventService.updateVehicleTypes(id, body.getVehicleTypeIds(), tenant, updatedBy));
+  }
+
+  @GetMapping("/{id}/participant-requests")
+  @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+  public ApiResponse<List<EventParticipantAdminResponse>> participantRequests(HttpServletRequest request,
+      @PathVariable UUID id, @RequestParam(required = false) EventParticipantRequest.RequestStatus status) {
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    return new ApiResponse<>(true, "Participant requests fetched", participantRequestService.listForReview(id, status, tenant));
+  }
+
+  @PutMapping("/{id}/participant-requests/{requestId}/decision")
+  @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+  public ApiResponse<EventParticipantAdminResponse> decideParticipantRequest(HttpServletRequest request,
+      @PathVariable UUID id, @PathVariable UUID requestId, @Valid @RequestBody EventParticipantDecisionRequest body) {
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    UUID actorId = (UUID) request.getAttribute("createdBy");
+    return new ApiResponse<>(true, "Participant request reviewed", participantRequestService.decide(
+        id, requestId, body.getDecision(), body.getReason(), tenant, actorId));
   }
 
   @GetMapping("/{id}")

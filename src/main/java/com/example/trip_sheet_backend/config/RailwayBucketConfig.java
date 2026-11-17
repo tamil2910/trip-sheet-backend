@@ -10,6 +10,8 @@ import org.springframework.util.StringUtils;
 
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Configuration;
@@ -32,6 +34,10 @@ public class RailwayBucketConfig {
         .endpointOverride(URI.create(endpoint))
         .region(Region.of(StringUtils.hasText(region) ? region : "auto"))
         .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
+        // Railway Buckets are S3-compatible; avoid adding optional AWS checksum headers
+        // that some compatible endpoints do not accept.
+        .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
+        .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
         .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(pathStyle).build())
         .build();
   }

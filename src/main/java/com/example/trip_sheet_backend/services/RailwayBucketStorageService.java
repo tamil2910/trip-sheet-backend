@@ -11,6 +11,8 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
@@ -22,6 +24,7 @@ import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignReques
 
 @Service
 public class RailwayBucketStorageService {
+  private static final Logger log = LoggerFactory.getLogger(RailwayBucketStorageService.class);
   private static final int MAX_FILE_BYTES = 10 * 1024 * 1024;
   private final ObjectProvider<S3Client> s3Provider;
   private final ObjectProvider<S3Presigner> presignerProvider;
@@ -78,6 +81,7 @@ public class RailwayBucketStorageService {
       s3Provider.getObject().putObject(PutObjectRequest.builder().bucket(bucket).key(key).contentType(contentType).build(), RequestBody.fromBytes(bytes));
       return key;
     } catch (S3Exception exception) {
+      logS3Failure("PutObject", key, exception);
       throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Could not save the file to Railway Bucket", exception);
     }
   }
@@ -101,8 +105,17 @@ public class RailwayBucketStorageService {
           RequestBody.fromBytes(bytes));
       return key;
     } catch (S3Exception exception) {
+      logS3Failure("PutObject", key, exception);
       throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Could not save the file to Railway Bucket", exception);
     }
+  }
+
+  private static void logS3Failure(String operation, String key, S3Exception exception) {
+    log.error("Railway Bucket {} failed for key {}: status={}, code={}, message={}, requestId={}",
+        operation, key, exception.statusCode(),
+        exception.awsErrorDetails() == null ? null : exception.awsErrorDetails().errorCode(),
+        exception.awsErrorDetails() == null ? exception.getMessage() : exception.awsErrorDetails().errorMessage(),
+        exception.requestId());
   }
 
   /** URL is temporary because Railway Buckets are private; persist the returned key, not this URL. */

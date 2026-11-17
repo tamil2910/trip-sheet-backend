@@ -217,6 +217,41 @@ public class EmailService {
         }
     }
 
+    public void sendEventParticipantAccessLink(String toEmail, String participantName, String eventName, String accessLink, Long expiresAt) {
+        String deadline = expiresAt == null ? "the event end" : java.time.Instant.ofEpochMilli(expiresAt).toString();
+        sendPlainTextEmail(toEmail, "Your event transport access link", "Hello " + safeName(participantName)
+                + ",\n\nYour request for " + safeName(eventName) + " is approved. Open this temporary access link to sign in and view your request and trip details:\n"
+                + accessLink + "\n\nThe link is valid until " + deadline + ". You will verify your email with a one-time code.\n\nTrip Sheet Team");
+    }
+
+    public void sendEventParticipantOtp(String toEmail, String participantName, String eventName, String otp, Long expiresAt) {
+        String deadline = expiresAt == null ? "10 minutes" : java.time.Instant.ofEpochMilli(expiresAt).toString();
+        sendPlainTextEmail(toEmail, "Your event transport verification code", "Hello " + safeName(participantName)
+                + ",\n\nYour one-time code for " + safeName(eventName) + " is " + otp
+                + ". It expires at " + deadline + ". If you did not request this code, ignore this email.\n\nTrip Sheet Team");
+    }
+
+    private void sendPlainTextEmail(String toEmail, String subject, String body) {
+        if (toEmail == null || toEmail.isBlank()) throw new RuntimeException("Recipient email is required");
+        if (fromEmail == null || fromEmail.isBlank()) throw new RuntimeException("SendGrid sender email is not configured");
+        if (sendGridApiKey == null || sendGridApiKey.isBlank()) throw new RuntimeException("SendGrid API key is not configured");
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("from", Map.of("email", fromEmail));
+        payload.put("personalizations", List.of(Map.of("to", List.of(Map.of("email", toEmail)))));
+        payload.put("subject", subject);
+        payload.put("content", List.of(Map.of("type", "text/plain", "value", body)));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set("Authorization", "Bearer " + sendGridApiKey);
+        ResponseEntity<String> response = restTemplate.postForEntity(SENDGRID_API_URL,
+                new HttpEntity<>(payload, headers), String.class);
+        if (!response.getStatusCode().is2xxSuccessful()) throw new RuntimeException("SendGrid rejected the message");
+    }
+
+    private String safeName(String value) {
+        return value == null || value.isBlank() ? "participant" : value;
+    }
+
     public void sendTripFeedbackEmail(String toEmail, String passengerName, String feedbackLink) {
         if (toEmail == null || toEmail.isBlank()) {
             throw new RuntimeException("Recipient email is required");

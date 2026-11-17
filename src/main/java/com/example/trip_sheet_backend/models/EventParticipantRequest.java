@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.models;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
+import com.example.trip_sheet_backend.models.Trip;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -59,6 +60,19 @@ public class EventParticipantRequest extends BaseModel {
   @Enumerated(EnumType.STRING)
   @Column(name = "match_method", nullable = false, length = 20)
   private MatchMethod matchMethod;
+
+  @ManyToOne(fetch = FetchType.LAZY)
+  @JoinColumn(name = "trip_id")
+  private Trip trip;
+
+  @Column(name = "reviewed_at")
+  private Long reviewedAt;
+
+  @Column(name = "reviewed_by")
+  private String reviewedBy;
+
+  @Column(name = "decision_reason", length = 1000)
+  private String decisionReason;
 
   public enum RequestStatus { APPROVED, PENDING_APPROVAL, REJECTED, WITHDRAWN }
   public enum MatchMethod { EMAIL, PHONE, BOTH, NONE, AMBIGUOUS }
