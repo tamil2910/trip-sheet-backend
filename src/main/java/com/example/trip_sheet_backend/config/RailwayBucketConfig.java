@@ -31,9 +31,9 @@ public class RailwayBucketConfig {
       return null;
     }
     return S3Client.builder()
-        .endpointOverride(URI.create(endpoint))
-        .region(Region.of(StringUtils.hasText(region) ? region : "auto"))
-        .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
+        .endpointOverride(URI.create(endpoint.trim()))
+        .region(Region.of(StringUtils.hasText(region) ? region.trim() : "auto"))
+        .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey.trim(), secretKey.trim())))
         // Railway Buckets are S3-compatible; avoid adding optional AWS checksum headers
         // that some compatible endpoints do not accept.
         .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
@@ -54,9 +54,9 @@ public class RailwayBucketConfig {
       return null;
     }
     return S3Presigner.builder()
-        .endpointOverride(URI.create(endpoint))
-        .region(Region.of(StringUtils.hasText(region) ? region : "auto"))
-        .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
+        .endpointOverride(URI.create(endpoint.trim()))
+        .region(Region.of(StringUtils.hasText(region) ? region.trim() : "auto"))
+        .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey.trim(), secretKey.trim())))
         .serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(pathStyle).build())
         .build();
   }

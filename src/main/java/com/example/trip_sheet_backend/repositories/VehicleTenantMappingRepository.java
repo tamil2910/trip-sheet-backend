@@ -5,6 +5,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import com.example.trip_sheet_backend.common.repositories.BaseRepository;
 import com.example.trip_sheet_backend.models.VehicleTenantMapping;
 
@@ -20,6 +22,21 @@ public interface VehicleTenantMappingRepository extends BaseRepository<VehicleTe
 
   @EntityGraph(attributePaths = {"vehicle", "vehicle.vehicleType", "tenant"})
   List<VehicleTenantMapping> findByTenant_Id(UUID tenantId);
+
+  @EntityGraph(attributePaths = {"vehicle", "vehicle.vehicleType", "tenant"})
+  @Query("""
+      SELECT mapping
+      FROM VehicleTenantMapping mapping
+      WHERE mapping.tenant.id = :tenantId
+        AND NOT EXISTS (
+          SELECT vehicleDriverMapping.id
+          FROM VehicleDriverMapping vehicleDriverMapping
+          WHERE vehicleDriverMapping.tenant.id = :tenantId
+            AND vehicleDriverMapping.vehicle.id = mapping.vehicle.id
+            AND vehicleDriverMapping.isActive = true
+        )
+      """)
+  List<VehicleTenantMapping> findUnlinkedVehiclesByTenantId(@Param("tenantId") UUID tenantId);
 
   @EntityGraph(attributePaths = {"vehicle", "vehicle.vehicleType", "tenant"})
   Optional<VehicleTenantMapping> findByTenant_IdAndVehicle_VehicleNumber(UUID tenantId, String vehicleNumber);

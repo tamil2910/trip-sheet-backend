@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.dtos.EventDtos;
 
 import java.util.UUID;
+import java.util.List;
 
 import com.example.trip_sheet_backend.models.EventParticipantRequest;
 
@@ -10,4 +11,8 @@ public record EventRequestSubmissionResponse(
     String eventName,
     EventParticipantRequest.RequestStatus status,
     boolean matchedToPeopleTenant,
-    String message) { }
+    String gender,
+    List<ExtraPassenger> extraPassengers,
+    String message) {
+  public record ExtraPassenger(String name, String gender, String relationshipType) { }
+}

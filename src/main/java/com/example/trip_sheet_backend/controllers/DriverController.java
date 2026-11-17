@@ -320,7 +320,7 @@ public class DriverController extends GlobalBaseController<Driver, UUID> {
     DriverTenantMapping driverTenant = driverTenantMappingRepository.findByTenant_IdAndDriver_Id(tenant.getId(), driver.getId())
         .orElseThrow(() -> new RuntimeException("Driver is not linked with the specified tenant"));
 
-    List<VehicleTenantMapping> vehicleTenantMappings = vehicleTenantMappingRepository.findByTenant_Id(tenantId);
+    List<VehicleTenantMapping> vehicleTenantMappings = vehicleTenantMappingRepository.findUnlinkedVehiclesByTenantId(tenantId);
     // return ResponseEntity.ok(new ApiResponse<>(true, "List of tenant vehicles retrieved successfully", vehicleTenantMappings));
     TenantVehiclesDto tenantVehiclesDto = new TenantVehiclesDto();
     tenantVehiclesDto.setTenantId(tenantId);

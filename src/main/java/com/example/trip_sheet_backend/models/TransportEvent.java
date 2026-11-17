@@ -13,6 +13,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.CascadeType;
 import jakarta.persistence.Table;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
@@ -38,6 +40,12 @@ public class TransportEvent extends BaseModel {
 
   @Column(length = 4000)
   private String description;
+
+  @Column(name = "bring_family", nullable = false)
+  private boolean bringFamily = false;
+
+  @Column(name = "allowed_extra_passengers", nullable = false)
+  private int allowedExtraPassengers = 0;
 
   @Column(name = "venue_latitude")
   private Double venueLatitude;
@@ -69,11 +77,14 @@ public class TransportEvent extends BaseModel {
   @JoinColumn(name = "tenant_id", nullable = false)
   private Tenant tenant;
 
+  @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<TransportEventVehicleType> vehicleTypeMappings = new ArrayList<>();
+
   @ManyToMany(fetch = FetchType.LAZY)
-  @JoinTable(name = "transport_event_vehicle_types",
+  @JoinTable(name = "transport_event_duty_types",
       joinColumns = @JoinColumn(name = "event_id"),
-      inverseJoinColumns = @JoinColumn(name = "vehicle_type_id"))
-  private List<VehicleType> vehicleTypes = new ArrayList<>();
+      inverseJoinColumns = @JoinColumn(name = "duty_type_id"))
+  private List<DutyType> dutyTypes = new ArrayList<>();
 
   public enum RequestAudience { ANYONE_WITH_LINK, SPECIFIC_PEOPLE }
   public enum EventStatus { OPEN, CLOSED, CANCELLED }

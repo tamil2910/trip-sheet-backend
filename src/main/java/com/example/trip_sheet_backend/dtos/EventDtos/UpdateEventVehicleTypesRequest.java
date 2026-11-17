@@ -1,7 +1,7 @@
 package com.example.trip_sheet_backend.dtos.EventDtos;
 
 import java.util.List;
-import java.util.UUID;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventVehicleTypeRequest;
 
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
@@ -13,6 +13,6 @@ import lombok.Setter;
 @NoArgsConstructor
 public class UpdateEventVehicleTypesRequest {
   @NotNull
-  private List<UUID> vehicleTypeIds;
+  private List<@jakarta.validation.Valid EventVehicleTypeRequest> vehicleTypeIds;
 }
 

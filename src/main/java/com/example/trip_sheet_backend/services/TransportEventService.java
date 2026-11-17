@@ -29,14 +29,18 @@ import com.example.trip_sheet_backend.dtos.EventDtos.EventCreateRequest;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventMutationResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventMutationResponse.RecipientRequestLink;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventRecipientRequest;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventVehicleTypeRequest;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventResponse;
 import com.example.trip_sheet_backend.models.EventRequestInvite;
+import com.example.trip_sheet_backend.models.DutyType;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.TransportEvent;
 import com.example.trip_sheet_backend.models.VehicleType;
+import com.example.trip_sheet_backend.models.TransportEventVehicleType;
 import com.example.trip_sheet_backend.repositories.EventRequestInviteRepository;
 import com.example.trip_sheet_backend.repositories.TransportEventRepository;
 import com.example.trip_sheet_backend.repositories.VehicleTypeRepository;
+import com.example.trip_sheet_backend.repositories.DutyTypeRepository;
 
 @Service
 public class TransportEventService {
@@ -46,6 +50,7 @@ public class TransportEventService {
   private final TransportEventRepository eventRepository;
   private final EventRequestInviteRepository inviteRepository;
   private final VehicleTypeRepository vehicleTypeRepository;
+  private final DutyTypeRepository dutyTypeRepository;
   private final EmailService emailService;
   private final String requestLinkBaseUrl;
 
@@ -53,11 +58,13 @@ public class TransportEventService {
       TransportEventRepository eventRepository,
       EventRequestInviteRepository inviteRepository,
       VehicleTypeRepository vehicleTypeRepository,
+      DutyTypeRepository dutyTypeRepository,
       EmailService emailService,
       @Value("${app.event.request-link-base:http://localhost:4200/event-request}") String requestLinkBaseUrl) {
     this.eventRepository = eventRepository;
     this.inviteRepository = inviteRepository;
     this.vehicleTypeRepository = vehicleTypeRepository;
+    this.dutyTypeRepository = dutyTypeRepository;
     this.emailService = emailService;
     this.requestLinkBaseUrl = requestLinkBaseUrl;
   }
@@ -71,7 +78,8 @@ public class TransportEventService {
     TransportEvent event = new TransportEvent();
     applyEventFields(event, request);
     event.setTenant(tenant);
-    event.setVehicleTypes(resolveVehicleTypes(request.getVehicleTypeIds()));
+    event.setVehicleTypeMappings(resolveVehicleTypeMappings(event, request.getVehicleTypeIds()));
+    event.setDutyTypes(resolveDutyTypes(request.getDutyTypeIds()));
     event.setCreatedBy(createdBy == null ? null : createdBy.toString());
     event.setUpdatedBy(createdBy == null ? null : createdBy.toString());
 
@@ -103,7 +111,8 @@ public class TransportEventService {
     boolean expiryChanged = !event.getLinkValidUntil().equals(request.getLinkValidUntil());
 
     applyEventFields(event, request);
-    event.setVehicleTypes(resolveVehicleTypes(request.getVehicleTypeIds()));
+    event.setVehicleTypeMappings(resolveVehicleTypeMappings(event, request.getVehicleTypeIds()));
+    event.setDutyTypes(resolveDutyTypes(request.getDutyTypeIds()));
     event.setUpdatedBy(updatedBy == null ? null : updatedBy.toString());
 
     String requestLink = null;
@@ -141,11 +150,11 @@ public class TransportEventService {
   }
 
   @Transactional
-  public EventResponse updateVehicleTypes(UUID id, List<UUID> vehicleTypeIds, Tenant tenant, UUID updatedBy) {
+  public EventResponse updateVehicleTypes(UUID id, List<EventVehicleTypeRequest> vehicleTypeIds, Tenant tenant, UUID updatedBy) {
     requireTenant(tenant);
     TransportEvent event = eventRepository.findByIdAndTenant_IdAndIsDeletedFalse(id, tenant.getId())
         .orElseThrow(() -> new IllegalArgumentException("Event not found"));
-    event.setVehicleTypes(resolveVehicleTypes(vehicleTypeIds));
+    event.setVehicleTypeMappings(resolveVehicleTypeMappings(event, vehicleTypeIds));
     event.setUpdatedBy(updatedBy == null ? null : updatedBy.toString());
     return EventResponse.from(eventRepository.save(event));
   }
@@ -162,7 +171,7 @@ public class TransportEventService {
   public List<EventResponse.VehicleTypeOption> vehicleTypeOptions() {
     return vehicleTypeRepository.findAll().stream()
         .filter(v -> !Boolean.TRUE.equals(v.getIsDeleted()))
-        .map(EventResponse.VehicleTypeOption::from)
+        .map(vehicleType -> EventResponse.VehicleTypeOption.from(vehicleType, 0))
         .toList();
   }
 
@@ -171,6 +180,8 @@ public class TransportEventService {
     event.setVenue(request.getVenue().trim());
     event.setCity(trimToNull(request.getCity()));
     event.setDescription(trimToNull(request.getDescription()));
+    event.setBringFamily(request.isBringFamily());
+    event.setAllowedExtraPassengers(request.getAllowedExtraPassengers());
     validateVenueCoordinates(request.getVenueLatitude(), request.getVenueLongitude());
     event.setVenueLatitude(request.getVenueLatitude());
     event.setVenueLongitude(request.getVenueLongitude());
@@ -189,6 +200,10 @@ public class TransportEventService {
     if (request.getLinkValidUntil() <= now) throw new IllegalArgumentException("Link validity must be in the future");
     if (request.getLinkValidUntil() < request.getStartsAt()) throw new IllegalArgumentException("Link must remain valid through the event start");
     if (request.getRequestAudience() == null) throw new IllegalArgumentException("Request audience is required");
+    if (request.getAllowedExtraPassengers() < 0) throw new IllegalArgumentException("Allowed extra passengers cannot be negative");
+    if (!request.isBringFamily() && request.getAllowedExtraPassengers() > 0) {
+      throw new IllegalArgumentException("Allowed extra passengers requires bringFamily to be enabled");
+    }
   }
 
   private void validateRecipientsForAudience(EventCreateRequest request) {
@@ -275,9 +290,13 @@ public class TransportEventService {
     }
   }
 
-  private List<VehicleType> resolveVehicleTypes(List<UUID> ids) {
-    if (ids == null || ids.isEmpty()) return List.of();
+  private List<TransportEventVehicleType> resolveVehicleTypeMappings(TransportEvent event, List<EventVehicleTypeRequest> selections) {
+    if (selections == null || selections.isEmpty()) return List.of();
+    List<UUID> ids = selections.stream().map(EventVehicleTypeRequest::getId).toList();
     if (new HashSet<>(ids).size() != ids.size()) throw new IllegalArgumentException("Duplicate vehicle type ids are not allowed");
+    if (selections.stream().anyMatch(selection -> selection.getAllowedPassenger() < 0)) {
+      throw new IllegalArgumentException("Allowed passengers cannot be negative");
+    }
     List<VehicleType> result = vehicleTypeRepository.findAllById(ids);
     Set<UUID> found = new HashSet<>();
     result.forEach(type -> found.add(type.getId()));
@@ -285,7 +304,24 @@ public class TransportEventService {
     if (result.stream().anyMatch(type -> Boolean.TRUE.equals(type.getIsDeleted()))) {
       throw new IllegalArgumentException("Deleted vehicle types cannot be selected");
     }
-    return result;
+    return new ArrayList<>(result.stream().map(type -> {
+      EventVehicleTypeRequest selection = selections.stream().filter(item -> item.getId().equals(type.getId())).findFirst().orElseThrow();
+      TransportEventVehicleType mapping = new TransportEventVehicleType();
+      mapping.setEvent(event);
+      mapping.setVehicleType(type);
+      mapping.setAllowedPassenger(selection.getAllowedPassenger());
+      mapping.getId().setVehicleTypeId(type.getId());
+      return mapping;
+    }).toList());
+  }
+
+  private List<DutyType> resolveDutyTypes(List<UUID> ids) {
+    if (ids == null || ids.isEmpty()) return List.of();
+    if (new HashSet<>(ids).size() != ids.size()) throw new IllegalArgumentException("Duplicate duty type ids are not allowed");
+    List<DutyType> result = dutyTypeRepository.findAllById(ids);
+    if (result.size() != ids.size()) throw new IllegalArgumentException("One or more duty types were not found");
+    if (result.stream().anyMatch(type -> Boolean.TRUE.equals(type.getIsDeleted()))) throw new IllegalArgumentException("Deleted duty types cannot be selected");
+    return new ArrayList<>(result);
   }
 
   private void validateVenueCoordinates(Double latitude, Double longitude) {

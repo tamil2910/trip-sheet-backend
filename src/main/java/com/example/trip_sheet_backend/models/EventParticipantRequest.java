@@ -10,6 +10,10 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.CascadeType;
+import jakarta.persistence.OneToMany;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -40,6 +44,12 @@ public class EventParticipantRequest extends BaseModel {
 
   @Column(length = 32)
   private String phone;
+
+  @Column(length = 32)
+  private String gender;
+
+  @OneToMany(mappedBy = "participantRequest", cascade = CascadeType.ALL, orphanRemoval = true)
+  private List<EventParticipantFamilyMember> extraPassengers = new ArrayList<>();
 
   @Column(name = "pickup_address", length = 1000)
   private String pickupAddress;

@@ -22,6 +22,9 @@ public class EventCreateRequest {
   private String venue;
   private String city;
   private String description;
+  private boolean bringFamily = false;
+  @jakarta.validation.constraints.Min(0)
+  private int allowedExtraPassengers = 0;
   private Double venueLatitude;
   private Double venueLongitude;
   @NotNull
@@ -32,7 +35,8 @@ public class EventCreateRequest {
   private Long linkValidUntil;
   @NotNull
   private RequestAudience requestAudience;
-  private List<UUID> vehicleTypeIds;
+  private List<@Valid EventVehicleTypeRequest> vehicleTypeIds;
+  private List<UUID> dutyTypeIds;
   private List<@Valid EventRecipientRequest> recipients;
 }
 

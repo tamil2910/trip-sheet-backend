@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.dtos.EventDtos;
 
 import java.util.UUID;
+import java.util.List;
 
 import com.example.trip_sheet_backend.models.EventParticipantRequest;
 
@@ -9,6 +10,8 @@ public record EventParticipantAdminResponse(
     String name,
     String email,
     String phone,
+    String gender,
+    List<EventRequestSubmissionResponse.ExtraPassenger> extraPassengers,
     String pickupAddress,
     Double pickupLatitude,
     Double pickupLongitude,
@@ -20,7 +23,8 @@ public record EventParticipantAdminResponse(
     Long reviewedAt,
     String decisionReason) {
   public static EventParticipantAdminResponse from(EventParticipantRequest request) {
-    return new EventParticipantAdminResponse(request.getId(), request.getName(), request.getEmail(), request.getPhone(),
+    return new EventParticipantAdminResponse(request.getId(), request.getName(), request.getEmail(), request.getPhone(), request.getGender(),
+        request.getExtraPassengers().stream().map(extra -> new EventRequestSubmissionResponse.ExtraPassenger(extra.getName(), extra.getGender(), extra.getRelationshipType())).toList(),
         request.getPickupAddress(), request.getPickupLatitude(), request.getPickupLongitude(), request.getNotes(),
         request.getStatus(), request.getMatchMethod(),
         request.getPeopleTenant() == null ? null : request.getPeopleTenant().getId(),

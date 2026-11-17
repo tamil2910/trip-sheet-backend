@@ -9,5 +9,7 @@ import com.example.trip_sheet_backend.models.EventParticipantRequest;
 
 public interface EventParticipantRequestRepository extends BaseRepository<EventParticipantRequest, UUID> {
   List<EventParticipantRequest> findAllByEvent_IdAndIsDeletedFalseOrderByCreatedAtDesc(UUID eventId);
+  List<EventParticipantRequest> findAllByEvent_IdAndStatusAndIsDeletedFalseOrderByCreatedAtAsc(
+      UUID eventId, EventParticipantRequest.RequestStatus status);
   Optional<EventParticipantRequest> findByIdAndEvent_IdAndIsDeletedFalse(UUID id, UUID eventId);
 }

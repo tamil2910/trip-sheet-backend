@@ -9,10 +9,13 @@ public record EventRequestLinkResponse(
     String venue,
     String city,
     String description,
+    boolean bringFamily,
+    int allowedExtraPassengers,
     Double venueLatitude,
     Double venueLongitude,
     Long startsAt,
     Long endsAt,
     Long linkValidUntil,
     String invitedName,
-    List<EventResponse.VehicleTypeOption> vehicleTypes) { }
+    List<EventResponse.VehicleTypeOption> vehicleTypes,
+    List<EventResponse.DutyTypeOption> dutyTypes) { }

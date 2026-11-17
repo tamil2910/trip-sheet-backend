@@ -57,9 +57,11 @@ public class EventParticipantRequestService {
     TransportEvent event = context.event();
     String invitedName = context.invite() == null ? null : context.invite().getName();
     return new EventRequestLinkResponse(event.getId(), event.getName(), event.getVenue(), event.getCity(),
-        event.getDescription(), event.getVenueLatitude(), event.getVenueLongitude(), event.getStartsAt(),
+        event.getDescription(), event.isBringFamily(), event.getAllowedExtraPassengers(), event.getVenueLatitude(), event.getVenueLongitude(), event.getStartsAt(),
         event.getEndsAt(), event.getLinkValidUntil(), invitedName,
-        event.getVehicleTypes().stream().map(EventResponse.VehicleTypeOption::from).toList());
+        event.getVehicleTypeMappings().stream()
+            .map(mapping -> EventResponse.VehicleTypeOption.from(mapping.getVehicleType(), mapping.getAllowedPassenger())).toList(),
+        event.getDutyTypes().stream().map(EventResponse.DutyTypeOption::from).toList());
   }
 
   @Transactional
@@ -82,6 +84,23 @@ public class EventParticipantRequestService {
     participantRequest.setName(body.getName().trim());
     participantRequest.setEmail(email);
     participantRequest.setPhone(phone);
+    participantRequest.setGender(trimToNull(body.getGender()));
+    if (!event.isBringFamily() && body.getExtraPassengers() != null && !body.getExtraPassengers().isEmpty()) {
+      throw new IllegalArgumentException("Family members are not allowed for this event");
+    }
+    if (body.getExtraPassengers() != null) {
+      if (body.getExtraPassengers().size() > event.getAllowedExtraPassengers()) {
+        throw new IllegalArgumentException("Extra passengers exceed the event's per-participant limit of " + event.getAllowedExtraPassengers());
+      }
+      body.getExtraPassengers().forEach(passenger -> {
+        com.example.trip_sheet_backend.models.EventParticipantFamilyMember extra = new com.example.trip_sheet_backend.models.EventParticipantFamilyMember();
+        extra.setParticipantRequest(participantRequest);
+        extra.setName(passenger.getName().trim());
+        extra.setGender(trimToNull(passenger.getGender()));
+        extra.setRelationshipType(passenger.getRelationshipType().trim());
+        participantRequest.getExtraPassengers().add(extra);
+      });
+    }
     participantRequest.setPickupAddress(trimToNull(body.getPickupAddress()));
     participantRequest.setPickupLatitude(body.getPickupLatitude());
     participantRequest.setPickupLongitude(body.getPickupLongitude());
@@ -104,7 +123,7 @@ public class EventParticipantRequestService {
 
     boolean approved = saved.getStatus() == EventParticipantRequest.RequestStatus.APPROVED;
     return new EventRequestSubmissionResponse(saved.getId(), event.getId(), event.getName(), saved.getStatus(),
-        match.person() != null, approved
+        match.person() != null, saved.getGender(), saved.getExtraPassengers().stream().map(extra -> new EventRequestSubmissionResponse.ExtraPassenger(extra.getName(), extra.getGender(), extra.getRelationshipType())).toList(), approved
             ? "Request submitted and approved. A temporary access link will be emailed."
             : "Request submitted and is waiting for admin approval");
   }

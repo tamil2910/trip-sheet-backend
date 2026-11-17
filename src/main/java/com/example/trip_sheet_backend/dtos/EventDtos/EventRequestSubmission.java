@@ -6,6 +6,8 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
+import java.util.List;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -25,6 +27,13 @@ public class EventRequestSubmission {
   @Size(max = 32)
   private String phone;
 
+  @Size(max = 32)
+  private String gender;
+
+  @Valid
+  @Size(max = 20)
+  private List<ExtraPassenger> extraPassengers;
+
   @Size(max = 1000)
   private String pickupAddress;
 
@@ -40,4 +49,20 @@ public class EventRequestSubmission {
 
   @Size(max = 2000)
   private String notes;
+
+  @Getter
+  @Setter
+  @NoArgsConstructor
+  public static class ExtraPassenger {
+    @NotBlank
+    @Size(max = 255)
+    private String name;
+
+    @Size(max = 32)
+    private String gender;
+
+    @NotBlank
+    @Size(max = 64)
+    private String relationshipType;
+  }
 }

@@ -24,12 +24,15 @@ import com.example.trip_sheet_backend.dtos.EventDtos.EventMutationResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventParticipantAdminResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventParticipantDecisionRequest;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventResponse;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventRouteDraftRequest;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventRouteDraftResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.UpdateEventVehicleTypesRequest;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.EventParticipantRequest;
 import com.example.trip_sheet_backend.services.EventParticipantRequestService;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.TransportEventService;
+import com.example.trip_sheet_backend.services.EventRouteDraftService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -40,10 +43,13 @@ import jakarta.validation.Valid;
 public class TransportEventController {
   private final TransportEventService eventService;
   private final EventParticipantRequestService participantRequestService;
+  private final EventRouteDraftService routeDraftService;
 
-  public TransportEventController(TransportEventService eventService, EventParticipantRequestService participantRequestService) {
+  public TransportEventController(TransportEventService eventService, EventParticipantRequestService participantRequestService,
+      EventRouteDraftService routeDraftService) {
     this.eventService = eventService;
     this.participantRequestService = participantRequestService;
+    this.routeDraftService = routeDraftService;
   }
 
   @PostMapping
@@ -97,6 +103,25 @@ public class TransportEventController {
       @PathVariable UUID id, @RequestParam(required = false) EventParticipantRequest.RequestStatus status) {
     Tenant tenant = (Tenant) request.getAttribute("tenant");
     return new ApiResponse<>(true, "Participant requests fetched", participantRequestService.listForReview(id, status, tenant));
+  }
+
+  @GetMapping("/{id}/approved-participants")
+  @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+  public ApiResponse<List<EventParticipantAdminResponse>> approvedParticipants(HttpServletRequest request,
+      @PathVariable UUID id) {
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    return new ApiResponse<>(true, "Approved event participants fetched",
+        routeDraftService.approvedParticipants(id, tenant));
+  }
+
+  @PostMapping("/{id}/route-groups/draft")
+  @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+  public ApiResponse<EventRouteDraftResponse> draftRouteGroups(HttpServletRequest request, @PathVariable UUID id,
+      @Valid @RequestBody(required = false) EventRouteDraftRequest body) {
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    Double maxPickupDistance = body == null ? null : body.getMaxPickupDistanceKm();
+    return new ApiResponse<>(true, "Event route groups drafted",
+        routeDraftService.createDraft(id, tenant, maxPickupDistance));
   }
 
   @PutMapping("/{id}/participant-requests/{requestId}/decision")

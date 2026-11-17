@@ -36,7 +36,7 @@ public class RailwayBucketStorageService {
       @Value("${BUCKET_NAME:}") String bucket) {
     this.s3Provider = s3Provider;
     this.presignerProvider = presignerProvider;
-    this.bucket = bucket;
+    this.bucket = bucket == null ? "" : bucket.trim();
   }
 
   /** Accepts either raw Base64 or a data URI and returns the stable key to persist in the model. */
