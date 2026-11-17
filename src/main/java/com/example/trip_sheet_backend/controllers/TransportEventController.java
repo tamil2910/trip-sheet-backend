@@ -1,4 +1,4 @@
-﻿package com.example.trip_sheet_backend.controllers;
+package com.example.trip_sheet_backend.controllers;
 
 import java.util.HashMap;
 import java.util.List;
@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.EventDtos.EventCreateRequest;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventMutationResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.UpdateEventVehicleTypesRequest;
 import com.example.trip_sheet_backend.models.Tenant;
@@ -39,13 +40,21 @@ public class TransportEventController {
   }
 
   @PostMapping
-  public ResponseEntity<ApiResponse<EventResponse>> create(
+  public ResponseEntity<ApiResponse<EventMutationResponse>> create(
       HttpServletRequest request, @Valid @RequestBody EventCreateRequest body) {
     Tenant tenant = (Tenant) request.getAttribute("tenant");
     UUID createdBy = (UUID) request.getAttribute("createdBy");
-    EventResponse created = eventService.create(body, tenant, createdBy);
+    EventMutationResponse created = eventService.create(body, tenant, createdBy);
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(new ApiResponse<>(true, "Event created successfully", created));
+  }
+
+  @PutMapping("/{id}")
+  public ApiResponse<EventMutationResponse> update(HttpServletRequest request, @PathVariable UUID id,
+      @Valid @RequestBody EventCreateRequest body) {
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    UUID updatedBy = (UUID) request.getAttribute("createdBy");
+    return new ApiResponse<>(true, "Event updated successfully", eventService.update(id, body, tenant, updatedBy));
   }
 
   @GetMapping
@@ -86,4 +95,5 @@ public class TransportEventController {
     return new ApiResponse<>(true, "Vehicle types fetched successfully", eventService.vehicleTypeOptions());
   }
 }
+
 

@@ -1,4 +1,4 @@
-﻿package com.example.trip_sheet_backend.dtos.EventDtos;
+package com.example.trip_sheet_backend.dtos.EventDtos;
 
 import java.util.List;
 import java.util.UUID;
@@ -18,6 +18,7 @@ public record EventResponse(
     Long endsAt,
     Long linkValidUntil,
     TransportEvent.RequestAudience requestAudience,
+    boolean hasPublicRequestLink,
     TransportEvent.EventStatus status,
     List<VehicleTypeOption> vehicleTypes) {
 
@@ -27,7 +28,7 @@ public record EventResponse(
         .toList();
     return new EventResponse(event.getId(), event.getName(), event.getVenue(), event.getCity(),
         event.getDescription(), event.getVenueLatitude(), event.getVenueLongitude(), event.getStartsAt(), event.getEndsAt(), event.getLinkValidUntil(),
-        event.getRequestAudience(), event.getStatus(), vehicleTypes);
+        event.getRequestAudience(), event.getPublicRequestTokenHash() != null, event.getStatus(), vehicleTypes);
   }
 
   public record VehicleTypeOption(UUID id, String name, VehicleType.typeVehicle type, Integer seatCount) {
@@ -37,5 +38,6 @@ public record EventResponse(
     }
   }
 }
+
 
 

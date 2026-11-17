@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.example.trip_sheet_backend.dtos.TransportRequestCreateDTO;
 import com.example.trip_sheet_backend.dtos.TransportRequestResponseDTO;
 import com.example.trip_sheet_backend.dtos.TransportRequestRouteGroupDTO;
+import com.example.trip_sheet_backend.dtos.TransportRouteDraftCreateDTO;
 import com.example.trip_sheet_backend.dtos.TransportRequestRouteMoveDTO;
 import com.example.trip_sheet_backend.dtos.TransportRequestShiftGroupDTO;
 import com.example.trip_sheet_backend.models.PeopleTenant;
@@ -298,9 +299,14 @@ public class TransportRequestController {
         List<TransportRequestRouteGroupDTO> result = new ArrayList<>();
         for (List<TransportRequest> shiftRequests : requestsByShift.values()) {
             Map<UUID, List<TransportRequest>> requestsByRoute = new LinkedHashMap<>();
+            List<TransportRequest> unassignedRequests = new ArrayList<>();
             for (TransportRequest request : shiftRequests) {
                 UUID routeId = request.getRoute() == null ? null : request.getRoute().getId();
-                requestsByRoute.computeIfAbsent(routeId, ignored -> new ArrayList<>()).add(request);
+                if (routeId == null) {
+                    unassignedRequests.add(request);
+                } else {
+                    requestsByRoute.computeIfAbsent(routeId, ignored -> new ArrayList<>()).add(request);
+                }
             }
 
             List<TransportRequestRouteGroupDTO.RouteGroup> routes = new ArrayList<>();
@@ -313,10 +319,18 @@ public class TransportRequestController {
                 routes.add(new TransportRequestRouteGroupDTO.RouteGroup(
                         route == null ? null : route.getId(),
                         route == null ? null : route.getDirection(),
+                        route == null ? null : route.getStatus(),
                         direction,
                         pickupAddress,
                         dropoffAddress,
                         routeRequests.stream().map(com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO::fromEntity).toList()));
+            }
+            for (TransportRequest request : unassignedRequests) {
+                routes.add(new TransportRequestRouteGroupDTO.RouteGroup(
+                        null, null, null,
+                        request.getPickupAddress() + " -> " + request.getDropoffAddress(),
+                        request.getPickupAddress(), request.getDropoffAddress(),
+                        List.of(com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO.fromEntity(request))));
             }
 
             TransportRequest first = shiftRequests.get(0);
@@ -330,6 +344,123 @@ public class TransportRequestController {
         }
         return ResponseEntity.ok(new ApiResponse<>(true,
                 "Shift and route-wise transport requests fetched successfully", result));
+    }
+
+    @PostMapping("/route-drafts")
+    @PreAuthorize("hasAuthority('CAN_CREATE_TRANSPORTREQUEST')")
+    public ResponseEntity<ApiResponse<TransportRequestRouteGroupDTO.RouteGroup>> createRouteDraft(
+            @Valid @RequestBody TransportRouteDraftCreateDTO body,
+            HttpServletRequest httpRequest) {
+        Tenant tenant = (Tenant) httpRequest.getAttribute("tenant");
+        if (tenant == null || tenant.getId() == null) {
+            throw new RuntimeException("Tenant not found in token");
+        }
+        if (tenant.getTenantType() != Tenant.TenantType.ORGANISATION
+                && tenant.getTenantType() != Tenant.TenantType.VENDOR) {
+            throw new RuntimeException("Only vendor and organisation tenants can create route drafts");
+        }
+        if (body.getRequestIds().stream().distinct().count() != body.getRequestIds().size()) {
+            throw new IllegalArgumentException("requestIds must not contain duplicates");
+        }
+        if (body.getRouteDirection() == TransportRoute.RouteDirection.UNKNOWN) {
+            throw new IllegalArgumentException("Route direction must be HOME_TO_OFFICE or OFFICE_TO_HOME");
+        }
+
+        List<TransportRequest> requests = new ArrayList<>();
+        for (UUID requestId : body.getRequestIds()) {
+            TransportRequest request = requestRepository.findById(requestId)
+                    .filter(candidate -> !Boolean.TRUE.equals(candidate.getIsDeleted()))
+                    .orElseThrow(() -> new RuntimeException("Transport request not found: " + requestId));
+            boolean belongsToTenant = tenant.getTenantType() == Tenant.TenantType.ORGANISATION
+                    ? request.getOrganisation() != null && tenant.getId().equals(request.getOrganisation().getId())
+                    : request.getTenant() != null && tenant.getId().equals(request.getTenant().getId());
+            if (!belongsToTenant) {
+                throw new RuntimeException("Transport request does not belong to this tenant");
+            }
+            if (request.getStatus() != TransportRequest.RequestStatus.PENDING) {
+                throw new IllegalArgumentException("Only pending transport requests can be added to a route draft");
+            }
+            if (request.getOrganisation() == null || request.getShift() == null || request.getRoute() != null) {
+                throw new IllegalArgumentException("Each request must have a shift and must not already belong to a route");
+            }
+            requests.add(request);
+        }
+
+        TransportRequest first = requests.get(0);
+        UUID shiftId = first.getShift().getId();
+        UUID organisationId = first.getOrganisation().getId();
+        String commonAddress = body.getRouteDirection() == TransportRoute.RouteDirection.HOME_TO_OFFICE
+                ? normalizeAddress(first.getDropoffAddress())
+                : normalizeAddress(first.getPickupAddress());
+        for (TransportRequest request : requests) {
+            if (!shiftId.equals(request.getShift().getId())
+                    || !organisationId.equals(request.getOrganisation().getId())) {
+                throw new IllegalArgumentException("All requests in a route draft must share the same organisation and shift");
+            }
+            String routeAddress = body.getRouteDirection() == TransportRoute.RouteDirection.HOME_TO_OFFICE
+                    ? normalizeAddress(request.getDropoffAddress())
+                    : normalizeAddress(request.getPickupAddress());
+            if (!commonAddress.equals(routeAddress)) {
+                throw new IllegalArgumentException("Requests do not share the route endpoint for the selected direction");
+            }
+        }
+
+        TransportRoute route = new TransportRoute();
+        route.setOrganisation(first.getOrganisation());
+        route.setShift(first.getShift());
+        route.setDirection(body.getRouteDirection());
+        route.setStatus(TransportRoute.RouteStatus.DRAFT);
+        route.setPickupAddress(first.getPickupAddress());
+        route.setPickupLatitude(first.getPickupLatitude());
+        route.setPickupLongitude(first.getPickupLongitude());
+        route.setDropoffAddress(first.getDropoffAddress());
+        route.setDropoffLatitude(first.getDropoffLatitude());
+        route.setDropoffLongitude(first.getDropoffLongitude());
+        route = routeRepository.save(route);
+
+        for (TransportRequest request : requests) {
+            request.setRoute(route);
+        }
+        requestRepository.saveAll(requests);
+        recalculateRoutePickupTimes(route);
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(true,
+                "Transport route draft created successfully",
+                new TransportRequestRouteGroupDTO.RouteGroup(route.getId(), route.getDirection(), route.getStatus(),
+                        route.getPickupAddress() + " -> " + route.getDropoffAddress(),
+                        route.getPickupAddress(), route.getDropoffAddress(),
+                        requests.stream().map(com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO::fromEntity).toList())));
+    }
+
+    @PutMapping("/route-drafts/{routeId}/confirm")
+    @PreAuthorize("hasAuthority('CAN_UPDATE_TRANSPORTREQUEST')")
+    public ResponseEntity<ApiResponse<UUID>> confirmRouteDraft(
+            @PathVariable UUID routeId,
+            HttpServletRequest httpRequest) {
+        Tenant tenant = (Tenant) httpRequest.getAttribute("tenant");
+        if (tenant == null || tenant.getId() == null) {
+            throw new RuntimeException("Tenant not found in token");
+        }
+        TransportRoute route = routeRepository.findById(routeId)
+                .filter(candidate -> !Boolean.TRUE.equals(candidate.getIsDeleted()))
+                .orElseThrow(() -> new RuntimeException("Transport route draft not found"));
+        if (route.getStatus() != TransportRoute.RouteStatus.DRAFT) {
+            throw new IllegalArgumentException("Route is not a draft");
+        }
+        List<TransportRequest> requests = requestRepository
+                .findByRoute_IdAndIsDeletedFalseOrderByCreatedAtAsc(routeId);
+        if (requests.isEmpty() || requests.stream().anyMatch(request -> {
+            if (tenant.getTenantType() == Tenant.TenantType.ORGANISATION) {
+                return request.getOrganisation() == null || !tenant.getId().equals(request.getOrganisation().getId());
+            }
+            return tenant.getTenantType() != Tenant.TenantType.VENDOR
+                    || request.getTenant() == null || !tenant.getId().equals(request.getTenant().getId());
+        })) {
+            throw new RuntimeException("Route draft does not belong to this tenant");
+        }
+        route.setStatus(TransportRoute.RouteStatus.ACTIVE);
+        routeRepository.save(route);
+        return ResponseEntity.ok(new ApiResponse<>(true, "Transport route draft confirmed successfully", route.getId()));
     }
 
     private String normalizeAddress(String address) {
@@ -387,60 +518,9 @@ public class TransportRequestController {
             Shift shift = shiftRepository.findByIdAndOrganisation_IdAndIsDeletedFalse(shiftId, organisation.getId())
                     .orElseThrow(() -> new RuntimeException("Shift not found for this tenant"));
             request.setShift(shift);
-            TransportRoute route = resolveOrCreateRoute(organisation, shift, request);
-            request.setRoute(route);
-            request.setPickupTime(calculatePickupTime(request.getStartDate(), shift,
-                    route.getDirection() == TransportRoute.RouteDirection.OFFICE_TO_HOME));
+            request.setRoute(null);
+            request.setPickupTime(null);
         }
-    }
-
-    private TransportRoute resolveOrCreateRoute(Tenant organisation, Shift shift, TransportRequest request) {
-        String pickup = normalizeAddress(request.getPickupAddress());
-        String dropoff = normalizeAddress(request.getDropoffAddress());
-        String officeAddress = normalizeAddress(organisation.getAddress());
-        for (TransportRoute route : routeRepository.findByOrganisation_IdAndShift_IdAndIsDeletedFalseOrderByCreatedAtAsc(
-                organisation.getId(), shift.getId())) {
-            boolean samePickup = pickup.equals(normalizeAddress(route.getPickupAddress()));
-            boolean sameDropoff = dropoff.equals(normalizeAddress(route.getDropoffAddress()));
-            boolean useRoute = switch (route.getDirection()) {
-                case HOME_TO_OFFICE -> sameDropoff;
-                case OFFICE_TO_HOME -> samePickup;
-                case UNKNOWN -> samePickup || sameDropoff;
-            };
-            if (!useRoute) continue;
-
-            if (route.getDirection() == TransportRoute.RouteDirection.UNKNOWN) {
-                if (samePickup && !sameDropoff) {
-                    route.setDirection(TransportRoute.RouteDirection.OFFICE_TO_HOME);
-                } else if (sameDropoff && !samePickup) {
-                    route.setDirection(TransportRoute.RouteDirection.HOME_TO_OFFICE);
-                } else if (pickup.equals(officeAddress)) {
-                    route.setDirection(TransportRoute.RouteDirection.OFFICE_TO_HOME);
-                } else {
-                    route.setDirection(TransportRoute.RouteDirection.HOME_TO_OFFICE);
-                }
-                route = routeRepository.save(route);
-            }
-            return route;
-        }
-
-        TransportRoute route = new TransportRoute();
-        route.setOrganisation(organisation);
-        route.setShift(shift);
-        route.setPickupAddress(request.getPickupAddress());
-        route.setPickupLatitude(request.getPickupLatitude());
-        route.setPickupLongitude(request.getPickupLongitude());
-        route.setDropoffAddress(request.getDropoffAddress());
-        route.setDropoffLatitude(request.getDropoffLatitude());
-        route.setDropoffLongitude(request.getDropoffLongitude());
-        if (!officeAddress.isBlank() && pickup.equals(officeAddress)) {
-            route.setDirection(TransportRoute.RouteDirection.OFFICE_TO_HOME);
-        } else if (!officeAddress.isBlank() && dropoff.equals(officeAddress)) {
-            route.setDirection(TransportRoute.RouteDirection.HOME_TO_OFFICE);
-        } else {
-            route.setDirection(TransportRoute.RouteDirection.UNKNOWN);
-        }
-        return routeRepository.save(route);
     }
 
     private Long calculatePickupTime(Long dateEpochSeconds, Shift shift, boolean fromOffice) {

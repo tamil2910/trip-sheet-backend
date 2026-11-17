@@ -37,6 +37,10 @@ public class TransportRoute extends BaseModel implements TenantScoped {
     @Column(name = "route_direction", nullable = false)
     private RouteDirection direction;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "route_status", nullable = false)
+    private RouteStatus status = RouteStatus.ACTIVE;
+
     /** Anchor route from the first request grouped into this route. */
     @Column(name = "pickup_address", nullable = false)
     private String pickupAddress;
@@ -60,6 +64,11 @@ public class TransportRoute extends BaseModel implements TenantScoped {
         UNKNOWN,
         HOME_TO_OFFICE,
         OFFICE_TO_HOME
+    }
+
+    public enum RouteStatus {
+        DRAFT,
+        ACTIVE
     }
 
     @Override

@@ -66,5 +66,7 @@ public interface PeopleTenantRepository extends BaseRepository<PeopleTenant, UUI
   List<PeopleTenant> findAllByUserAccount_IdAndOrganisation_Id(UUID userAccountId, UUID organisationId);
   Optional<PeopleTenant> findFirstByEmailIgnoreCaseAndOrganisation_Id(String email, UUID organisationId);
   Optional<PeopleTenant> findFirstByPhoneAndOrganisation_Id(String phone, UUID organisationId);
+  List<PeopleTenant> findAllByPhoneAndOrganisation_Id(String phone, UUID organisationId);
+  List<PeopleTenant> findAllByEmailIgnoreCaseAndOrganisation_Id(String email, UUID organisationId);
 
 }

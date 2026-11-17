@@ -1,4 +1,4 @@
-﻿package com.example.trip_sheet_backend.models;
+package com.example.trip_sheet_backend.models;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -54,6 +54,9 @@ public class TransportEvent extends BaseModel {
   @Column(name = "link_valid_until", nullable = false)
   private Long linkValidUntil;
 
+  @Column(name = "public_request_token_hash", unique = true, length = 64)
+  private String publicRequestTokenHash;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "request_audience", nullable = false, length = 32)
   private RequestAudience requestAudience = RequestAudience.ANYONE_WITH_LINK;
@@ -75,4 +78,8 @@ public class TransportEvent extends BaseModel {
   public enum RequestAudience { ANYONE_WITH_LINK, SPECIFIC_PEOPLE }
   public enum EventStatus { OPEN, CLOSED, CANCELLED }
 }
+
+
+
+
 

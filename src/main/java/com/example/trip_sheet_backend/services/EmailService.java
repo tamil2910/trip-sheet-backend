@@ -188,6 +188,35 @@ public class EmailService {
         }
     }
 
+    public void sendEventRequestLink(String toEmail, String recipientName, String eventName, String requestLink, Long expiresAt) {
+        if (toEmail == null || toEmail.isBlank()) throw new RuntimeException("Recipient email is required");
+        if (fromEmail == null || fromEmail.isBlank()) throw new RuntimeException("SendGrid sender email is not configured");
+        if (sendGridApiKey == null || sendGridApiKey.isBlank()) throw new RuntimeException("SendGrid API key is not configured");
+        String name = recipientName == null || recipientName.isBlank() ? "there" : recipientName;
+        String title = eventName == null || eventName.isBlank() ? "an event" : eventName;
+        String deadline = expiresAt == null ? "the event request deadline" : java.time.Instant.ofEpochMilli(expiresAt).toString();
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("from", Map.of("email", fromEmail));
+        payload.put("personalizations", List.of(Map.of("to", List.of(Map.of("email", toEmail)))));
+        payload.put("subject", "Invitation to request transport for " + title);
+        payload.put("content", List.of(Map.of("type", "text/plain", "value",
+                "Hello " + name + ",\n\nYou are invited to request transport for " + title
+                        + ".\nSubmit your request using this personal link: " + requestLink
+                        + "\nThe link is valid until " + deadline + ".\n\nTrip Sheet Team")));
+        try {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("Authorization", "Bearer " + sendGridApiKey);
+            ResponseEntity<String> response = restTemplate.postForEntity(SENDGRID_API_URL,
+                    new HttpEntity<>(payload, headers), String.class);
+            if (!response.getStatusCode().is2xxSuccessful()) {
+                throw new RuntimeException("SendGrid rejected the event invitation. Status=" + response.getStatusCodeValue());
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Error sending event request link: " + e.getMessage(), e);
+        }
+    }
+
     public void sendTripFeedbackEmail(String toEmail, String passengerName, String feedbackLink) {
         if (toEmail == null || toEmail.isBlank()) {
             throw new RuntimeException("Recipient email is required");
@@ -386,3 +415,5 @@ public class EmailService {
         return body.toString();
     }
 }
+
+

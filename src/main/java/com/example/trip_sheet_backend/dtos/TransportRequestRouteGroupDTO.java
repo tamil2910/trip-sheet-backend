@@ -24,6 +24,7 @@ public class TransportRequestRouteGroupDTO {
     public static class RouteGroup {
         private UUID routeId;
         private TransportRoute.RouteDirection routeDirection;
+        private TransportRoute.RouteStatus routeStatus;
         private String direction;
         private String pickupAddress;
         private String dropoffAddress;

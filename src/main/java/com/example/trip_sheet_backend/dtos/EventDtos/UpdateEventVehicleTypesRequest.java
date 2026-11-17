@@ -1,4 +1,4 @@
-﻿package com.example.trip_sheet_backend.dtos.EventDtos;
+package com.example.trip_sheet_backend.dtos.EventDtos;
 
 import java.util.List;
 import java.util.UUID;
