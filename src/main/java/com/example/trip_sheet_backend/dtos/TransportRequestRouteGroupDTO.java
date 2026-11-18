@@ -25,6 +25,8 @@ public class TransportRequestRouteGroupDTO {
         private UUID routeId;
         private TransportRoute.RouteDirection routeDirection;
         private TransportRoute.RouteStatus routeStatus;
+        private UUID vehicleTypeId;
+        private Integer allowedPassenger;
         private String direction;
         private String pickupAddress;
         private String dropoffAddress;

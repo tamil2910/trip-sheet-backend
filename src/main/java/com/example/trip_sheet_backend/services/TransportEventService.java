@@ -78,7 +78,7 @@ public class TransportEventService {
     TransportEvent event = new TransportEvent();
     applyEventFields(event, request);
     event.setTenant(tenant);
-    event.setVehicleTypeMappings(resolveVehicleTypeMappings(event, request.getVehicleTypeIds()));
+    replaceVehicleTypeMappings(event, request.getVehicleTypeIds());
     event.setDutyTypes(resolveDutyTypes(request.getDutyTypeIds()));
     event.setCreatedBy(createdBy == null ? null : createdBy.toString());
     event.setUpdatedBy(createdBy == null ? null : createdBy.toString());
@@ -111,7 +111,7 @@ public class TransportEventService {
     boolean expiryChanged = !event.getLinkValidUntil().equals(request.getLinkValidUntil());
 
     applyEventFields(event, request);
-    event.setVehicleTypeMappings(resolveVehicleTypeMappings(event, request.getVehicleTypeIds()));
+    replaceVehicleTypeMappings(event, request.getVehicleTypeIds());
     event.setDutyTypes(resolveDutyTypes(request.getDutyTypeIds()));
     event.setUpdatedBy(updatedBy == null ? null : updatedBy.toString());
 
@@ -154,7 +154,7 @@ public class TransportEventService {
     requireTenant(tenant);
     TransportEvent event = eventRepository.findByIdAndTenant_IdAndIsDeletedFalse(id, tenant.getId())
         .orElseThrow(() -> new IllegalArgumentException("Event not found"));
-    event.setVehicleTypeMappings(resolveVehicleTypeMappings(event, vehicleTypeIds));
+    replaceVehicleTypeMappings(event, vehicleTypeIds);
     event.setUpdatedBy(updatedBy == null ? null : updatedBy.toString());
     return EventResponse.from(eventRepository.save(event));
   }
@@ -313,6 +313,12 @@ public class TransportEventService {
       mapping.getId().setVehicleTypeId(type.getId());
       return mapping;
     }).toList());
+  }
+
+  private void replaceVehicleTypeMappings(TransportEvent event, List<EventVehicleTypeRequest> selections) {
+    List<TransportEventVehicleType> mappings = resolveVehicleTypeMappings(event, selections);
+    event.getVehicleTypeMappings().clear();
+    event.getVehicleTypeMappings().addAll(mappings);
   }
 
   private List<DutyType> resolveDutyTypes(List<UUID> ids) {

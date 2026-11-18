@@ -323,6 +323,8 @@ public class TransportRequestController {
                         route == null ? null : route.getId(),
                         route == null ? null : route.getDirection(),
                         route == null ? null : route.getStatus(),
+                        null,
+                        null,
                         direction,
                         pickupAddress,
                         dropoffAddress,
@@ -331,6 +333,7 @@ public class TransportRequestController {
             for (TransportRequest request : unassignedRequests) {
                 routes.add(new TransportRequestRouteGroupDTO.RouteGroup(
                         null, null, null,
+                        null, null,
                         request.getPickupAddress() + " -> " + request.getDropoffAddress(),
                         request.getPickupAddress(), request.getDropoffAddress(),
                         List.of(com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO.fromEntity(request))));
@@ -365,12 +368,35 @@ public class TransportRequestController {
         if (body.getRequestIds().stream().distinct().count() != body.getRequestIds().size()) {
             throw new IllegalArgumentException("requestIds must not contain duplicates");
         }
-        int seatCapacity = body.getSeatCapacity() == null
-                ? DEFAULT_ROUTE_SEAT_CAPACITY
-                : body.getSeatCapacity();
-        if (seatCapacity < 1) {
-            throw new IllegalArgumentException("seatCapacity must be greater than zero");
+        List<TransportRouteDraftCreateDTO.VehicleTypeCapacity> vehicleOptions = body.getVehicleTypeIds();
+        if (vehicleOptions == null || vehicleOptions.isEmpty()) {
+            int fallbackCapacity = body.getSeatCapacity() == null
+                    ? DEFAULT_ROUTE_SEAT_CAPACITY
+                    : body.getSeatCapacity();
+            if (fallbackCapacity < 1) {
+                throw new IllegalArgumentException("seatCapacity must be greater than zero");
+            }
+            TransportRouteDraftCreateDTO.VehicleTypeCapacity fallback =
+                    new TransportRouteDraftCreateDTO.VehicleTypeCapacity();
+            fallback.setAllowedPassenger(fallbackCapacity);
+            vehicleOptions = List.of(fallback);
+        } else {
+            if (vehicleOptions.stream().anyMatch(option -> option == null || option.getId() == null
+                    || option.getAllowedPassenger() == null || option.getAllowedPassenger() < 1)) {
+                throw new IllegalArgumentException("Each vehicleTypeIds entry requires an id and positive allowedPassenger");
+            }
+            long distinctVehicleTypes = vehicleOptions.stream()
+                    .map(TransportRouteDraftCreateDTO.VehicleTypeCapacity::getId)
+                    .distinct()
+                    .count();
+            if (distinctVehicleTypes != vehicleOptions.size()) {
+                throw new IllegalArgumentException("vehicleTypeIds must not contain duplicate ids");
+            }
         }
+        int maxSeatCapacity = vehicleOptions.stream()
+                .mapToInt(TransportRouteDraftCreateDTO.VehicleTypeCapacity::getAllowedPassenger)
+                .max()
+                .orElseThrow();
 
         List<TransportRequest> requests = new ArrayList<>();
         for (UUID requestId : body.getRequestIds()) {
@@ -403,16 +429,28 @@ public class TransportRequestController {
         }
 
         List<TransportRequestRouteGroupDTO.RouteGroup> routeGroups = new ArrayList<>();
-        for (List<TransportRequest> routeRequests : groupRequestsForRouteDraft(requests, seatCapacity)) {
+        for (List<TransportRequest> routeRequests : groupRequestsForRouteDraft(requests, maxSeatCapacity)) {
             TransportRequest routeAnchor = routeRequests.get(0);
+            TransportRouteDraftCreateDTO.VehicleTypeCapacity selectedVehicle = selectVehicleType(
+                    routeRequests.size(), vehicleOptions);
             routeGroups.add(new TransportRequestRouteGroupDTO.RouteGroup(null, inferRouteDirection(routeAnchor),
                     TransportRoute.RouteStatus.DRAFT,
+                    selectedVehicle.getId(), selectedVehicle.getAllowedPassenger(),
                     routeAnchor.getPickupAddress() + " -> " + routeAnchor.getDropoffAddress(),
                     routeAnchor.getPickupAddress(), routeAnchor.getDropoffAddress(),
                     routeRequests.stream().map(com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO::fromEntity).toList()));
         }
         return ResponseEntity.ok(new ApiResponse<>(true,
                 "Transport route groups analysed successfully", routeGroups));
+    }
+
+    private TransportRouteDraftCreateDTO.VehicleTypeCapacity selectVehicleType(
+            int passengerCount,
+            List<TransportRouteDraftCreateDTO.VehicleTypeCapacity> vehicleOptions) {
+        return vehicleOptions.stream()
+                .filter(option -> option.getAllowedPassenger() >= passengerCount)
+                .min(java.util.Comparator.comparingInt(TransportRouteDraftCreateDTO.VehicleTypeCapacity::getAllowedPassenger))
+                .orElseThrow(() -> new IllegalStateException("No vehicle type can carry this route group"));
     }
 
     private List<List<TransportRequest>> groupRequestsForRouteDraft(
