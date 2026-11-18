@@ -288,7 +288,7 @@ public class VehicleDriverServiceImp extends BaseServiceImp<VehicleDriverMapping
   @Transactional(rollbackFor = Exception.class)
   public VehicleDriverMapping getCurrentActiveVehicleOfDriver(UUID driverId, Tenant tenant) {
 
-    return repository.findByDriverIdAndTenantIdAndIsActiveTrue(driverId, tenant.getId())
+    return repository.findByDriver_IdAndTenant_IdAndIsActiveTrueAndIsDeletedFalse(driverId, tenant.getId())
           .orElseThrow(() -> new RuntimeException("Failed to retrieve the active mapping for the driver"));
   }
 

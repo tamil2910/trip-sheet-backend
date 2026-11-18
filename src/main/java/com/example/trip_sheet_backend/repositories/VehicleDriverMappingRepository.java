@@ -112,5 +112,9 @@ public interface VehicleDriverMappingRepository extends BaseRepository<VehicleDr
       UUID tenantId
     );
 
-    Optional<VehicleDriverMapping> findByDriverIdAndTenantIdAndIsActiveTrue(UUID driverId, UUID tenantId);
+    @EntityGraph(attributePaths = {"vehicle", "vehicle.vehicleType"})
+    Optional<VehicleDriverMapping> findByDriver_IdAndTenant_IdAndIsActiveTrueAndIsDeletedFalse(
+      UUID driverId,
+      UUID tenantId
+    );
 }

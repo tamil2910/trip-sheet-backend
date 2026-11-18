@@ -267,7 +267,7 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
   trip.setCity(normalizeCity(createTripDto.getCity()));
   trip.setDriver(driver);
   trip.setVehicle(vehicle);
-  applyAirportTransferType(trip, dutyType, createTripDto.getAirportTransferType(), true);
+  applyAirportTransferType(trip, dutyType, createTripDto.getAirportTransferType());
 
   if (createTripDto.getParentTripId() != null && !createTripDto.getParentTripId().isBlank()) {
     Trip parentTrip = repository.findById(UUID.fromString(createTripDto.getParentTripId()))
@@ -518,12 +518,12 @@ public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdat
     }
   }
   if (!partnerVendorRestrictedUpdate && updateDto.getDutyTypeId() != null) {
-    applyAirportTransferType(trip, trip.getDutyType(), updateDto.getAirportTransferType(), true);
+    applyAirportTransferType(trip, trip.getDutyType(), updateDto.getAirportTransferType());
   } else if (updateDto.getAirportTransferType() != null) {
     if (trip.getDutyType() == null) {
       throw new RuntimeException("dutyTypeId is required when airportTransferType is provided");
     }
-    applyAirportTransferType(trip, trip.getDutyType(), updateDto.getAirportTransferType(), false);
+    applyAirportTransferType(trip, trip.getDutyType(), updateDto.getAirportTransferType());
   }
   if (!partnerVendorRestrictedUpdate && updateDto.getBookerId() != null) {
     trip.setBooker(resolveOptionalPeople(updateDto.getBookerId(), "Invalid booker"));
@@ -1870,7 +1870,7 @@ private Trip cloneTripTemplate(Trip source) {
   return clone;
 }
 
-private void applyAirportTransferType(Trip trip, DutyType dutyType, TypeAirportTransfer airportTransferType, boolean requireWhenFixed) {
+private void applyAirportTransferType(Trip trip, DutyType dutyType, TypeAirportTransfer airportTransferType) {
   if (trip == null) {
     return;
   }
@@ -1881,9 +1881,6 @@ private void applyAirportTransferType(Trip trip, DutyType dutyType, TypeAirportT
   }
 
   if (airportTransferType == null) {
-    if (requireWhenFixed) {
-      throw new RuntimeException("airportTransferType is required for AIRPORT_TRANSFER_FIXED duty type");
-    }
     return;
   }
 

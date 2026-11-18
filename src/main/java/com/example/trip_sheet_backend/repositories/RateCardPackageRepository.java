@@ -15,5 +15,6 @@ public interface RateCardPackageRepository extends JpaRepository<RateCardPackage
   List<RateCardPackage> findByVendorOrganisation_IdAndIsDeletedFalseOrderByCreatedAtDesc(UUID vendorOrganisationId);
   Optional<RateCardPackage> findByVendorPartner_IdAndIsDefaultTrueAndIsDeletedFalse(UUID vendorPartnerId);
   Optional<RateCardPackage> findByVendorOrganisation_IdAndIsDefaultTrueAndIsDeletedFalse(UUID vendorOrganisationId);
+  Optional<RateCardPackage> findByVendorOrganisation_IdAndNameIgnoreCaseAndIsDeletedFalse(UUID vendorOrganisationId, String name);
   Optional<RateCardPackage> findByIdAndIsDeletedFalse(UUID id);
 }

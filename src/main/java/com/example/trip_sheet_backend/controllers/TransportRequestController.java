@@ -59,6 +59,9 @@ import jakarta.validation.Valid;
 @Transactional
 public class TransportRequestController {
     private static final Set<String> WEEKDAYS = Set.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN");
+    private static final int DEFAULT_ROUTE_SEAT_CAPACITY = 3;
+    private static final double ROUTE_CLUSTER_RADIUS_KM = 10.0;
+    private static final double ROUTE_DIRECTION_TOLERANCE_DEGREES = 45.0;
 
     private final TransportRequestRepository requestRepository;
     private final ShiftRepository shiftRepository;
@@ -348,7 +351,7 @@ public class TransportRequestController {
 
     @PostMapping("/route-drafts")
     @PreAuthorize("hasAuthority('CAN_CREATE_TRANSPORTREQUEST')")
-    public ResponseEntity<ApiResponse<TransportRequestRouteGroupDTO.RouteGroup>> createRouteDraft(
+    public ResponseEntity<ApiResponse<List<TransportRequestRouteGroupDTO.RouteGroup>>> createRouteDraft(
             @Valid @RequestBody TransportRouteDraftCreateDTO body,
             HttpServletRequest httpRequest) {
         Tenant tenant = (Tenant) httpRequest.getAttribute("tenant");
@@ -362,8 +365,11 @@ public class TransportRequestController {
         if (body.getRequestIds().stream().distinct().count() != body.getRequestIds().size()) {
             throw new IllegalArgumentException("requestIds must not contain duplicates");
         }
-        if (body.getRouteDirection() == TransportRoute.RouteDirection.UNKNOWN) {
-            throw new IllegalArgumentException("Route direction must be HOME_TO_OFFICE or OFFICE_TO_HOME");
+        int seatCapacity = body.getSeatCapacity() == null
+                ? DEFAULT_ROUTE_SEAT_CAPACITY
+                : body.getSeatCapacity();
+        if (seatCapacity < 1) {
+            throw new IllegalArgumentException("seatCapacity must be greater than zero");
         }
 
         List<TransportRequest> requests = new ArrayList<>();
@@ -380,8 +386,8 @@ public class TransportRequestController {
             if (request.getStatus() != TransportRequest.RequestStatus.PENDING) {
                 throw new IllegalArgumentException("Only pending transport requests can be added to a route draft");
             }
-            if (request.getOrganisation() == null || request.getShift() == null || request.getRoute() != null) {
-                throw new IllegalArgumentException("Each request must have a shift and must not already belong to a route");
+            if (request.getOrganisation() == null || request.getShift() == null) {
+                throw new IllegalArgumentException("Each request must have an organisation and a shift");
             }
             requests.add(request);
         }
@@ -389,47 +395,109 @@ public class TransportRequestController {
         TransportRequest first = requests.get(0);
         UUID shiftId = first.getShift().getId();
         UUID organisationId = first.getOrganisation().getId();
-        String commonAddress = body.getRouteDirection() == TransportRoute.RouteDirection.HOME_TO_OFFICE
-                ? normalizeAddress(first.getDropoffAddress())
-                : normalizeAddress(first.getPickupAddress());
         for (TransportRequest request : requests) {
             if (!shiftId.equals(request.getShift().getId())
                     || !organisationId.equals(request.getOrganisation().getId())) {
                 throw new IllegalArgumentException("All requests in a route draft must share the same organisation and shift");
             }
-            String routeAddress = body.getRouteDirection() == TransportRoute.RouteDirection.HOME_TO_OFFICE
-                    ? normalizeAddress(request.getDropoffAddress())
-                    : normalizeAddress(request.getPickupAddress());
-            if (!commonAddress.equals(routeAddress)) {
-                throw new IllegalArgumentException("Requests do not share the route endpoint for the selected direction");
-            }
         }
 
-        TransportRoute route = new TransportRoute();
-        route.setOrganisation(first.getOrganisation());
-        route.setShift(first.getShift());
-        route.setDirection(body.getRouteDirection());
-        route.setStatus(TransportRoute.RouteStatus.DRAFT);
-        route.setPickupAddress(first.getPickupAddress());
-        route.setPickupLatitude(first.getPickupLatitude());
-        route.setPickupLongitude(first.getPickupLongitude());
-        route.setDropoffAddress(first.getDropoffAddress());
-        route.setDropoffLatitude(first.getDropoffLatitude());
-        route.setDropoffLongitude(first.getDropoffLongitude());
-        route = routeRepository.save(route);
+        List<TransportRequestRouteGroupDTO.RouteGroup> routeGroups = new ArrayList<>();
+        for (List<TransportRequest> routeRequests : groupRequestsForRouteDraft(requests, seatCapacity)) {
+            TransportRequest routeAnchor = routeRequests.get(0);
+            routeGroups.add(new TransportRequestRouteGroupDTO.RouteGroup(null, inferRouteDirection(routeAnchor),
+                    TransportRoute.RouteStatus.DRAFT,
+                    routeAnchor.getPickupAddress() + " -> " + routeAnchor.getDropoffAddress(),
+                    routeAnchor.getPickupAddress(), routeAnchor.getDropoffAddress(),
+                    routeRequests.stream().map(com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO::fromEntity).toList()));
+        }
+        return ResponseEntity.ok(new ApiResponse<>(true,
+                "Transport route groups analysed successfully", routeGroups));
+    }
 
+    private List<List<TransportRequest>> groupRequestsForRouteDraft(
+            List<TransportRequest> requests,
+            int seatCapacity) {
+        List<List<TransportRequest>> groups = new ArrayList<>();
         for (TransportRequest request : requests) {
-            request.setRoute(route);
+            PassengerGeocodingService.GeoPoint pickup = point(request.getPickupLatitude(), request.getPickupLongitude());
+            PassengerGeocodingService.GeoPoint dropoff = point(request.getDropoffLatitude(), request.getDropoffLongitude());
+            double requestBearing = bearing(pickup, dropoff);
+            List<TransportRequest> matchingGroup = null;
+            for (List<TransportRequest> group : groups) {
+                TransportRequest anchor = group.get(0);
+                if (group.size() >= seatCapacity
+                        || !anchor.getShift().getId().equals(request.getShift().getId())
+                        || !anchor.getOrganisation().getId().equals(request.getOrganisation().getId())
+                        || !anchor.getStartDate().equals(request.getStartDate())) {
+                    continue;
+                }
+                PassengerGeocodingService.GeoPoint anchorPickup = point(anchor.getPickupLatitude(), anchor.getPickupLongitude());
+                PassengerGeocodingService.GeoPoint anchorDropoff = point(anchor.getDropoffLatitude(), anchor.getDropoffLongitude());
+                if (distanceKm(pickup, anchorPickup) <= ROUTE_CLUSTER_RADIUS_KM
+                        && distanceKm(dropoff, anchorDropoff) <= ROUTE_CLUSTER_RADIUS_KM
+                        && angularDifference(requestBearing, bearing(anchorPickup, anchorDropoff))
+                                <= ROUTE_DIRECTION_TOLERANCE_DEGREES) {
+                    matchingGroup = group;
+                    break;
+                }
+            }
+            if (matchingGroup == null) {
+                matchingGroup = new ArrayList<>();
+                groups.add(matchingGroup);
+            }
+            matchingGroup.add(request);
         }
-        requestRepository.saveAll(requests);
-        recalculateRoutePickupTimes(route);
+        return groups;
+    }
 
-        return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(true,
-                "Transport route draft created successfully",
-                new TransportRequestRouteGroupDTO.RouteGroup(route.getId(), route.getDirection(), route.getStatus(),
-                        route.getPickupAddress() + " -> " + route.getDropoffAddress(),
-                        route.getPickupAddress(), route.getDropoffAddress(),
-                        requests.stream().map(com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO::fromEntity).toList())));
+    private TransportRoute.RouteDirection inferRouteDirection(TransportRequest request) {
+        String office = normalizeAddress(request.getOrganisation().getAddress());
+        String pickup = normalizeAddress(request.getPickupAddress());
+        String dropoff = normalizeAddress(request.getDropoffAddress());
+        boolean pickupAtOffice = addressMatches(pickup, office);
+        boolean dropoffAtOffice = addressMatches(dropoff, office);
+        if (pickupAtOffice && !dropoffAtOffice) {
+            return TransportRoute.RouteDirection.OFFICE_TO_HOME;
+        }
+        if (dropoffAtOffice && !pickupAtOffice) {
+            return TransportRoute.RouteDirection.HOME_TO_OFFICE;
+        }
+        return TransportRoute.RouteDirection.UNKNOWN;
+    }
+
+    private boolean addressMatches(String address, String office) {
+        return !office.isBlank() && (address.equals(office) || address.contains(office) || office.contains(address));
+    }
+
+    private PassengerGeocodingService.GeoPoint point(java.math.BigDecimal latitude, java.math.BigDecimal longitude) {
+        return new PassengerGeocodingService.GeoPoint(latitude.doubleValue(), longitude.doubleValue());
+    }
+
+    private double bearing(PassengerGeocodingService.GeoPoint from, PassengerGeocodingService.GeoPoint to) {
+        double latitude1 = Math.toRadians(from.latitude());
+        double latitude2 = Math.toRadians(to.latitude());
+        double longitudeDifference = Math.toRadians(to.longitude() - from.longitude());
+        double y = Math.sin(longitudeDifference) * Math.cos(latitude2);
+        double x = Math.cos(latitude1) * Math.sin(latitude2)
+                - Math.sin(latitude1) * Math.cos(latitude2) * Math.cos(longitudeDifference);
+        return (Math.toDegrees(Math.atan2(y, x)) + 360) % 360;
+    }
+
+    private double angularDifference(double first, double second) {
+        double difference = Math.abs(first - second) % 360;
+        return difference > 180 ? 360 - difference : difference;
+    }
+
+    private double distanceKm(
+            PassengerGeocodingService.GeoPoint first,
+            PassengerGeocodingService.GeoPoint second) {
+        double latitudeDifference = Math.toRadians(second.latitude() - first.latitude());
+        double longitudeDifference = Math.toRadians(second.longitude() - first.longitude());
+        double a = Math.sin(latitudeDifference / 2) * Math.sin(latitudeDifference / 2)
+                + Math.cos(Math.toRadians(first.latitude())) * Math.cos(Math.toRadians(second.latitude()))
+                * Math.sin(longitudeDifference / 2) * Math.sin(longitudeDifference / 2);
+        return 6371.0 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
     @PutMapping("/route-drafts/{routeId}/confirm")

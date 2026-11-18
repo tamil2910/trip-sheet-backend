@@ -102,6 +102,31 @@ public class RateCardPackageService {
     return packages.save(entity);
   }
 
+  @Transactional(rollbackFor = Exception.class)
+  public RateCardPackage getOrCreateOrganisationPackage(UUID vendorOrganisationId, String name,
+      Boolean isDefault, Long validFrom, Long validTo, Tenant tenant, UUID actorId) {
+    if (name == null || name.isBlank()) {
+      throw new IllegalArgumentException("Package name is required");
+    }
+    VendorOrganisation link = organisations.findById(vendorOrganisationId)
+        .filter(o -> !Boolean.TRUE.equals(o.getIsDeleted()))
+        .orElseThrow(() -> new IllegalArgumentException("Vendor organisation relationship not found"));
+    if (tenant == null || tenant.getId() == null || !tenant.getId().equals(link.getVendor().getId())) {
+      throw new IllegalArgumentException("Only the vendor can manage organisation rate card packages");
+    }
+    return packages.findByVendorOrganisation_IdAndNameIgnoreCaseAndIsDeletedFalse(vendorOrganisationId, name.trim())
+        .orElseGet(() -> {
+          RateCardPackageCreateRequestDTO request = new RateCardPackageCreateRequestDTO();
+          request.setName(name.trim());
+          request.setVendorOrganisationId(vendorOrganisationId);
+          request.setRateCardIds(List.of());
+          request.setIsDefault(isDefault);
+          request.setValidFrom(validFrom);
+          request.setValidTo(validTo);
+          return create(request, tenant, actorId);
+        });
+  }
+
   @Transactional(readOnly = true)
   public List<RateCardPackage> list(UUID vendorPartnerId, UUID vendorOrganisationId, Tenant tenant) {
     if ((vendorPartnerId == null) == (vendorOrganisationId == null)) {

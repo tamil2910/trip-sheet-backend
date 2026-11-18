@@ -61,7 +61,7 @@ public class EventRouteDraftService {
             .thenComparing(bundle -> bundle.requestId().toString()))
         .toList();
 
-    List<List<Bundle>> routeClusters = clusterByPickupDistance(bundles, maxPickupDistanceKm);
+    List<List<Bundle>> routeClusters = clusterByPickupDistance(bundles, maxPickupDistanceKm, event);
     List<VehicleCapacity> capacities = event.getVehicleTypeMappings().stream()
         .map(mapping -> new VehicleCapacity(mapping.getVehicleType().getId(),
             mapping.getVehicleType().getDefaultName(), mapping.getAllowedPassenger()))
@@ -73,19 +73,20 @@ public class EventRouteDraftService {
     List<EventRouteDraftResponse.RouteGroup> groups = new ArrayList<>();
     int groupNumber = 1;
     for (List<Bundle> group : vehicleGroups) {
-      groups.add(toRouteGroup(groupNumber++, group, capacities, event));
+      groups.add(toRouteGroup(groupNumber++, group, capacities, event, maxPickupDistanceKm));
     }
     return new EventRouteDraftResponse(event.getId(), event.getName(), maxPickupDistanceKm, groups);
   }
 
-  private List<List<Bundle>> clusterByPickupDistance(List<Bundle> bundles, double maxDistanceKm) {
+  private List<List<Bundle>> clusterByPickupDistance(List<Bundle> bundles, double maxDistanceKm,
+      TransportEvent event) {
     List<List<Bundle>> clusters = new ArrayList<>();
     for (Bundle bundle : bundles) {
       List<Bundle> bestCluster = null;
       double bestSpread = Double.MAX_VALUE;
       for (List<Bundle> cluster : clusters) {
         double spread = maxPairwiseDistance(cluster, bundle);
-        if (spread <= maxDistanceKm && spread < bestSpread) {
+        if (canJoinCluster(cluster, bundle, maxDistanceKm, event) && spread < bestSpread) {
           bestCluster = cluster;
           bestSpread = spread;
         }
@@ -99,6 +100,36 @@ public class EventRouteDraftService {
       }
     }
     return clusters;
+  }
+
+  private boolean canJoinCluster(List<Bundle> cluster, Bundle candidate, double maxDistanceKm,
+      TransportEvent event) {
+    for (Bundle existing : cluster) {
+      double distance = distanceKm(existing.latitude(), existing.longitude(),
+          candidate.latitude(), candidate.longitude());
+      if (distance > maxDistanceKm && !sameApproachCorridor(existing, candidate, event)) return false;
+    }
+    return true;
+  }
+
+  private boolean sameApproachCorridor(Bundle first, Bundle second, TransportEvent event) {
+    double firstBearing = bearingDegrees(event.getVenueLatitude(), event.getVenueLongitude(),
+        first.latitude(), first.longitude());
+    double secondBearing = bearingDegrees(event.getVenueLatitude(), event.getVenueLongitude(),
+        second.latitude(), second.longitude());
+    double bearingDifference = Math.abs(firstBearing - secondBearing);
+    bearingDifference = Math.min(bearingDifference, 360.0 - bearingDifference);
+    return bearingDifference <= 25.0;
+  }
+
+  private double bearingDegrees(double fromLatitude, double fromLongitude, double toLatitude, double toLongitude) {
+    double fromLat = Math.toRadians(fromLatitude);
+    double toLat = Math.toRadians(toLatitude);
+    double longitudeDelta = Math.toRadians(toLongitude - fromLongitude);
+    double y = Math.sin(longitudeDelta) * Math.cos(toLat);
+    double x = Math.cos(fromLat) * Math.sin(toLat)
+        - Math.sin(fromLat) * Math.cos(toLat) * Math.cos(longitudeDelta);
+    return (Math.toDegrees(Math.atan2(y, x)) + 360.0) % 360.0;
   }
 
   private double maxPairwiseDistance(List<Bundle> group, Bundle candidate) {
@@ -141,7 +172,7 @@ public class EventRouteDraftService {
   }
 
   private EventRouteDraftResponse.RouteGroup toRouteGroup(int groupNumber, List<Bundle> bundles,
-      List<VehicleCapacity> capacities, TransportEvent event) {
+      List<VehicleCapacity> capacities, TransportEvent event, double maxAllowedPickupDistanceKm) {
     int passengerCount = bundles.stream().mapToInt(bundle -> bundle.passengers().size()).sum();
     VehicleCapacity vehicle = capacities.stream()
         .filter(candidate -> candidate.allowedPassenger() >= passengerCount)
@@ -149,7 +180,11 @@ public class EventRouteDraftService {
     List<EventRouteDraftResponse.Passenger> passengers = bundles.stream().flatMap(bundle -> bundle.passengers().stream()).toList();
     boolean needsEscort = !passengers.isEmpty() && passengers.stream()
         .allMatch(passenger -> passenger.gender() != null && passenger.gender().equalsIgnoreCase("FEMALE"));
-    double maxPickupDistance = maxGroupDistance(bundles);
+    double actualMaxPickupDistance = maxGroupDistance(bundles);
+    double maxPickupDistance = round(actualMaxPickupDistance);
+    boolean pickupDistanceExceedsLimit = actualMaxPickupDistance > maxAllowedPickupDistanceKm;
+    boolean sameRouteGrouping = pickupDistanceExceedsLimit && hasOverLimitRouteCorridorPair(
+        bundles, maxAllowedPickupDistanceKm, event);
 
     Point venue = new Point(event.getVenueLatitude(), event.getVenueLongitude());
     List<Bundle> homeOrder = nearestNeighborOrder(bundles, venue);
@@ -181,7 +216,8 @@ public class EventRouteDraftService {
 
     return new EventRouteDraftResponse.RouteGroup(groupNumber,
         vehicle == null ? null : vehicle.id(), vehicle == null ? null : vehicle.name(),
-        vehicle == null ? 0 : vehicle.allowedPassenger(), passengerCount, maxPickupDistance, needsEscort,
+        vehicle == null ? 0 : vehicle.allowedPassenger(), passengerCount, maxPickupDistance,
+        pickupDistanceExceedsLimit, sameRouteGrouping, needsEscort,
         passengers, new EventRouteDraftResponse.RoutePlan("HOME_TO_EVENT", outboundStops,
             outboundEstimate.distanceKm(), outboundEstimate.durationMinutes()),
         new EventRouteDraftResponse.RoutePlan("EVENT_TO_HOME", returnStops,
@@ -219,7 +255,20 @@ public class EventRouteDraftService {
             second.latitude(), second.longitude()));
       }
     }
-    return round(maxDistance);
+    return maxDistance;
+  }
+
+  private boolean hasOverLimitRouteCorridorPair(List<Bundle> bundles, double maxDistanceKm,
+      TransportEvent event) {
+    for (int i = 0; i < bundles.size(); i++) {
+      for (int j = i + 1; j < bundles.size(); j++) {
+        Bundle first = bundles.get(i);
+        Bundle second = bundles.get(j);
+        if (distanceKm(first.latitude(), first.longitude(), second.latitude(), second.longitude()) > maxDistanceKm
+            && sameApproachCorridor(first, second, event)) return true;
+      }
+    }
+    return false;
   }
 
   private double distanceKm(double lat1, double lon1, double lat2, double lon2) {

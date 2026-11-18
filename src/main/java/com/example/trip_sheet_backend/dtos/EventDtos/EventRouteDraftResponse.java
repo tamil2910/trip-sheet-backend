@@ -16,6 +16,8 @@ public record EventRouteDraftResponse(
       int allowedPassenger,
       int passengerCount,
       double maxPickupDistanceKm,
+      boolean pickupDistanceExceedsLimit,
+      boolean sameRouteGrouping,
       boolean needsEscort,
       List<Passenger> passengers,
       RoutePlan homeToVenue,

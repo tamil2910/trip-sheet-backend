@@ -107,6 +107,15 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       VendorOrganisationRateCardCreateRequestDTO body,
       UUID createdBy
   ) {
+    return createSingleRateCard(vendorOrganisation, body, createdBy, true);
+  }
+
+  private VendorOrganisationRateCard createSingleRateCard(
+      VendorOrganisation vendorOrganisation,
+      VendorOrganisationRateCardCreateRequestDTO body,
+      UUID createdBy,
+      boolean validateGlobalDuplicate
+  ) {
     VehicleType vehicleType = vehicleTypeRepository.findById(body.getVehicleTypeId())
         .orElseThrow(() -> new RuntimeException("Vehicle type not found"));
 
@@ -117,13 +126,15 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
     DutyType noShowDutyType = resolveDutyType(body.getNoShowDutyTypeId());
     String normalizedCity = normalizeCity(body.getCity());
 
-    validateDuplicateRateCard(
-      vendorOrganisation.getId(),
-      vehicleType.getId(),
-      dutyType.getId(),
-      normalizedCity,
-      null
-    );
+    if (validateGlobalDuplicate) {
+      validateDuplicateRateCard(
+        vendorOrganisation.getId(),
+        vehicleType.getId(),
+        dutyType.getId(),
+        normalizedCity,
+        null
+      );
+    }
 
     VendorOrganisationRateCard rateCard = new VendorOrganisationRateCard();
     rateCard.setVendor(vendorOrganisation.getVendor());
@@ -299,6 +310,28 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       throw new RuntimeException("Provide either packageId or packageName, not both");
     }
 
+    UUID targetPackageId = body.getPackageId();
+    boolean packageScopedCreate = targetPackageId != null
+        || (body.getPackageName() != null && !body.getPackageName().isBlank());
+    if (body.getPackageName() != null && !body.getPackageName().isBlank()) {
+      targetPackageId = rateCardPackageService.getOrCreateOrganisationPackage(
+          vendorOrganisation.getId(), body.getPackageName(), body.getIsDefaultPackage(),
+          body.getValidFrom(), body.getValidTo(), loggedInTenant, actedBy).getId();
+    }
+    if (packageScopedCreate) {
+      Set<String> packageRateKeys = new java.util.HashSet<>();
+      for (VendorOrganisationRateCardBulkReviewRequestDTO.RateCardActionDTO item : body.getRateCards()) {
+        if (item.getAction() == VendorOrganisationRateCardBulkReviewRequestDTO.BulkAction.CREATE
+            && item.getNewRateCard() != null) {
+          VendorOrganisationRateCardCreateRequestDTO rate = item.getNewRateCard();
+          String key = rate.getVehicleTypeId() + "|" + rate.getDutyTypeId() + "|" + normalizeCity(rate.getCity());
+          if (!packageRateKeys.add(key)) {
+            throw new RuntimeException("Duplicate rate card is not allowed within the same package");
+          }
+        }
+      }
+    }
+
     Set<UUID> requestedRateCardIds = body.getRateCards().stream()
         .filter(actionItem -> actionItem.getAction() != null)
         .filter(actionItem -> actionItem.getAction() != VendorOrganisationRateCardBulkReviewRequestDTO.BulkAction.CREATE)
@@ -317,7 +350,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       }
 
       if (actionItem.getAction() == VendorOrganisationRateCardBulkReviewRequestDTO.BulkAction.CREATE) {
-        createdRateCards.add(applyBulkRateCardCreate(vendorOrganisation, actionItem.getNewRateCard(), loggedInTenant, actedBy));
+        createdRateCards.add(applyBulkRateCardCreate(vendorOrganisation, actionItem.getNewRateCard(), loggedInTenant, actedBy, !packageScopedCreate));
         continue;
       }
 
@@ -343,24 +376,12 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       }
     }
 
-    if (body.getPackageId() != null) {
+    if (targetPackageId != null) {
       if (createdRateCards.isEmpty()) {
         throw new RuntimeException("At least one CREATE action is required when packageId is provided");
       }
-      rateCardPackageService.addRateCards(body.getPackageId(),
+      rateCardPackageService.addRateCards(targetPackageId,
           createdRateCards.stream().map(VendorOrganisationRateCard::getId).toList(), loggedInTenant, actedBy);
-    } else if (body.getPackageName() != null && !body.getPackageName().isBlank()) {
-      if (createdRateCards.isEmpty()) {
-        throw new RuntimeException("At least one CREATE action is required when packageName is provided");
-      }
-      RateCardPackageCreateRequestDTO packageRequest = new RateCardPackageCreateRequestDTO();
-      packageRequest.setName(body.getPackageName());
-      packageRequest.setVendorOrganisationId(vendorOrganisation.getId());
-      packageRequest.setRateCardIds(createdRateCards.stream().map(VendorOrganisationRateCard::getId).toList());
-      packageRequest.setIsDefault(body.getIsDefaultPackage());
-      packageRequest.setValidFrom(body.getValidFrom());
-      packageRequest.setValidTo(body.getValidTo());
-      rateCardPackageService.create(packageRequest, loggedInTenant, actedBy);
     }
 
     syncVendorOrganisationContractStatus(vendorOrganisation, actedBy);
@@ -373,7 +394,8 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       VendorOrganisation vendorOrganisation,
       VendorOrganisationRateCardCreateRequestDTO newRateCard,
       Tenant loggedInTenant,
-      UUID createdBy
+      UUID createdBy,
+      boolean validateGlobalDuplicate
   ) {
     if (newRateCard == null) {
       throw new RuntimeException("New rate card payload is required for CREATE action");
@@ -383,7 +405,7 @@ public class VendorOrganisationRateCardServiceImp implements VendorOrganisationR
       throw new RuntimeException("Only vendor can create rate cards");
     }
 
-    return createSingleRateCard(vendorOrganisation, newRateCard, createdBy);
+    return createSingleRateCard(vendorOrganisation, newRateCard, createdBy, validateGlobalDuplicate);
   }
 
   @Override
