@@ -719,7 +719,10 @@ public class TripBillingService {
         ? rateCardPackageRepository.findByVendorPartner_IdAndIsDefaultTrueAndIsDeletedFalse(partner.getId()).orElse(null)
         : rateCardPackageRepository.findByVendorOrganisation_IdAndIsDefaultTrueAndIsDeletedFalse(organisation.getId()).orElse(null);
     if (selected == null) return null; // legacy contracts keep using their existing approved-rate selection
-    long tripTime = trip.getStartDate() == null ? Instant.now().toEpochMilli() : trip.getStartDate();
+    // Trip startDate is stored as epoch seconds, while package validity is epoch milliseconds.
+    long tripTime = trip.getStartDate() == null
+        ? Instant.now().toEpochMilli()
+        : trip.getStartDate() < 100_000_000_000L ? trip.getStartDate() * 1_000L : trip.getStartDate();
     if ((selected.getValidFrom() != null && tripTime < selected.getValidFrom())
         || (selected.getValidTo() != null && tripTime > selected.getValidTo())) {
       throw new RuntimeException("Default rate card package is not valid for the trip date");
