@@ -20,8 +20,11 @@ public class TransportRouteDraftCreateDTO {
     @NotEmpty(message = "At least one request is required")
     private List<UUID> requestIds;
 
-    /** Deprecated and ignored; route clustering uses pickup/drop-off coordinates and inferred bearing. */
+    /** Optional explicit direction; if omitted it is inferred from the request shift. */
     private TransportRoute.RouteDirection routeDirection;
+
+    /** Optional when all selected requests already belong to the same shift. */
+    private UUID shiftId;
 
     /** Defaults to three passengers when omitted. */
     private Integer seatCapacity;

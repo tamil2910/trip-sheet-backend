@@ -61,7 +61,6 @@ public class TransportRequestController {
     private static final Set<String> WEEKDAYS = Set.of("MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN");
     private static final int DEFAULT_ROUTE_SEAT_CAPACITY = 3;
     private static final double ROUTE_CLUSTER_RADIUS_KM = 10.0;
-    private static final double ROUTE_DIRECTION_TOLERANCE_DEGREES = 45.0;
 
     private final TransportRequestRepository requestRepository;
     private final ShiftRepository shiftRepository;
@@ -421,11 +420,19 @@ public class TransportRequestController {
         TransportRequest first = requests.get(0);
         UUID shiftId = first.getShift().getId();
         UUID organisationId = first.getOrganisation().getId();
+        if (body.getShiftId() != null && !body.getShiftId().equals(shiftId)) {
+            throw new IllegalArgumentException("shiftId does not match the selected transport requests");
+        }
         for (TransportRequest request : requests) {
             if (!shiftId.equals(request.getShift().getId())
                     || !organisationId.equals(request.getOrganisation().getId())) {
                 throw new IllegalArgumentException("All requests in a route draft must share the same organisation and shift");
             }
+        }
+        TransportRoute.RouteDirection routeDirection = body.getRouteDirection() == null
+                ? inferRouteDirection(first) : body.getRouteDirection();
+        if (routeDirection == TransportRoute.RouteDirection.UNKNOWN) {
+            throw new IllegalArgumentException("routeDirection must be HOME_TO_OFFICE or OFFICE_TO_HOME");
         }
 
         List<TransportRequestRouteGroupDTO.RouteGroup> routeGroups = new ArrayList<>();
@@ -433,12 +440,12 @@ public class TransportRequestController {
             TransportRequest routeAnchor = routeRequests.get(0);
             TransportRouteDraftCreateDTO.VehicleTypeCapacity selectedVehicle = selectVehicleType(
                     routeRequests.size(), vehicleOptions);
-            routeGroups.add(new TransportRequestRouteGroupDTO.RouteGroup(null, inferRouteDirection(routeAnchor),
+            routeGroups.add(new TransportRequestRouteGroupDTO.RouteGroup(null, routeDirection,
                     TransportRoute.RouteStatus.DRAFT,
                     selectedVehicle.getId(), selectedVehicle.getAllowedPassenger(),
                     routeAnchor.getPickupAddress() + " -> " + routeAnchor.getDropoffAddress(),
                     routeAnchor.getPickupAddress(), routeAnchor.getDropoffAddress(),
-                    routeRequests.stream().map(com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO::fromEntity).toList()));
+                    toRouteDraftItems(routeRequests, routeDirection)));
         }
         return ResponseEntity.ok(new ApiResponse<>(true,
                 "Transport route groups analysed successfully", routeGroups));
@@ -460,7 +467,6 @@ public class TransportRequestController {
         for (TransportRequest request : requests) {
             PassengerGeocodingService.GeoPoint pickup = point(request.getPickupLatitude(), request.getPickupLongitude());
             PassengerGeocodingService.GeoPoint dropoff = point(request.getDropoffLatitude(), request.getDropoffLongitude());
-            double requestBearing = bearing(pickup, dropoff);
             List<TransportRequest> matchingGroup = null;
             for (List<TransportRequest> group : groups) {
                 TransportRequest anchor = group.get(0);
@@ -473,9 +479,7 @@ public class TransportRequestController {
                 PassengerGeocodingService.GeoPoint anchorPickup = point(anchor.getPickupLatitude(), anchor.getPickupLongitude());
                 PassengerGeocodingService.GeoPoint anchorDropoff = point(anchor.getDropoffLatitude(), anchor.getDropoffLongitude());
                 if (distanceKm(pickup, anchorPickup) <= ROUTE_CLUSTER_RADIUS_KM
-                        && distanceKm(dropoff, anchorDropoff) <= ROUTE_CLUSTER_RADIUS_KM
-                        && angularDifference(requestBearing, bearing(anchorPickup, anchorDropoff))
-                                <= ROUTE_DIRECTION_TOLERANCE_DEGREES) {
+                        && distanceKm(dropoff, anchorDropoff) <= ROUTE_CLUSTER_RADIUS_KM) {
                     matchingGroup = group;
                     break;
                 }
@@ -490,6 +494,11 @@ public class TransportRequestController {
     }
 
     private TransportRoute.RouteDirection inferRouteDirection(TransportRequest request) {
+        if (request.getShift() != null && request.getShift().getShiftType() != null) {
+            return request.getShift().getShiftType() == Shift.ShiftType.LOGIN
+                    ? TransportRoute.RouteDirection.HOME_TO_OFFICE
+                    : TransportRoute.RouteDirection.OFFICE_TO_HOME;
+        }
         String office = normalizeAddress(request.getOrganisation().getAddress());
         String pickup = normalizeAddress(request.getPickupAddress());
         String dropoff = normalizeAddress(request.getDropoffAddress());
@@ -504,27 +513,57 @@ public class TransportRequestController {
         return TransportRoute.RouteDirection.UNKNOWN;
     }
 
+    private List<com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO> toRouteDraftItems(
+            List<TransportRequest> routeRequests,
+            TransportRoute.RouteDirection direction) {
+        TransportRequest anchor = routeRequests.get(0);
+        Map<UUID, Long> projectedPickupTimes = new LinkedHashMap<>();
+        boolean homeToOffice = direction == TransportRoute.RouteDirection.HOME_TO_OFFICE;
+        List<PassengerGeocodingService.GeoPoint> stopPoints = routeRequests.stream()
+                .map(request -> homeToOffice
+                        ? point(request.getPickupLatitude(), request.getPickupLongitude())
+                        : point(request.getDropoffLatitude(), request.getDropoffLongitude()))
+                .toList();
+        PassengerGeocodingService.GeoPoint office = homeToOffice
+                ? point(anchor.getDropoffLatitude(), anchor.getDropoffLongitude())
+                : point(anchor.getPickupLatitude(), anchor.getPickupLongitude());
+        PassengerRouteEstimateService.RoutePlan routePlan = routeEstimateService.optimizeStops(
+                stopPoints, office, homeToOffice);
+        List<TransportRequest> orderedRequests = routePlan.orderedStopIndexes().stream()
+                .map(routeRequests::get)
+                .toList();
+
+        if (homeToOffice) {
+            long remainingMinutes = 0;
+            long[] minutesFromPickupToOffice = new long[orderedRequests.size()];
+            for (int index = orderedRequests.size() - 1; index >= 0; index--) {
+                if (index < routePlan.legs().size()) remainingMinutes += routePlan.legs().get(index).durationMinutes();
+                minutesFromPickupToOffice[index] = remainingMinutes;
+            }
+            for (int index = 0; index < orderedRequests.size(); index++) {
+                TransportRequest request = orderedRequests.get(index);
+                long shiftStart = calculatePickupTime(request.getStartDate(), request.getShift(), false);
+                projectedPickupTimes.put(request.getId(), shiftStart - minutesFromPickupToOffice[index] * 60L);
+            }
+        } else {
+            for (TransportRequest request : orderedRequests) {
+                projectedPickupTimes.put(request.getId(),
+                        calculatePickupTime(request.getStartDate(), request.getShift(), true));
+            }
+        }
+
+        return orderedRequests.stream()
+                .map(request -> com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO.fromEntity(
+                        request, projectedPickupTimes.get(request.getId())))
+                .toList();
+    }
+
     private boolean addressMatches(String address, String office) {
         return !office.isBlank() && (address.equals(office) || address.contains(office) || office.contains(address));
     }
 
     private PassengerGeocodingService.GeoPoint point(java.math.BigDecimal latitude, java.math.BigDecimal longitude) {
         return new PassengerGeocodingService.GeoPoint(latitude.doubleValue(), longitude.doubleValue());
-    }
-
-    private double bearing(PassengerGeocodingService.GeoPoint from, PassengerGeocodingService.GeoPoint to) {
-        double latitude1 = Math.toRadians(from.latitude());
-        double latitude2 = Math.toRadians(to.latitude());
-        double longitudeDifference = Math.toRadians(to.longitude() - from.longitude());
-        double y = Math.sin(longitudeDifference) * Math.cos(latitude2);
-        double x = Math.cos(latitude1) * Math.sin(latitude2)
-                - Math.sin(latitude1) * Math.cos(latitude2) * Math.cos(longitudeDifference);
-        return (Math.toDegrees(Math.atan2(y, x)) + 360) % 360;
-    }
-
-    private double angularDifference(double first, double second) {
-        double difference = Math.abs(first - second) % 360;
-        return difference > 180 ? 360 - difference : difference;
     }
 
     private double distanceKm(

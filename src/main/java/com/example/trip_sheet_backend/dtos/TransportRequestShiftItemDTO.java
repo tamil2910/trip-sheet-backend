@@ -34,11 +34,15 @@ public class TransportRequestShiftItemDTO {
     private TransportRequest.RequestStatus status;
 
     public static TransportRequestShiftItemDTO fromEntity(TransportRequest request) {
+        return fromEntity(request, request.getPickupTime());
+    }
+
+    public static TransportRequestShiftItemDTO fromEntity(TransportRequest request, Long pickupTime) {
         return new TransportRequestShiftItemDTO(
                 request.getId(),
                 request.getPassenger() == null ? null : request.getPassenger().getId(),
                 request.getPassengerType(), request.getPassengerName(), request.getPassengerEmail(),
-                request.getPassengerPhone(), request.getTripType(), request.getStartDate(), request.getPickupTime(), request.getEndDate(),
+                request.getPassengerPhone(), request.getTripType(), request.getStartDate(), pickupTime, request.getEndDate(),
                 request.getRecurrenceFrequency(), request.getRecurrenceInterval(), request.getDaysOfWeek(),
                 request.getPickupAddress(), request.getPickupLatitude(), request.getPickupLongitude(),
                 request.getDropoffAddress(), request.getDropoffLatitude(), request.getDropoffLongitude(),
