@@ -32,6 +32,8 @@ import com.example.trip_sheet_backend.dtos.TransportRequestCreateDTO;
 import com.example.trip_sheet_backend.dtos.TransportRequestResponseDTO;
 import com.example.trip_sheet_backend.dtos.TransportRequestRouteGroupDTO;
 import com.example.trip_sheet_backend.dtos.TransportRouteDraftCreateDTO;
+import com.example.trip_sheet_backend.dtos.TransportRouteDraftConfirmDTO;
+import com.example.trip_sheet_backend.dtos.TransportRouteDraftUpdateDTO;
 import com.example.trip_sheet_backend.dtos.TransportRequestRouteMoveDTO;
 import com.example.trip_sheet_backend.dtos.TransportRequestShiftGroupDTO;
 import com.example.trip_sheet_backend.models.PeopleTenant;
@@ -39,6 +41,7 @@ import com.example.trip_sheet_backend.models.Shift;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.TransportRequest;
 import com.example.trip_sheet_backend.models.TransportRoute;
+import com.example.trip_sheet_backend.models.TransportRouteDraft;
 import com.example.trip_sheet_backend.models.Trip;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.repositories.PeopleTenantRepository;
@@ -49,6 +52,7 @@ import com.example.trip_sheet_backend.repositories.TenantRepository;
 import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 import com.example.trip_sheet_backend.services.PassengerGeocodingService;
 import com.example.trip_sheet_backend.services.PassengerRouteEstimateService;
+import com.example.trip_sheet_backend.services.TransportRouteDraftService;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -69,11 +73,13 @@ public class TransportRequestController {
     private final VendorOrganisationRepository vendorOrganisationRepository;
     private final TransportRouteRepository routeRepository;
     private final PassengerRouteEstimateService routeEstimateService;
+    private final TransportRouteDraftService routeDraftService;
 
     public TransportRequestController(TransportRequestRepository requestRepository,
             ShiftRepository shiftRepository, PeopleTenantRepository peopleTenantRepository,
             TenantRepository tenantRepository, VendorOrganisationRepository vendorOrganisationRepository,
-            TransportRouteRepository routeRepository, PassengerRouteEstimateService routeEstimateService) {
+            TransportRouteRepository routeRepository, PassengerRouteEstimateService routeEstimateService,
+            TransportRouteDraftService routeDraftService) {
         this.requestRepository = requestRepository;
         this.shiftRepository = shiftRepository;
         this.peopleTenantRepository = peopleTenantRepository;
@@ -81,6 +87,7 @@ public class TransportRequestController {
         this.vendorOrganisationRepository = vendorOrganisationRepository;
         this.routeRepository = routeRepository;
         this.routeEstimateService = routeEstimateService;
+        this.routeDraftService = routeDraftService;
     }
 
     /** Guest employees submit for themselves; passenger identity is taken from their organisation profile. */
@@ -451,6 +458,63 @@ public class TransportRequestController {
                 "Transport route groups analysed successfully", routeGroups));
     }
 
+    @PostMapping("/route-drafts/confirm")
+    @PreAuthorize("hasAuthority('CAN_UPDATE_TRANSPORTREQUEST')")
+    public ResponseEntity<ApiResponse<List<TransportRequestRouteGroupDTO.RouteGroup>>> confirmRouteDrafts(
+            @Valid @RequestBody TransportRouteDraftConfirmDTO body,
+            HttpServletRequest httpRequest) {
+        Tenant tenant = (Tenant) httpRequest.getAttribute("tenant");
+        if (tenant == null || tenant.getId() == null) throw new RuntimeException("Tenant not found in token");
+        List<TransportRequestRouteGroupDTO.RouteGroup> saved = routeDraftService.confirmGroups(tenant, body);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(new ApiResponse<>(true, "Confirmed transport route drafts saved successfully", saved));
+    }
+
+    @PutMapping("/route-drafts/{draftId}")
+    @PreAuthorize("hasAuthority('CAN_UPDATE_TRANSPORTREQUEST')")
+    public ResponseEntity<ApiResponse<TransportRequestRouteGroupDTO.RouteGroup>> updateRouteDraft(
+            @PathVariable UUID draftId,
+            @Valid @RequestBody TransportRouteDraftUpdateDTO body,
+            HttpServletRequest httpRequest) {
+        Tenant tenant = (Tenant) httpRequest.getAttribute("tenant");
+        if (tenant == null || tenant.getId() == null) throw new RuntimeException("Tenant not found in token");
+        try {
+            TransportRequestRouteGroupDTO.RouteGroup updated = routeDraftService.update(tenant.getId(), draftId, body);
+            if (updated == null) {
+                return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                        .body(new ApiResponse<>(false, "Transport route draft not found", null));
+            }
+            return ResponseEntity.ok(new ApiResponse<>(true, "Transport route draft updated successfully", updated));
+        } catch (RuntimeException exception) {
+            return ResponseEntity.badRequest().body(new ApiResponse<>(false, exception.getMessage(), null));
+        }
+    }
+
+    @GetMapping("/route-drafts")
+    @PreAuthorize("hasAuthority('CAN_READ_TRANSPORTREQUEST')")
+    public ResponseEntity<ApiResponse<List<TransportRequestRouteGroupDTO.RouteGroup>>> getRouteDrafts(
+            @RequestParam(required = false) TransportRouteDraft.DraftStatus status,
+            HttpServletRequest httpRequest) {
+        Tenant tenant = (Tenant) httpRequest.getAttribute("tenant");
+        if (tenant == null || tenant.getId() == null) throw new RuntimeException("Tenant not found in token");
+        return ResponseEntity.ok(new ApiResponse<>(true, "Transport route drafts fetched successfully",
+                routeDraftService.list(tenant.getId(), status)));
+    }
+
+    @GetMapping("/route-drafts/{draftId}")
+    @PreAuthorize("hasAuthority('CAN_READ_TRANSPORTREQUEST')")
+    public ResponseEntity<ApiResponse<TransportRequestRouteGroupDTO.RouteGroup>> getRouteDraft(
+            @PathVariable UUID draftId, HttpServletRequest httpRequest) {
+        Tenant tenant = (Tenant) httpRequest.getAttribute("tenant");
+        if (tenant == null || tenant.getId() == null) throw new RuntimeException("Tenant not found in token");
+        TransportRequestRouteGroupDTO.RouteGroup draft = routeDraftService.get(tenant.getId(), draftId);
+        if (draft == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ApiResponse<>(false, "Transport route draft not found", null));
+        }
+        return ResponseEntity.ok(new ApiResponse<>(true, "Transport route draft fetched successfully", draft));
+    }
+
     private TransportRouteDraftCreateDTO.VehicleTypeCapacity selectVehicleType(
             int passengerCount,
             List<TransportRouteDraftCreateDTO.VehicleTypeCapacity> vehicleOptions) {
@@ -575,37 +639,6 @@ public class TransportRequestController {
                 + Math.cos(Math.toRadians(first.latitude())) * Math.cos(Math.toRadians(second.latitude()))
                 * Math.sin(longitudeDifference / 2) * Math.sin(longitudeDifference / 2);
         return 6371.0 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    }
-
-    @PutMapping("/route-drafts/{routeId}/confirm")
-    @PreAuthorize("hasAuthority('CAN_UPDATE_TRANSPORTREQUEST')")
-    public ResponseEntity<ApiResponse<UUID>> confirmRouteDraft(
-            @PathVariable UUID routeId,
-            HttpServletRequest httpRequest) {
-        Tenant tenant = (Tenant) httpRequest.getAttribute("tenant");
-        if (tenant == null || tenant.getId() == null) {
-            throw new RuntimeException("Tenant not found in token");
-        }
-        TransportRoute route = routeRepository.findById(routeId)
-                .filter(candidate -> !Boolean.TRUE.equals(candidate.getIsDeleted()))
-                .orElseThrow(() -> new RuntimeException("Transport route draft not found"));
-        if (route.getStatus() != TransportRoute.RouteStatus.DRAFT) {
-            throw new IllegalArgumentException("Route is not a draft");
-        }
-        List<TransportRequest> requests = requestRepository
-                .findByRoute_IdAndIsDeletedFalseOrderByCreatedAtAsc(routeId);
-        if (requests.isEmpty() || requests.stream().anyMatch(request -> {
-            if (tenant.getTenantType() == Tenant.TenantType.ORGANISATION) {
-                return request.getOrganisation() == null || !tenant.getId().equals(request.getOrganisation().getId());
-            }
-            return tenant.getTenantType() != Tenant.TenantType.VENDOR
-                    || request.getTenant() == null || !tenant.getId().equals(request.getTenant().getId());
-        })) {
-            throw new RuntimeException("Route draft does not belong to this tenant");
-        }
-        route.setStatus(TransportRoute.RouteStatus.ACTIVE);
-        routeRepository.save(route);
-        return ResponseEntity.ok(new ApiResponse<>(true, "Transport route draft confirmed successfully", route.getId()));
     }
 
     private String normalizeAddress(String address) {

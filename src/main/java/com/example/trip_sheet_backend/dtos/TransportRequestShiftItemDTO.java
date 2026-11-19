@@ -8,9 +8,13 @@ import com.example.trip_sheet_backend.models.Trip;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
+@Setter
 @AllArgsConstructor
+@NoArgsConstructor
 public class TransportRequestShiftItemDTO {
     private UUID id;
     private UUID passengerId;

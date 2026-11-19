@@ -8,6 +8,8 @@ import com.example.trip_sheet_backend.models.Shift;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Getter
 @AllArgsConstructor
@@ -20,7 +22,9 @@ public class TransportRequestRouteGroupDTO {
     private List<RouteGroup> routes;
 
     @Getter
+    @Setter
     @AllArgsConstructor
+    @NoArgsConstructor
     public static class RouteGroup {
         private UUID routeId;
         private TransportRoute.RouteDirection routeDirection;
@@ -31,5 +35,18 @@ public class TransportRequestRouteGroupDTO {
         private String pickupAddress;
         private String dropoffAddress;
         private List<TransportRequestShiftItemDTO> requests;
+        private UUID draftId;
+        private String draftStatus;
+        private Long expiresAt;
+        private Long validFrom;
+        private Long validTo;
+
+        public RouteGroup(UUID routeId, TransportRoute.RouteDirection routeDirection,
+                TransportRoute.RouteStatus routeStatus, UUID vehicleTypeId, Integer allowedPassenger,
+                String direction, String pickupAddress, String dropoffAddress,
+                List<TransportRequestShiftItemDTO> requests) {
+            this(routeId, routeDirection, routeStatus, vehicleTypeId, allowedPassenger,
+                    direction, pickupAddress, dropoffAddress, requests, null, null, null, null, null);
+        }
     }
 }
