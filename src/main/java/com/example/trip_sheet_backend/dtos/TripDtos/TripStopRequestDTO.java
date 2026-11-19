@@ -1,6 +1,8 @@
 package com.example.trip_sheet_backend.dtos.TripDtos;
 
 import com.example.trip_sheet_backend.models.TripStop;
+import java.util.List;
+import jakarta.validation.Valid;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -17,4 +19,7 @@ public class TripStopRequestDTO {
 
   private Double latitude;
   private Double longitude;
+
+  @Valid
+  private List<TripStopPassengerRequestDTO> passengers;
 }

@@ -36,6 +36,8 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripSupplierAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripStopRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripStopPassengerRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripSummaryResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
 import com.example.trip_sheet_backend.mappers.TripResponseMapper;
@@ -129,6 +131,8 @@ public class TripController {
       throw new RuntimeException("Tenant not found in token");
     }
 
+    validatePickupAssignments(createTripDto.getPassengerIds(), createTripDto.getStops());
+
     Trip trip = tripServiceImp.createTrip(createTripDto, tokenTenant, createdBy);
     TripResponseDTO response = mapTripForViewer(trip, request);
 
@@ -150,6 +154,8 @@ public class TripController {
     if (tokenTenant == null) {
       throw new RuntimeException("Tenant not found in token");
     }
+
+    createTripDtos.forEach(dto -> validatePickupAssignments(dto.getPassengerIds(), dto.getStops()));
 
     List<Trip> trips = tripServiceImp.createBulkTrips(createTripDtos, tokenTenant, createdBy);
     List<TripResponseDTO> response = trips.stream().map(trip -> mapTripForViewer(trip, request)).toList();
@@ -719,5 +725,32 @@ public class TripController {
   private TripResponseDTO mapTripForViewer(Trip trip, HttpServletRequest request) {
     UUID viewerTenantId = (UUID) request.getAttribute("tenantId");
     return TripResponseMapper.toDTO(trip, viewerTenantId);
+  }
+
+  private void validatePickupAssignments(List<String> passengerIds, List<TripStopRequestDTO> stops) {
+    if (passengerIds == null || passengerIds.isEmpty()) return;
+    if (stops == null || stops.isEmpty()) {
+      throw new IllegalArgumentException("Stops with passenger pickup assignments are required when passengerIds are provided");
+    }
+
+    java.util.Set<String> expected = new java.util.HashSet<>(passengerIds);
+    java.util.Set<String> assigned = new java.util.HashSet<>();
+    for (TripStopRequestDTO stop : stops) {
+      if (stop.getStopType() != com.example.trip_sheet_backend.models.TripStop.StopType.PICKUP) continue;
+      if (stop.getPassengers() == null || stop.getPassengers().isEmpty()) {
+        throw new IllegalArgumentException("Every pickup stop must list its passengers and pickup times");
+      }
+      for (TripStopPassengerRequestDTO passenger : stop.getPassengers()) {
+        if (!expected.contains(passenger.getPassengerId())) {
+          throw new IllegalArgumentException("Pickup stop passenger must be included in passengerIds");
+        }
+        if (!assigned.add(passenger.getPassengerId())) {
+          throw new IllegalArgumentException("Each passenger must have exactly one pickup stop");
+        }
+      }
+    }
+    if (!assigned.equals(expected)) {
+      throw new IllegalArgumentException("Each passenger must be assigned to a pickup stop with a pickupTime");
+    }
   }
 }

@@ -3,11 +3,15 @@ package com.example.trip_sheet_backend.models;
 import com.example.trip_sheet_backend.common.models.BaseModel;
 
 import jakarta.persistence.Entity;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -34,6 +38,10 @@ public class TripStop extends BaseModel {
     private Double latitude;
     private Double longitude;
     private Boolean accurate;
+
+    @ElementCollection
+    @CollectionTable(name = "trip_stop_passengers", joinColumns = @JoinColumn(name = "trip_stop_id"))
+    private List<TripStopPassenger> passengers = new ArrayList<>();
 
     public enum StopType {
         PICKUP,

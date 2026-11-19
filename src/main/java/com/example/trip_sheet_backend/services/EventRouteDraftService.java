@@ -177,7 +177,8 @@ public class EventRouteDraftService {
     VehicleCapacity vehicle = capacities.stream()
         .filter(candidate -> candidate.allowedPassenger() >= passengerCount)
         .findFirst().orElse(null);
-    List<EventRouteDraftResponse.Passenger> passengers = bundles.stream().flatMap(bundle -> bundle.passengers().stream()).toList();
+    List<EventRouteDraftResponse.Passenger> passengers = bundles.stream()
+        .flatMap(bundle -> bundle.passengers().stream()).toList();
     boolean needsEscort = !passengers.isEmpty() && passengers.stream()
         .allMatch(passenger -> passenger.gender() != null && passenger.gender().equalsIgnoreCase("FEMALE"));
     double actualMaxPickupDistance = maxGroupDistance(bundles);
@@ -214,14 +215,15 @@ public class EventRouteDraftService {
         venue.latitude(), venue.longitude()));
     for (Bundle bundle : homeOrder) returnStops.add(homeStop(bundle));
 
-    return new EventRouteDraftResponse.RouteGroup(groupNumber,
-        vehicle == null ? null : vehicle.id(), vehicle == null ? null : vehicle.name(),
-        vehicle == null ? 0 : vehicle.allowedPassenger(), passengerCount, maxPickupDistance,
-        pickupDistanceExceedsLimit, sameRouteGrouping, needsEscort,
-        passengers, new EventRouteDraftResponse.RoutePlan("HOME_TO_EVENT", outboundStops,
-            outboundEstimate.distanceKm(), outboundEstimate.durationMinutes()),
-        new EventRouteDraftResponse.RoutePlan("EVENT_TO_HOME", returnStops,
-            returnEstimate.distanceKm(), returnEstimate.durationMinutes()),
+    EventRouteDraftResponse.Vehicle vehicleResponse = vehicle == null ? null
+        : new EventRouteDraftResponse.Vehicle(vehicle.id(), vehicle.name(), vehicle.allowedPassenger());
+    return new EventRouteDraftResponse.RouteGroup(groupNumber, vehicleResponse, passengerCount, maxPickupDistance,
+        pickupDistanceExceedsLimit, sameRouteGrouping, needsEscort, passengers,
+        new EventRouteDraftResponse.Routes(
+            new EventRouteDraftResponse.RoutePlan(outboundStops,
+                outboundEstimate.distanceKm(), outboundEstimate.durationMinutes()),
+            new EventRouteDraftResponse.RoutePlan(returnStops,
+                returnEstimate.distanceKm(), returnEstimate.durationMinutes())),
         vehicle == null ? "No configured event vehicle can carry this participant family bundle and passenger count" : null);
   }
 
@@ -294,10 +296,10 @@ public class EventRouteDraftService {
     static Bundle from(EventParticipantRequest request) {
       List<EventRouteDraftResponse.Passenger> passengers = new ArrayList<>();
       passengers.add(new EventRouteDraftResponse.Passenger(request.getId(), request.getName(), request.getGender(),
-          false, null, request.getPickupAddress(), request.getPickupLatitude(), request.getPickupLongitude()));
+          false, null));
       for (EventParticipantFamilyMember familyMember : request.getExtraPassengers()) {
         passengers.add(new EventRouteDraftResponse.Passenger(request.getId(), familyMember.getName(), familyMember.getGender(),
-            true, familyMember.getRelationshipType(), request.getPickupAddress(), request.getPickupLatitude(), request.getPickupLongitude()));
+            true, familyMember.getRelationshipType()));
       }
       return new Bundle(request.getId(), request.getName(), request.getGender(), request.getPickupAddress(),
           request.getPickupLatitude(), request.getPickupLongitude(), passengers);

@@ -43,6 +43,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripSupplierAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStopRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripStopPassengerRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripLabelAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
 import com.example.trip_sheet_backend.models.CustomField;
@@ -56,6 +57,7 @@ import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
 import com.example.trip_sheet_backend.models.TripPassengerCustomFieldValue;
 import com.example.trip_sheet_backend.models.TripStop;
+import com.example.trip_sheet_backend.models.TripStopPassenger;
 import com.example.trip_sheet_backend.models.TripSummary;
 import com.example.trip_sheet_backend.models.TripLocationUpdate;
 import com.example.trip_sheet_backend.models.UserAccount;
@@ -251,6 +253,9 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
   Trip trip = new Trip();
   trip.setTripCode(generateTripCode());
   trip.setTripType(createTripDto.getTripType());
+  trip.setTripCategory(createTripDto.getTripCategory() == null
+      ? Trip.TripCategory.RAC
+      : createTripDto.getTripCategory());
   trip.setRecurrenceInterval(createTripDto.getRecurrenceInterval());
   trip.setDaysOfWeek(createTripDto.getDaysOfWeek());
   trip.setRecurrenceFrequency(createTripDto.getRecurrenceFrequency());
@@ -359,10 +364,12 @@ public Trip createTrip(TripCreateRequestDTO createTripDto, Tenant tenant, UUID c
         throw new RuntimeException("Stop addressText cannot be null");
       }
 
-      TripStop stop = mapper.map(stopDto, TripStop.class);
-      stop.setTrip(trip);
+      TripStop stop = buildTripStop(stopDto, trip, selectedPassengers);
       trip.getStops().add(stop);
     }
+  }
+  if (!selectedPassengers.isEmpty() && !trip.getStops().isEmpty()) {
+    validatePickupStopAssignments(selectedPassengers, trip.getStops());
   }
 
   // ✅ Passenger custom fields
@@ -549,10 +556,6 @@ public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdat
     trip.setUpdatedBy(updatedBy.toString());
   }
 
-  if (!partnerVendorRestrictedUpdate && updateDto.getStops() != null) {
-    replaceStops(trip, updateDto.getStops());
-  }
-
   List<PeopleTenant> effectivePassengers = trip.getPassengers() == null
       ? new ArrayList<>()
       : new ArrayList<>(trip.getPassengers());
@@ -560,6 +563,15 @@ public Trip updateTrip(UUID tenantId, Tenant tokenTenant, UUID tripId, TripUpdat
   if (!partnerVendorRestrictedUpdate && updateDto.getPassengerIds() != null) {
     effectivePassengers = resolvePassengers(updateDto.getPassengerIds());
     trip.setPassengers(effectivePassengers);
+  }
+
+  if (!partnerVendorRestrictedUpdate && updateDto.getStops() != null) {
+    replaceStops(trip, updateDto.getStops(), effectivePassengers);
+  }
+  if (!partnerVendorRestrictedUpdate
+      && (updateDto.getPassengerIds() != null || updateDto.getStops() != null)
+      && !effectivePassengers.isEmpty()) {
+    validatePickupStopAssignments(effectivePassengers, trip.getStops());
   }
 
   if (trip.getClientVendor() != null && trip.getTenant() != null) {
@@ -973,6 +985,15 @@ public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Obj
     }
 
     if (filters != null) {
+      try {
+        Object tripCategoryFilter = filters.get("tripCategory");
+        if (tripCategoryFilter != null && !tripCategoryFilter.toString().isBlank()) {
+          Trip.TripCategory category = tripCategoryFilter instanceof Trip.TripCategory value
+              ? value
+              : Trip.TripCategory.valueOf(tripCategoryFilter.toString().trim().toUpperCase(Locale.ROOT));
+          predicates.add(cb.equal(root.get("tripCategory"), category));
+        }
+      } catch (Exception ignored) {}
       try {
         Long startDateFilter = parseLongValue(filters.get("startDate"));
         if (startDateFilter != null) {
@@ -1462,7 +1483,7 @@ private void validateAssociateCustomerPeople(
   }
 }
 
-private void replaceStops(Trip trip, List<TripStopRequestDTO> stopDtos) {
+private void replaceStops(Trip trip, List<TripStopRequestDTO> stopDtos, List<PeopleTenant> passengers) {
   trip.getStops().clear();
 
   if (stopDtos == null || stopDtos.isEmpty()) {
@@ -1474,9 +1495,65 @@ private void replaceStops(Trip trip, List<TripStopRequestDTO> stopDtos) {
       throw new RuntimeException("Stop addressText cannot be null");
     }
 
-    TripStop stop = mapper.map(stopDto, TripStop.class);
-    stop.setTrip(trip);
+    TripStop stop = buildTripStop(stopDto, trip, passengers);
     trip.getStops().add(stop);
+  }
+}
+
+private TripStop buildTripStop(TripStopRequestDTO dto, Trip trip, List<PeopleTenant> passengers) {
+  TripStop stop = new TripStop();
+  stop.setTrip(trip);
+  stop.setSequenceNumber(dto.getSequenceNumber());
+  stop.setStopType(dto.getStopType());
+  stop.setAddressText(dto.getAddressText());
+  stop.setFormattedAddress(dto.getFormattedAddress());
+  stop.setLatitude(dto.getLatitude());
+  stop.setLongitude(dto.getLongitude());
+  stop.setPassengers(new ArrayList<>());
+  if (dto.getPassengers() == null) return stop;
+  if (!dto.getPassengers().isEmpty() && dto.getStopType() != TripStop.StopType.PICKUP) {
+    throw new RuntimeException("Passenger pickup assignments are only allowed on PICKUP stops");
+  }
+
+  Set<UUID> validPassengerIds = passengers.stream().map(PeopleTenant::getId)
+      .collect(java.util.stream.Collectors.toSet());
+  Set<UUID> stopPassengerIds = new HashSet<>();
+  for (TripStopPassengerRequestDTO passengerDto : dto.getPassengers()) {
+    UUID passengerId = UUID.fromString(passengerDto.getPassengerId());
+    if (!validPassengerIds.contains(passengerId)) {
+      throw new RuntimeException("Stop passenger must be included in trip passengerIds: " + passengerId);
+    }
+    if (!stopPassengerIds.add(passengerId)) {
+      throw new RuntimeException("Passenger cannot be listed more than once at the same stop: " + passengerId);
+    }
+    if (passengerDto.getPickupTime() == null) {
+      throw new RuntimeException("Pickup time is required for each passenger assigned to a stop");
+    }
+    stop.getPassengers().add(new TripStopPassenger(passengerId, passengerDto.getPickupTime()));
+  }
+  return stop;
+}
+
+private void validatePickupStopAssignments(List<PeopleTenant> passengers, List<TripStop> stops) {
+  Set<UUID> expectedIds = passengers.stream().map(PeopleTenant::getId)
+      .collect(java.util.stream.Collectors.toSet());
+  Set<UUID> assignedIds = new HashSet<>();
+  for (TripStop stop : stops) {
+    if (stop.getStopType() != TripStop.StopType.PICKUP) continue;
+    if (stop.getPassengers() == null || stop.getPassengers().isEmpty()) {
+      throw new RuntimeException("Every pickup stop must list its passengers and pickup times");
+    }
+    for (TripStopPassenger passenger : stop.getPassengers()) {
+      if (!expectedIds.contains(passenger.getPassengerId())) {
+        throw new RuntimeException("Pickup stop passenger must be included in trip passengerIds");
+      }
+      if (!assignedIds.add(passenger.getPassengerId())) {
+        throw new RuntimeException("Each passenger must have exactly one pickup stop");
+      }
+    }
+  }
+  if (!assignedIds.equals(expectedIds)) {
+    throw new RuntimeException("Each passenger must be assigned to a pickup stop with a pickupTime");
   }
 }
 
@@ -1714,6 +1791,7 @@ private List<Long> buildRecurringOccurrenceEpochs(Trip templateTrip, long series
 private void syncTripFromTemplate(Trip target, Trip template, long occurrenceEpoch, UUID updatedBy, boolean isNewTrip) {
   target.setTripCode(template.getTripCode());
   target.setTripType(template.getTripType());
+  target.setTripCategory(template.getTripCategory());
   target.setRecurrenceInterval(template.getRecurrenceInterval());
   target.setDaysOfWeek(template.getDaysOfWeek());
   target.setRecurrenceFrequency(template.getRecurrenceFrequency());
@@ -1765,6 +1843,9 @@ private void copyStopsFromTemplate(Trip target, Trip template) {
     copiedStop.setLatitude(stop.getLatitude());
     copiedStop.setLongitude(stop.getLongitude());
     copiedStop.setAccurate(stop.getAccurate());
+    copiedStop.setPassengers(stop.getPassengers() == null ? new ArrayList<>() : stop.getPassengers().stream()
+        .map(passenger -> new TripStopPassenger(passenger.getPassengerId(), passenger.getPickupTime()))
+        .collect(java.util.stream.Collectors.toCollection(ArrayList::new)));
     copiedStop.setTrip(target);
     target.getStops().add(copiedStop);
   }
@@ -1813,6 +1894,7 @@ private Trip cloneTripTemplate(Trip source) {
   Trip clone = new Trip();
   clone.setTripCode(source.getTripCode());
   clone.setTripType(source.getTripType());
+  clone.setTripCategory(source.getTripCategory());
   clone.setRecurrenceInterval(source.getRecurrenceInterval());
   clone.setDaysOfWeek(source.getDaysOfWeek());
   clone.setRecurrenceFrequency(source.getRecurrenceFrequency());

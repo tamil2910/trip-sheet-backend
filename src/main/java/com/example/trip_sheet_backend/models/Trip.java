@@ -77,6 +77,10 @@ public class Trip extends BaseModel implements TenantScoped {
   private TripStatus tripStatus;
 
   @Enumerated(EnumType.STRING)
+  @Column(name = "trip_category", nullable = false)
+  private TripCategory tripCategory = TripCategory.RAC;
+
+  @Enumerated(EnumType.STRING)
   private TripType tripType; // SINGLE, MULTI_DAY, RECURRING
 
   @ManyToOne(fetch = FetchType.LAZY)
@@ -171,6 +175,12 @@ public class Trip extends BaseModel implements TenantScoped {
     SINGLE,
     MULTI_DAY,
     RECURRING
+  }
+
+  public enum TripCategory {
+    ETS,
+    EVENT,
+    RAC
   }
 
   public enum RecurrenceFrequency {

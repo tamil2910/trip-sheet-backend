@@ -25,6 +25,7 @@ public class TripResponseDTO {
 
     private Trip.TripStatus tripStatus;
     private Trip.TripType tripType;
+    private Trip.TripCategory tripCategory;
     private Integer recurrenceInterval;
     private String daysOfWeek;
     private Trip.RecurrenceFrequency recurrenceFrequency;

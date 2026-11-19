@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.dtos.TripDtos;
 
 import com.example.trip_sheet_backend.models.TripStop;
+import java.util.List;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -20,4 +21,6 @@ public class TripStopResponseDTO {
     private Double latitude;
     private Double longitude;
     private Boolean accurate;
+
+    private List<TripStopPassengerRequestDTO> passengers;
 }

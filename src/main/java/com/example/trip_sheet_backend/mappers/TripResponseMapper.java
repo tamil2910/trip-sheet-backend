@@ -11,6 +11,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripPassengerCustomFieldValu
 import com.example.trip_sheet_backend.dtos.TripDtos.TripRelationResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStopResponseDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripStopPassengerRequestDTO;
 import com.example.trip_sheet_backend.models.DispatchCenter;
 import com.example.trip_sheet_backend.models.Driver;
 import com.example.trip_sheet_backend.models.DutyType;
@@ -64,6 +65,7 @@ public final class TripResponseMapper {
         }
         dto.setTripStatus(trip.getTripStatus());
         dto.setTripType(trip.getTripType());
+        dto.setTripCategory(trip.getTripCategory());
         dto.setRecurrenceInterval(trip.getRecurrenceInterval());
         dto.setDaysOfWeek(trip.getDaysOfWeek());
         dto.setRecurrenceFrequency(trip.getRecurrenceFrequency());
@@ -128,6 +130,14 @@ public final class TripResponseMapper {
             stopDTO.setLatitude(stop.getLatitude());
             stopDTO.setLongitude(stop.getLongitude());
             stopDTO.setAccurate(stop.getAccurate());
+            if (stop.getPassengers() != null) {
+                stopDTO.setPassengers(stop.getPassengers().stream().map(item -> {
+                    TripStopPassengerRequestDTO passengerDTO = new TripStopPassengerRequestDTO();
+                    passengerDTO.setPassengerId(item.getPassengerId().toString());
+                    passengerDTO.setPickupTime(item.getPickupTime());
+                    return passengerDTO;
+                }).toList());
+            }
             return stopDTO;
         }).toList();
     }

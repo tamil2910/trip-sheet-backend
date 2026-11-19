@@ -7,6 +7,7 @@ import com.example.trip_sheet_backend.models.Trip;
 
 import lombok.Getter;
 import lombok.Setter;
+import jakarta.validation.Valid;
 
 @Getter @Setter
 public class TripUpdateRequestDTO {
@@ -41,5 +42,6 @@ public class TripUpdateRequestDTO {
     private String notes;
     private Boolean isManualTrip;
 
+    @Valid
     private List<TripStopRequestDTO> stops; 
 }

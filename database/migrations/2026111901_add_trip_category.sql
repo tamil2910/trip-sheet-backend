@@ -1,0 +1,2 @@
+ALTER TABLE trips
+  ADD COLUMN trip_category VARCHAR(32) NOT NULL DEFAULT 'RAC';

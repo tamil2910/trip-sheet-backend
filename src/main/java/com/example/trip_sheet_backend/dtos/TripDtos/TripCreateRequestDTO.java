@@ -7,12 +7,14 @@ import com.example.trip_sheet_backend.models.Trip;
 
 import lombok.Getter;
 import lombok.Setter;
+import jakarta.validation.Valid;
 
 @Getter @Setter
 public class TripCreateRequestDTO {
 
     private String tripCode;
     private Trip.TripType tripType;
+    private Trip.TripCategory tripCategory = Trip.TripCategory.RAC;
     private String parentTripId;
 
     // Recurrence fields (used when tripType is RECURRING)
@@ -56,5 +58,6 @@ public class TripCreateRequestDTO {
 
     private Boolean isManualTrip;
 
+    @Valid
     private List<TripStopRequestDTO> stops;
 }
