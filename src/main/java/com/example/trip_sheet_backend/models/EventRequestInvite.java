@@ -33,6 +33,9 @@ public class EventRequestInvite extends BaseModel {
   @Column(name = "token_hash", nullable = false, unique = true, length = 64)
   private String tokenHash;
 
+  @Column(name = "request_link", length = 2048)
+  private String requestLink;
+
   @Column(name = "expires_at", nullable = false)
   private Long expiresAt;
 

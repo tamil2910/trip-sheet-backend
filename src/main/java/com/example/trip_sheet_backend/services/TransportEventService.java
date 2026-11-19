@@ -10,6 +10,8 @@ import java.util.Base64;
 import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
@@ -119,11 +121,14 @@ public class TransportEventService {
     List<RecipientRequestLink> recipientLinks = List.of();
     if (request.getRequestAudience() == TransportEvent.RequestAudience.ANYONE_WITH_LINK) {
       if (audienceChanged) revokeActiveInvites(event);
-      if (audienceChanged || event.getPublicRequestTokenHash() == null) {
+      if (audienceChanged || event.getPublicRequestTokenHash() == null || event.getPublicRequestLink() == null) {
         requestLink = issuePublicRequestLink(event);
+      } else {
+        requestLink = event.getPublicRequestLink();
       }
     } else {
       event.setPublicRequestTokenHash(null);
+      event.setPublicRequestLink(null);
       if (audienceChanged) revokeActiveInvites(event);
       if (request.getRecipients() != null) {
         recipientLinks = replaceRecipientInvites(event, request.getRecipients(), updatedBy);
@@ -145,7 +150,10 @@ public class TransportEventService {
     int size = pageable == null || pageable.isUnpaged() ? Math.max(all.size(), 1) : pageable.getPageSize();
     int from = Math.min(page * size, all.size());
     int to = Math.min(from + size, all.size());
-    return new PageImpl<>(all.subList(from, to).stream().map(EventResponse::from).toList(),
+    List<TransportEvent> pageEvents = all.subList(from, to);
+    Map<UUID, List<RecipientRequestLink>> recipientLinksByEvent = loadActiveRecipientLinks(pageEvents);
+    return new PageImpl<>(pageEvents.stream()
+        .map(event -> EventResponse.from(event, recipientLinksByEvent.getOrDefault(event.getId(), List.of()))).toList(),
         pageable == null ? Pageable.unpaged() : pageable, all.size());
   }
 
@@ -162,9 +170,11 @@ public class TransportEventService {
   @Transactional(readOnly = true)
   public EventResponse get(UUID id, Tenant tenant) {
     requireTenant(tenant);
-    return eventRepository.findByIdAndTenant_IdAndIsDeletedFalse(id, tenant.getId())
-        .map(EventResponse::from)
+    TransportEvent event = eventRepository.findByIdAndTenant_IdAndIsDeletedFalse(id, tenant.getId())
         .orElseThrow(() -> new IllegalArgumentException("Event not found"));
+    List<RecipientRequestLink> recipientLinks = toRecipientLinks(
+        inviteRepository.findAllByEvent_IdAndRevokedAtIsNullAndIsDeletedFalse(event.getId()));
+    return EventResponse.from(event, recipientLinks);
   }
 
   @Transactional(readOnly = true)
@@ -212,6 +222,10 @@ public class TransportEventService {
         && recipients != null && !recipients.isEmpty()) {
       throw new IllegalArgumentException("Recipients can only be provided for SPECIFIC_PEOPLE events");
     }
+    if (request.getRequestAudience() == TransportEvent.RequestAudience.SPECIFIC_PEOPLE
+        && (recipients == null || recipients.isEmpty())) {
+      throw new IllegalArgumentException("At least one recipient is required for SPECIFIC_PEOPLE events");
+    }
     if (recipients == null || recipients.isEmpty()) return;
     Set<String> emails = new HashSet<>();
     for (EventRecipientRequest recipient : recipients) {
@@ -227,7 +241,33 @@ public class TransportEventService {
   private String issuePublicRequestLink(TransportEvent event) {
     String token = newToken();
     event.setPublicRequestTokenHash(hashToken(token));
-    return requestLinkBaseUrl.replaceAll("/+$", "") + "/" + token;
+    String requestLink = requestLinkBaseUrl.replaceAll("/+$", "") + "/" + token;
+    event.setPublicRequestLink(requestLink);
+    return requestLink;
+  }
+
+  private Map<UUID, List<RecipientRequestLink>> loadActiveRecipientLinks(List<TransportEvent> events) {
+    if (events.isEmpty()) return Map.of();
+    List<UUID> eventIds = events.stream().map(TransportEvent::getId).toList();
+    Map<UUID, List<RecipientRequestLink>> result = new HashMap<>();
+    inviteRepository.findAllByEvent_IdInAndRevokedAtIsNullAndConsumedAtIsNullAndIsDeletedFalse(eventIds)
+        .forEach(invite -> {
+          if (invite.getRequestLink() != null && !invite.getRequestLink().isBlank()
+              && (invite.getExpiresAt() == null || invite.getExpiresAt() >= Instant.now().toEpochMilli())) {
+            result.computeIfAbsent(invite.getEvent().getId(), ignored -> new ArrayList<>())
+                .add(new RecipientRequestLink(invite.getName(), invite.getEmail(), invite.getRequestLink()));
+          }
+        });
+    return result;
+  }
+
+  private List<RecipientRequestLink> toRecipientLinks(List<EventRequestInvite> invites) {
+    long now = Instant.now().toEpochMilli();
+    return invites.stream()
+        .filter(invite -> invite.getConsumedAt() == null && invite.getExpiresAt() != null
+            && invite.getExpiresAt() >= now && invite.getRequestLink() != null && !invite.getRequestLink().isBlank())
+        .map(invite -> new RecipientRequestLink(invite.getName(), invite.getEmail(), invite.getRequestLink()))
+        .toList();
   }
 
   private List<RecipientRequestLink> replaceRecipientInvites(
@@ -246,12 +286,13 @@ public class TransportEventService {
       invite.setEmail(email);
       invite.setPhone(trimToNull(recipient.getPhone()));
       invite.setTokenHash(hashToken(token));
+      String requestLink = requestLinkBaseUrl.replaceAll("/+$", "") + "/" + token;
+      invite.setRequestLink(requestLink);
       invite.setExpiresAt(event.getLinkValidUntil());
       invite.setCreatedBy(actorId == null ? null : actorId.toString());
       invite.setUpdatedBy(actorId == null ? null : actorId.toString());
       invites.add(invite);
-      links.add(new RecipientRequestLink(invite.getName(), email,
-          requestLinkBaseUrl.replaceAll("/+$", "") + "/" + token));
+      links.add(new RecipientRequestLink(invite.getName(), email, requestLink));
     }
     inviteRepository.saveAll(invites);
     return List.copyOf(links);

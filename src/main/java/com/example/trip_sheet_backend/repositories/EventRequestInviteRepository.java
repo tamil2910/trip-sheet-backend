@@ -9,5 +9,7 @@ import com.example.trip_sheet_backend.models.EventRequestInvite;
 
 public interface EventRequestInviteRepository extends BaseRepository<EventRequestInvite, UUID> {
   List<EventRequestInvite> findAllByEvent_IdAndRevokedAtIsNullAndIsDeletedFalse(UUID eventId);
+  List<EventRequestInvite> findAllByEvent_IdInAndRevokedAtIsNullAndConsumedAtIsNullAndIsDeletedFalse(
+      List<UUID> eventIds);
   Optional<EventRequestInvite> findByTokenHashAndIsDeletedFalse(String tokenHash);
 }

@@ -65,6 +65,9 @@ public class TransportEvent extends BaseModel {
   @Column(name = "public_request_token_hash", unique = true, length = 64)
   private String publicRequestTokenHash;
 
+  @Column(name = "public_request_link", length = 2048)
+  private String publicRequestLink;
+
   @Enumerated(EnumType.STRING)
   @Column(name = "request_audience", nullable = false, length = 32)
   private RequestAudience requestAudience = RequestAudience.ANYONE_WITH_LINK;
