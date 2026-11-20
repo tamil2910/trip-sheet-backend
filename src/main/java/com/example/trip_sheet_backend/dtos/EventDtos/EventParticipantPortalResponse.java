@@ -14,6 +14,7 @@ public record EventParticipantPortalResponse(
     String email,
     String phone,
     String gender,
+    List<String> transportTypes,
     List<EventRequestSubmissionResponse.ExtraPassenger> extraPassengers,
     String pickupAddress,
     Double pickupLatitude,
@@ -28,6 +29,7 @@ public record EventParticipantPortalResponse(
         trip.getId(), trip.getTripCode(), trip.getTripStatus() == null ? null : trip.getTripStatus().name(), trip.getPickupTime());
     return new EventParticipantPortalResponse(request.getId(), request.getEvent().getId(),
         request.getEvent().getName(), request.getName(), request.getEmail(), request.getPhone(), request.getGender(),
+        List.copyOf(request.getTransportTypes()),
         request.getExtraPassengers().stream().map(extra -> new EventRequestSubmissionResponse.ExtraPassenger(extra.getName(), extra.getGender(), extra.getRelationshipType())).toList(),
         request.getPickupAddress(), request.getPickupLatitude(), request.getPickupLongitude(),
         request.getNotes(), request.getStatus(), summary);

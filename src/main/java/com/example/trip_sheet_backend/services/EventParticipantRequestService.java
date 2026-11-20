@@ -85,6 +85,8 @@ public class EventParticipantRequestService {
     participantRequest.setEmail(email);
     participantRequest.setPhone(phone);
     participantRequest.setGender(trimToNull(body.getGender()));
+    participantRequest.getTransportTypes().addAll(
+        EventTransportTypeSelection.validateAndNormalize(event, body.getTransportTypes()));
     if (!event.isBringFamily() && body.getExtraPassengers() != null && !body.getExtraPassengers().isEmpty()) {
       throw new IllegalArgumentException("Family members are not allowed for this event");
     }
@@ -123,7 +125,7 @@ public class EventParticipantRequestService {
 
     boolean approved = saved.getStatus() == EventParticipantRequest.RequestStatus.APPROVED;
     return new EventRequestSubmissionResponse(saved.getId(), event.getId(), event.getName(), saved.getStatus(),
-        match.person() != null, saved.getGender(), saved.getExtraPassengers().stream().map(extra -> new EventRequestSubmissionResponse.ExtraPassenger(extra.getName(), extra.getGender(), extra.getRelationshipType())).toList(), approved
+        match.person() != null, saved.getGender(), List.copyOf(saved.getTransportTypes()), saved.getExtraPassengers().stream().map(extra -> new EventRequestSubmissionResponse.ExtraPassenger(extra.getName(), extra.getGender(), extra.getRelationshipType())).toList(), approved
             ? "Request submitted and approved. A temporary access link will be emailed."
             : "Request submitted and is waiting for admin approval");
   }

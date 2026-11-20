@@ -26,6 +26,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.TransportRequestCreateDTO;
@@ -458,7 +459,7 @@ public class TransportRequestController {
                 "Transport route groups analysed successfully", routeGroups));
     }
 
-    @PostMapping("/route-drafts/confirm")
+    @RequestMapping(value = "/route-drafts/confirm", method = { RequestMethod.POST, RequestMethod.PUT })
     @PreAuthorize("hasAuthority('CAN_UPDATE_TRANSPORTREQUEST')")
     public ResponseEntity<ApiResponse<List<TransportRequestRouteGroupDTO.RouteGroup>>> confirmRouteDrafts(
             @Valid @RequestBody TransportRouteDraftConfirmDTO body,

@@ -5,6 +5,7 @@ import java.util.UUID;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,6 +15,7 @@ import com.example.trip_sheet_backend.dtos.EventDtos.EventAccessOtpResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventAccessOtpVerificationRequest;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventAccessSessionResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventParticipantPortalResponse;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventParticipantTransportTypesUpdateRequest;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.EventParticipantAccessService;
 
@@ -44,6 +46,14 @@ public class EventParticipantAccessController {
   public ApiResponse<EventParticipantPortalResponse> me(
       @RequestHeader(value = "X-Event-Access-Token", required = false) String accessToken) {
     return new ApiResponse<>(true, "Event participant details fetched", accessService.getPortal(accessToken));
+  }
+
+  @PutMapping("/event-portal/me")
+  public ApiResponse<EventParticipantPortalResponse> updateTransportTypes(
+      @RequestHeader(value = "X-Event-Access-Token", required = false) String accessToken,
+      @Valid @RequestBody EventParticipantTransportTypesUpdateRequest body) {
+    return new ApiResponse<>(true, "Event participant transport types updated",
+        accessService.updateTransportTypes(accessToken, body));
   }
 
   @PostMapping("/event-portal/logout")

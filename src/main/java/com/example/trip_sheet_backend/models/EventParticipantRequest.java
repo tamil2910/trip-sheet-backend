@@ -10,6 +10,9 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.OneToMany;
 import java.util.ArrayList;
@@ -50,6 +53,13 @@ public class EventParticipantRequest extends BaseModel {
 
   @OneToMany(mappedBy = "participantRequest", cascade = CascadeType.ALL, orphanRemoval = true)
   private List<EventParticipantFamilyMember> extraPassengers = new ArrayList<>();
+
+  @ElementCollection
+  @CollectionTable(name = "transport_event_participant_transport_types",
+      joinColumns = @JoinColumn(name = "participant_request_id"))
+  @Column(name = "transport_type", nullable = false, length = 32)
+  @OrderColumn(name = "transport_type_order")
+  private List<String> transportTypes = new ArrayList<>();
 
   @Column(name = "pickup_address", length = 1000)
   private String pickupAddress;

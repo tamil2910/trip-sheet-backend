@@ -30,6 +30,9 @@ public class EventRequestSubmission {
   @Size(max = 32)
   private String gender;
 
+  @Size(max = 3)
+  private List<@NotBlank @Size(max = 32) String> transportTypes;
+
   @Valid
   @Size(max = 20)
   private List<ExtraPassenger> extraPassengers;

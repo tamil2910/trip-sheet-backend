@@ -7,6 +7,7 @@ import java.security.SecureRandom;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.List;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -22,6 +23,7 @@ import com.example.trip_sheet_backend.dtos.EventDtos.EventAccessOtpResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventAccessOtpVerificationRequest;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventAccessSessionResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventParticipantPortalResponse;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventParticipantTransportTypesUpdateRequest;
 import com.example.trip_sheet_backend.models.EventParticipantAccessGrant;
 import com.example.trip_sheet_backend.models.EventParticipantAccessSession;
 import com.example.trip_sheet_backend.models.EventParticipantOtpChallenge;
@@ -176,6 +178,23 @@ public class EventParticipantAccessService {
     EventParticipantRequest request = session.getAccessGrant().getParticipantRequest();
     return EventParticipantPortalResponse.from(requestRepository.findByIdAndEvent_IdAndIsDeletedFalse(
         request.getId(), request.getEvent().getId()).orElseThrow(() -> new IllegalArgumentException("Event request not found")));
+  }
+
+  @Transactional
+  public EventParticipantPortalResponse updateTransportTypes(String rawSessionToken,
+      EventParticipantTransportTypesUpdateRequest body) {
+    EventParticipantAccessSession session = findActiveSession(rawSessionToken);
+    EventParticipantRequest request = session.getAccessGrant().getParticipantRequest();
+    EventParticipantRequest managedRequest = requestRepository.findByIdAndEvent_IdAndIsDeletedFalse(
+        request.getId(), request.getEvent().getId())
+        .orElseThrow(() -> new IllegalArgumentException("Event request not found"));
+    List<String> selected = EventTransportTypeSelection.validateAndNormalize(
+        managedRequest.getEvent(), body.getTransportTypes());
+    managedRequest.getTransportTypes().clear();
+    managedRequest.getTransportTypes().addAll(selected);
+    managedRequest.setUpdatedBy("EVENT_PARTICIPANT");
+    requestRepository.save(managedRequest);
+    return EventParticipantPortalResponse.from(managedRequest);
   }
 
   @Transactional

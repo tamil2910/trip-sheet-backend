@@ -11,6 +11,7 @@ public record EventParticipantAdminResponse(
     String email,
     String phone,
     String gender,
+    List<String> transportTypes,
     List<EventRequestSubmissionResponse.ExtraPassenger> extraPassengers,
     String pickupAddress,
     Double pickupLatitude,
@@ -24,6 +25,7 @@ public record EventParticipantAdminResponse(
     String decisionReason) {
   public static EventParticipantAdminResponse from(EventParticipantRequest request) {
     return new EventParticipantAdminResponse(request.getId(), request.getName(), request.getEmail(), request.getPhone(), request.getGender(),
+        List.copyOf(request.getTransportTypes()),
         request.getExtraPassengers().stream().map(extra -> new EventRequestSubmissionResponse.ExtraPassenger(extra.getName(), extra.getGender(), extra.getRelationshipType())).toList(),
         request.getPickupAddress(), request.getPickupLatitude(), request.getPickupLongitude(), request.getNotes(),
         request.getStatus(), request.getMatchMethod(),

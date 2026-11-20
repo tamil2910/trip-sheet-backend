@@ -12,6 +12,7 @@ public record EventRequestSubmissionResponse(
     EventParticipantRequest.RequestStatus status,
     boolean matchedToPeopleTenant,
     String gender,
+    List<String> transportTypes,
     List<ExtraPassenger> extraPassengers,
     String message) {
   public record ExtraPassenger(String name, String gender, String relationshipType) { }
