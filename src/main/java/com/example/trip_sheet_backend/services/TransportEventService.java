@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Set;
+import java.util.Locale;
 import java.util.UUID;
 
 import org.slf4j.Logger;
@@ -48,6 +49,8 @@ import com.example.trip_sheet_backend.repositories.DutyTypeRepository;
 public class TransportEventService {
   private static final Logger log = LoggerFactory.getLogger(TransportEventService.class);
   private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+  private static final Set<String> EVENT_TRANSPORT_TYPES = Set.of(
+      "venue-to-residency", "residency-to-venue", "round-trip");
 
   private final TransportEventRepository eventRepository;
   private final EventRequestInviteRepository inviteRepository;
@@ -80,6 +83,7 @@ public class TransportEventService {
     TransportEvent event = new TransportEvent();
     applyEventFields(event, request);
     event.setTenant(tenant);
+    replaceTransportTypes(event, request.getTransportTypes());
     replaceVehicleTypeMappings(event, request.getVehicleTypeIds());
     event.setDutyTypes(resolveDutyTypes(request.getDutyTypeIds()));
     event.setCreatedBy(createdBy == null ? null : createdBy.toString());
@@ -113,6 +117,7 @@ public class TransportEventService {
     boolean expiryChanged = !event.getLinkValidUntil().equals(request.getLinkValidUntil());
 
     applyEventFields(event, request);
+    replaceTransportTypes(event, request.getTransportTypes());
     replaceVehicleTypeMappings(event, request.getVehicleTypeIds());
     event.setDutyTypes(resolveDutyTypes(request.getDutyTypeIds()));
     event.setUpdatedBy(updatedBy == null ? null : updatedBy.toString());
@@ -214,6 +219,24 @@ public class TransportEventService {
     if (!request.isBringFamily() && request.getAllowedExtraPassengers() > 0) {
       throw new IllegalArgumentException("Allowed extra passengers requires bringFamily to be enabled");
     }
+    if (request.getTransportTypes() != null) {
+      Set<String> requestedTypes = new HashSet<>();
+      for (String value : request.getTransportTypes()) {
+        if (value == null || !EVENT_TRANSPORT_TYPES.contains(value.trim().toLowerCase(Locale.ROOT))) {
+          throw new IllegalArgumentException("Transport types must be venue-to-residency, residency-to-venue, or round-trip");
+        }
+        if (!requestedTypes.add(value.trim().toLowerCase(Locale.ROOT))) {
+          throw new IllegalArgumentException("Duplicate transport types are not allowed");
+        }
+      }
+    }
+  }
+
+  private void replaceTransportTypes(TransportEvent event, List<String> transportTypes) {
+    List<String> normalized = transportTypes == null ? List.of()
+        : transportTypes.stream().map(value -> value.trim().toLowerCase(Locale.ROOT)).toList();
+    event.getTransportTypes().clear();
+    event.getTransportTypes().addAll(normalized);
   }
 
   private void validateRecipientsForAudience(EventCreateRequest request) {

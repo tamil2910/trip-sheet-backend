@@ -25,6 +25,7 @@ public record EventResponse(
     boolean hasPublicRequestLink,
     String requestLink,
     List<RecipientRequestLink> recipientLinks,
+    List<String> transportTypes,
     TransportEvent.EventStatus status,
     List<VehicleTypeOption> vehicleTypes,
     List<DutyTypeOption> dutyTypes) {
@@ -41,7 +42,7 @@ public record EventResponse(
     return new EventResponse(event.getId(), event.getName(), event.getVenue(), event.getCity(),
         event.getDescription(), event.isBringFamily(), event.getAllowedExtraPassengers(), event.getVenueLatitude(), event.getVenueLongitude(), event.getStartsAt(), event.getEndsAt(), event.getLinkValidUntil(),
         event.getRequestAudience(), event.getPublicRequestTokenHash() != null, event.getPublicRequestLink(),
-        recipientLinks, event.getStatus(), vehicleTypes, dutyTypes);
+        recipientLinks, List.copyOf(event.getTransportTypes()), event.getStatus(), vehicleTypes, dutyTypes);
   }
 
   public record VehicleTypeOption(UUID id, String name, VehicleType.typeVehicle type, Integer seatCount, int allowedPassenger) {

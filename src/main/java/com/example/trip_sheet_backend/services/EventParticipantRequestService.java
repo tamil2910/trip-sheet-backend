@@ -58,7 +58,7 @@ public class EventParticipantRequestService {
     String invitedName = context.invite() == null ? null : context.invite().getName();
     return new EventRequestLinkResponse(event.getId(), event.getName(), event.getVenue(), event.getCity(),
         event.getDescription(), event.isBringFamily(), event.getAllowedExtraPassengers(), event.getVenueLatitude(), event.getVenueLongitude(), event.getStartsAt(),
-        event.getEndsAt(), event.getLinkValidUntil(), invitedName,
+        event.getEndsAt(), event.getLinkValidUntil(), invitedName, List.copyOf(event.getTransportTypes()),
         event.getVehicleTypeMappings().stream()
             .map(mapping -> EventResponse.VehicleTypeOption.from(mapping.getVehicleType(), mapping.getAllowedPassenger())).toList(),
         event.getDutyTypes().stream().map(EventResponse.DutyTypeOption::from).toList());

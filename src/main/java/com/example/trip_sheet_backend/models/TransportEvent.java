@@ -15,7 +15,10 @@ import jakarta.persistence.ManyToMany;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.CascadeType;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Table;
+import jakarta.persistence.OrderColumn;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -67,6 +70,12 @@ public class TransportEvent extends BaseModel {
 
   @Column(name = "public_request_link", length = 2048)
   private String publicRequestLink;
+
+  @ElementCollection
+  @CollectionTable(name = "transport_event_transport_types", joinColumns = @JoinColumn(name = "event_id"))
+  @Column(name = "transport_type", nullable = false, length = 32)
+  @OrderColumn(name = "transport_type_order")
+  private List<String> transportTypes = new ArrayList<>();
 
   @Enumerated(EnumType.STRING)
   @Column(name = "request_audience", nullable = false, length = 32)

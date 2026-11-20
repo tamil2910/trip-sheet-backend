@@ -37,6 +37,7 @@ public class EventCreateRequest {
   private RequestAudience requestAudience;
   private List<@Valid EventVehicleTypeRequest> vehicleTypeIds;
   private List<UUID> dutyTypeIds;
+  private List<String> transportTypes;
   private List<@Valid EventRecipientRequest> recipients;
 }
 

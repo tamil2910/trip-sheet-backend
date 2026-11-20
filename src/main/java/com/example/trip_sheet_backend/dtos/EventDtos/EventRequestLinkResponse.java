@@ -17,5 +17,6 @@ public record EventRequestLinkResponse(
     Long endsAt,
     Long linkValidUntil,
     String invitedName,
+    List<String> transportTypes,
     List<EventResponse.VehicleTypeOption> vehicleTypes,
     List<EventResponse.DutyTypeOption> dutyTypes) { }
