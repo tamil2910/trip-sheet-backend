@@ -385,6 +385,38 @@ PREPARE trip_label_id_statement FROM @trip_label_id_sql;
 EXECUTE trip_label_id_statement;
 DEALLOCATE PREPARE trip_label_id_statement;
 
+SET @trip_share_to_partner_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'trips'
+    AND column_name = 'is_share_to_partner'
+);
+SET @trip_share_to_partner_sql := IF(
+  @trip_share_to_partner_exists = 0,
+  'ALTER TABLE trips ADD COLUMN is_share_to_partner BOOLEAN NOT NULL DEFAULT FALSE',
+  'SELECT 1'
+);
+PREPARE trip_share_to_partner_statement FROM @trip_share_to_partner_sql;
+EXECUTE trip_share_to_partner_statement;
+DEALLOCATE PREPARE trip_share_to_partner_statement;
+
+SET @trip_partner_response_status_exists := (
+  SELECT COUNT(*)
+  FROM information_schema.columns
+  WHERE table_schema = DATABASE()
+    AND table_name = 'trips'
+    AND column_name = 'partner_response_status'
+);
+SET @trip_partner_response_status_sql := IF(
+  @trip_partner_response_status_exists = 0,
+  'ALTER TABLE trips ADD COLUMN partner_response_status VARCHAR(20) NOT NULL DEFAULT ''NOT_SHARED''',
+  'SELECT 1'
+);
+PREPARE trip_partner_response_status_statement FROM @trip_partner_response_status_sql;
+EXECUTE trip_partner_response_status_statement;
+DEALLOCATE PREPARE trip_partner_response_status_statement;
+
 UPDATE trips trip
 JOIN trip_summaries summary ON summary.trip_id = trip.id
 SET trip.trip_summary_id = summary.id

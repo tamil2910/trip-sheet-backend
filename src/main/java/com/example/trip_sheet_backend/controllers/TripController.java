@@ -32,6 +32,7 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripDropRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.ManualTripExecuteRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripLabelAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerVendorAssignRequestDTO;
+import com.example.trip_sheet_backend.dtos.TripDtos.TripPartnerResponseRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripSupplierAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripOrganisationVendorAssignRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
@@ -652,6 +653,41 @@ public class TripController {
       return ResponseEntity.ok(new ApiResponse<>(true, "Trip assigned to partner vendor successfully", response));
     } catch (RuntimeException ex) {
       return ResponseEntity.status(400).body(new ApiResponse<>(false, ex.getMessage(), null));
+    }
+  }
+
+  @PreAuthorize("hasAuthority('CAN_READ_TRIP')")
+  @GetMapping("/shared-with-me")
+  public ResponseEntity<ApiResponse<List<TripResponseDTO>>> getPendingSharedTrips(HttpServletRequest request) {
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+    if (tenant == null || tenant.getTenantType() != Tenant.TenantType.VENDOR) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Only vendor tenants can view shared trips", null));
+    }
+    List<TripResponseDTO> trips = tripServiceImp.findPendingSharedTrips(tenantId).stream()
+        .map(trip -> mapTripForViewer(trip, request))
+        .toList();
+    return ResponseEntity.ok(new ApiResponse<>(true, "Pending shared trips fetched successfully", trips));
+  }
+
+  @PreAuthorize("hasAuthority('CAN_UPDATE_TRIP')")
+  @PutMapping("/shared-with-me/{tripId}/response")
+  public ResponseEntity<ApiResponse<TripResponseDTO>> respondToSharedTrip(
+      @PathVariable UUID tripId,
+      @Valid @RequestBody TripPartnerResponseRequestDTO payload,
+      HttpServletRequest request) {
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    UUID tenantId = (UUID) request.getAttribute("tenantId");
+    UUID updatedBy = (UUID) request.getAttribute("updatedBy");
+    if (tenant == null || tenant.getTenantType() != Tenant.TenantType.VENDOR) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, "Only vendor tenants can respond to shared trips", null));
+    }
+    try {
+      Trip trip = tripServiceImp.respondToSharedTrip(tenantId, tripId, payload.getAccepted(), updatedBy);
+      String message = Boolean.TRUE.equals(payload.getAccepted()) ? "Shared trip accepted" : "Shared trip declined";
+      return ResponseEntity.ok(new ApiResponse<>(true, message, mapTripForViewer(trip, request)));
+    } catch (RuntimeException ex) {
+      return ResponseEntity.badRequest().body(new ApiResponse<>(false, ex.getMessage(), null));
     }
   }
 

@@ -95,6 +95,13 @@ public class Trip extends BaseModel implements TenantScoped {
   @JoinColumn(name = "assigned_by_vendor_id")
   private Tenant assignedByVendor;
 
+  @Column(name = "is_share_to_partner", nullable = false)
+  private Boolean isShareToPartner = false;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "partner_response_status", nullable = false)
+  private PartnerResponseStatus partnerResponseStatus = PartnerResponseStatus.NOT_SHARED;
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "previous_vendor_id")
   private Tenant previousVendor;
@@ -175,6 +182,10 @@ public class Trip extends BaseModel implements TenantScoped {
     SINGLE,
     MULTI_DAY,
     RECURRING
+  }
+
+  public enum PartnerResponseStatus {
+    NOT_SHARED, PENDING, ACCEPTED, DECLINED
   }
 
   public enum TripCategory {

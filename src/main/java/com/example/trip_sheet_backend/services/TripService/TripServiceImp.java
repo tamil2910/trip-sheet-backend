@@ -680,6 +680,10 @@ public Trip assignTripToPartnerVendor(
   trip.setPreviousVendor(currentVendor);
   trip.setAssignedByVendor(currentVendor);
   trip.setVendor(partnerVendor);
+  trip.setIsShareToPartner(Boolean.TRUE.equals(payload.getIsShareToPartner()));
+  trip.setPartnerResponseStatus(Boolean.TRUE.equals(payload.getIsShareToPartner())
+      ? Trip.PartnerResponseStatus.PENDING
+      : Trip.PartnerResponseStatus.NOT_SHARED);
   trip.setTripStatus(Trip.TripStatus.REQUESTING);
   if (updatedBy != null) {
     trip.setUpdatedBy(updatedBy.toString());
@@ -699,6 +703,33 @@ public Trip assignTripToPartnerVendor(
   vendorDelegationHistoryRepository.save(history);
   tripRealtimePublisher.publishUpdated(savedTrip);
 
+  return savedTrip;
+}
+
+public List<Trip> findPendingSharedTrips(UUID partnerVendorId) {
+  return repository.findByVendor_IdAndAssignedByVendor_IdIsNotNullAndIsShareToPartnerTrueAndPartnerResponseStatusAndIsDeletedFalseOrderByPickupTimeAsc(
+      partnerVendorId, Trip.PartnerResponseStatus.PENDING);
+}
+
+@Transactional(rollbackFor = Exception.class)
+public Trip respondToSharedTrip(UUID partnerVendorId, UUID tripId, boolean accepted, UUID updatedBy) {
+  Trip trip = repository.findById(tripId)
+      .orElseThrow(() -> new RuntimeException("Trip not found"));
+  if (trip.getVendor() == null || !partnerVendorId.equals(trip.getVendor().getId())
+      || trip.getAssignedByVendor() == null || !Boolean.TRUE.equals(trip.getIsShareToPartner())) {
+    throw new RuntimeException("Shared trip not found for this partner vendor");
+  }
+  if (trip.getPartnerResponseStatus() != Trip.PartnerResponseStatus.PENDING) {
+    throw new RuntimeException("This shared trip has already been answered");
+  }
+  trip.setPartnerResponseStatus(accepted
+      ? Trip.PartnerResponseStatus.ACCEPTED
+      : Trip.PartnerResponseStatus.DECLINED);
+  if (updatedBy != null) {
+    trip.setUpdatedBy(updatedBy.toString());
+  }
+  Trip savedTrip = repository.save(trip);
+  tripRealtimePublisher.publishUpdated(savedTrip);
   return savedTrip;
 }
 
@@ -898,7 +929,17 @@ public Page<Trip> searchResourcesWithGlobalSearch(UUID tenantId, Map<String, Obj
         tenantVisibilityPredicates.add(cb.equal(root.join("organisation", JoinType.LEFT).get("id"), tenantId));
       } catch (Exception ignored) {}
       try {
-        tenantVisibilityPredicates.add(cb.equal(root.join("vendor", JoinType.LEFT).get("id"), tenantId));
+        Join<Object, Object> vendorJoin = root.join("vendor", JoinType.LEFT);
+        Join<Object, Object> assignedByVendorJoin = root.join("assignedByVendor", JoinType.LEFT);
+        Predicate originalVendorAssignment = cb.or(
+            cb.isNull(assignedByVendorJoin.get("id")),
+            cb.equal(assignedByVendorJoin.get("id"), tenantId));
+        Predicate explicitlySharedWithPartner = cb.and(
+            cb.isTrue(root.get("isShareToPartner")),
+            cb.equal(root.get("partnerResponseStatus"), Trip.PartnerResponseStatus.ACCEPTED));
+        tenantVisibilityPredicates.add(cb.and(
+            cb.equal(vendorJoin.get("id"), tenantId),
+            cb.or(originalVendorAssignment, explicitlySharedWithPartner)));
       } catch (Exception ignored) {}
       try {
         tenantVisibilityPredicates.add(cb.equal(root.join("assignedByVendor", JoinType.LEFT).get("id"), tenantId));
@@ -1800,6 +1841,8 @@ private void syncTripFromTemplate(Trip target, Trip template, long occurrenceEpo
   target.setVendor(template.getVendor());
   target.setClientVendor(template.getClientVendor());
   target.setAssignedByVendor(template.getAssignedByVendor());
+  target.setIsShareToPartner(template.getIsShareToPartner());
+  target.setPartnerResponseStatus(template.getPartnerResponseStatus());
   target.setPreviousVendor(template.getPreviousVendor());
   target.setNotes(template.getNotes());
   target.setDriver(template.getDriver());
@@ -1903,6 +1946,8 @@ private Trip cloneTripTemplate(Trip source) {
   clone.setVendor(source.getVendor());
   clone.setClientVendor(source.getClientVendor());
   clone.setAssignedByVendor(source.getAssignedByVendor());
+  clone.setIsShareToPartner(source.getIsShareToPartner());
+  clone.setPartnerResponseStatus(source.getPartnerResponseStatus());
   clone.setPreviousVendor(source.getPreviousVendor());
   clone.setNotes(source.getNotes());
   clone.setDriver(source.getDriver());

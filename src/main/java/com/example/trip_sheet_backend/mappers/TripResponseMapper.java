@@ -64,6 +64,8 @@ public final class TripResponseMapper {
             dto.setLabelId(trip.getLabelId().toString());
         }
         dto.setTripStatus(trip.getTripStatus());
+        dto.setIsShareToPartner(trip.getIsShareToPartner());
+        dto.setPartnerResponseStatus(trip.getPartnerResponseStatus());
         dto.setTripType(trip.getTripType());
         dto.setTripCategory(trip.getTripCategory());
         dto.setRecurrenceInterval(trip.getRecurrenceInterval());

@@ -10,4 +10,6 @@ public class TripPartnerVendorAssignRequestDTO {
 
   @NotBlank(message = "partnerVendorId is required")
   private String partnerVendorId;
+
+  private Boolean isShareToPartner = false;
 }
