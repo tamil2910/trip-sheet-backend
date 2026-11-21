@@ -40,13 +40,21 @@ public class TransportRequestRouteGroupDTO {
         private Long expiresAt;
         private Long validFrom;
         private Long validTo;
+        private Double totalRouteKm;
+        private RouteLengthCategory routeLengthCategory;
 
         public RouteGroup(UUID routeId, TransportRoute.RouteDirection routeDirection,
                 TransportRoute.RouteStatus routeStatus, UUID vehicleTypeId, Integer allowedPassenger,
                 String direction, String pickupAddress, String dropoffAddress,
                 List<TransportRequestShiftItemDTO> requests) {
             this(routeId, routeDirection, routeStatus, vehicleTypeId, allowedPassenger,
-                    direction, pickupAddress, dropoffAddress, requests, null, null, null, null, null);
+                    direction, pickupAddress, dropoffAddress, requests, null, null, null, null, null, null, null);
         }
+    }
+
+    public enum RouteLengthCategory {
+        SHORTEST,
+        MEDIUM,
+        LONGEST
     }
 }

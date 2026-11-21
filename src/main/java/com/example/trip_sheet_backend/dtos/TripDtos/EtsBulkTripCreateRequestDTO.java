@@ -21,6 +21,9 @@ public class EtsBulkTripCreateRequestDTO {
     /** Default organisation for vendor-created trip items that omit their own organisationId. */
     private String organisationId;
 
+    /** Default city for trip items that do not specify their own city. */
+    private String city;
+
     @Valid
     @NotEmpty(message = "At least one ETS trip is required")
     private List<EtsTripCreateRequestDTO> trips;

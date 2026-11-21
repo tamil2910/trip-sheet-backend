@@ -448,12 +448,21 @@ public class TransportRequestController {
             TransportRequest routeAnchor = routeRequests.get(0);
             TransportRouteDraftCreateDTO.VehicleTypeCapacity selectedVehicle = selectVehicleType(
                     routeRequests.size(), vehicleOptions);
+            RouteDraftAnalysis routeAnalysis = toRouteDraftItems(routeRequests, routeDirection);
             routeGroups.add(new TransportRequestRouteGroupDTO.RouteGroup(null, routeDirection,
                     TransportRoute.RouteStatus.DRAFT,
                     selectedVehicle.getId(), selectedVehicle.getAllowedPassenger(),
                     routeAnchor.getPickupAddress() + " -> " + routeAnchor.getDropoffAddress(),
                     routeAnchor.getPickupAddress(), routeAnchor.getDropoffAddress(),
-                    toRouteDraftItems(routeRequests, routeDirection)));
+                    routeAnalysis.requests()));
+            TransportRequestRouteGroupDTO.RouteGroup group = routeGroups.getLast();
+            double totalRouteKm = routeAnalysis.totalRouteKm();
+            group.setTotalRouteKm(Math.round(totalRouteKm * 100.0) / 100.0);
+            group.setRouteLengthCategory(totalRouteKm <= 20.0
+                    ? TransportRequestRouteGroupDTO.RouteLengthCategory.SHORTEST
+                    : totalRouteKm <= 30.0
+                            ? TransportRequestRouteGroupDTO.RouteLengthCategory.MEDIUM
+                            : TransportRequestRouteGroupDTO.RouteLengthCategory.LONGEST);
         }
         return ResponseEntity.ok(new ApiResponse<>(true,
                 "Transport route groups analysed successfully", routeGroups));
@@ -578,7 +587,7 @@ public class TransportRequestController {
         return TransportRoute.RouteDirection.UNKNOWN;
     }
 
-    private List<com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO> toRouteDraftItems(
+    private RouteDraftAnalysis toRouteDraftItems(
             List<TransportRequest> routeRequests,
             TransportRoute.RouteDirection direction) {
         TransportRequest anchor = routeRequests.get(0);
@@ -617,10 +626,19 @@ public class TransportRequestController {
             }
         }
 
-        return orderedRequests.stream()
+        List<com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO> items = orderedRequests.stream()
                 .map(request -> com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO.fromEntity(
                         request, projectedPickupTimes.get(request.getId())))
                 .toList();
+        double totalRouteKm = routePlan.legs().stream()
+                .mapToDouble(PassengerRouteEstimateService.RouteLeg::distanceKm)
+                .sum();
+        return new RouteDraftAnalysis(items, totalRouteKm);
+    }
+
+    private record RouteDraftAnalysis(
+            List<com.example.trip_sheet_backend.dtos.TransportRequestShiftItemDTO> requests,
+            double totalRouteKm) {
     }
 
     private boolean addressMatches(String address, String office) {

@@ -109,11 +109,10 @@ public class EtsTripRequestValidator {
     }
 
     private boolean isActiveVendorOrganisation(VendorOrganisation link) {
+        // ETS trip creation only requires an existing, non-deleted relationship.
+        // Contract/approval state is enforced later by billing, not trip creation.
         return link != null
                 && !Boolean.TRUE.equals(link.getIsDeleted())
-                && !Boolean.FALSE.equals(link.getActive())
-                && (link.getContractStatus() == null
-                        || link.getContractStatus() == VendorOrganisation.ContractStatus.ACTIVE)
                 && link.getVendor() != null
                 && link.getOrganisation() != null;
     }
