@@ -31,7 +31,7 @@ public class MyClientDetailsDTO {
     return new MyClientDetailsDTO(
         link.getId(), null,
         link.getContractStatus() == null ? null : link.getContractStatus().name(),
-        "ORGANISATION", link.getOrganisation(), null);
+        "ORGANISATION", link.getOrganisation(), null, null);
   }
 
   public static MyClientDetailsDTO fromAssociateCustomer(VendorPartner link) {
