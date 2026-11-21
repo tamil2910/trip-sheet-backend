@@ -6,6 +6,7 @@ import java.util.Optional;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,6 +23,7 @@ import com.example.trip_sheet_backend.models.Tax;
 import com.example.trip_sheet_backend.models.UserAccount;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.models.VendorPartner;
+import com.example.trip_sheet_backend.models.VendorPartner.ServiceCategory;
 import com.example.trip_sheet_backend.repositories.RoleGroupRepository;
 import com.example.trip_sheet_backend.repositories.RoleRepository;
 import com.example.trip_sheet_backend.repositories.TenantRepository;
@@ -113,6 +115,15 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
   @Transactional(rollbackFor = Exception.class)
   public TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode,
           List<UUID> taxIds, Boolean isActive, Boolean isAssociateSupplier, Boolean isAssociateCustomer, UUID createdBy) {
+          return linkExistingTenantByUniqueCode(loggedInTenant, tenantUniqueCode, taxIds, isActive,
+                  isAssociateSupplier, isAssociateCustomer, null, createdBy);
+  }
+
+  @Override
+  @Transactional(rollbackFor = Exception.class)
+  public TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode,
+          List<UUID> taxIds, Boolean isActive, Boolean isAssociateSupplier, Boolean isAssociateCustomer,
+          Set<ServiceCategory> serviceCategories, UUID createdBy) {
           validateVendorTenant(loggedInTenant);
 
           Tenant targetTenant = findByUniqueCode(tenantUniqueCode);
@@ -128,7 +139,9 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
                   if (existingPartner.isPresent()) {
                           VendorPartner partner = existingPartner.get();
                           applyAssociateFlags(partner, isActive, isAssociateSupplier, isAssociateCustomer);
-                          if (isActive != null || isAssociateSupplier != null || isAssociateCustomer != null) {
+                          applyServiceCategories(partner, serviceCategories);
+                          if (isActive != null || isAssociateSupplier != null || isAssociateCustomer != null
+                                  || serviceCategories != null) {
                                   partner = vendorPartnerRepository.save(partner);
                           }
                           return partnerLinkResponse(partner, true);
@@ -139,6 +152,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
                   partner.setPartnerVendor(targetTenant);
                   partner.setContractStatus(null);
                   applyAssociateFlags(partner, isActive, isAssociateSupplier, isAssociateCustomer);
+                  applyServiceCategories(partner, serviceCategories);
                   partner.setOnboardedAt(Instant.now().getEpochSecond());
                   partner.setCreatedBy(createdBy != null ? createdBy.toString() : null);
 
@@ -148,6 +162,9 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
 
           if (isActive != null || isAssociateSupplier != null || isAssociateCustomer != null) {
                   throw new RuntimeException("Partner active/associate settings can only be used when linking a vendor");
+          }
+          if (serviceCategories != null) {
+                  throw new RuntimeException("serviceCategories can only be used when linking a vendor");
           }
 
           Optional<VendorOrganisation> existingOrganisation = vendorOrganisationRepository
@@ -195,6 +212,20 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
           Boolean isAssociateSupplier,
           Boolean isAssociateCustomer
   ) {
+      return createOrGetPartnerVendor(requestTenant, primaryVendor, createdBy, isActive,
+              isAssociateSupplier, isAssociateCustomer, null);
+  }
+
+  @Transactional(rollbackFor = Exception.class)
+  public TenantOnboardingResult createOrGetPartnerVendor(
+          Tenant requestTenant,
+          Tenant primaryVendor,
+          UUID createdBy,
+          Boolean isActive,
+          Boolean isAssociateSupplier,
+          Boolean isAssociateCustomer,
+          Set<ServiceCategory> serviceCategories
+  ) {
 
           boolean newlyCreated = false;
           boolean onboardingUserCreated = false;
@@ -235,6 +266,7 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
           partner.setCreatedBy(createdBy == null ? null : createdBy.toString());
       }
       applyAssociateFlags(partner, isActive, isAssociateSupplier, isAssociateCustomer);
+      applyServiceCategories(partner, serviceCategories);
       partner = vendorPartnerRepository.save(partner);
 
                   return new TenantOnboardingResult(
@@ -391,6 +423,17 @@ public class TenantServiceImp extends GlobalBaseServiceImp<Tenant, UUID> impleme
     }
     if (isAssociateCustomer != null) {
       partner.setIsAssociateCustomer(isAssociateCustomer);
+    }
+  }
+
+  private void applyServiceCategories(VendorPartner partner, Set<ServiceCategory> serviceCategories) {
+    if (serviceCategories != null) {
+      partner.setServiceCategories(serviceCategories.isEmpty()
+          ? new java.util.LinkedHashSet<>(Set.of(ServiceCategory.RAC, ServiceCategory.ETS, ServiceCategory.EVENTS))
+          : new java.util.LinkedHashSet<>(serviceCategories));
+    } else if (partner.getServiceCategories() == null || partner.getServiceCategories().isEmpty()) {
+      partner.setServiceCategories(new java.util.LinkedHashSet<>(Set.of(
+          ServiceCategory.RAC, ServiceCategory.ETS, ServiceCategory.EVENTS)));
     }
   }
 

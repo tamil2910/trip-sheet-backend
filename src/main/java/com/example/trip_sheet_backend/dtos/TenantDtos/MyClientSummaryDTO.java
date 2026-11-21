@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.dtos.TenantDtos;
 
 import java.util.UUID;
+import java.util.Set;
 
 import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.models.VendorPartner;
@@ -23,6 +24,7 @@ public class MyClientSummaryDTO {
   private String type;
   private UUID id;
   private String tenantName;
+  private Set<VendorPartner.ServiceCategory> serviceCategories;
 
   public static MyClientSummaryDTO fromEntity(VendorOrganisation vendorOrganisation) {
     MyClientSummaryDTO dto = new MyClientSummaryDTO();
@@ -40,6 +42,7 @@ public class MyClientSummaryDTO {
     MyClientSummaryDTO dto = new MyClientSummaryDTO();
     dto.setVendorPartnerId(vendorPartner.getId());
     dto.setType("ASSOCIATE_CUSTOMER");
+    dto.setServiceCategories(vendorPartner.getServiceCategories());
     if (vendorPartner.getPartnerVendor() != null) {
       dto.setId(vendorPartner.getPartnerVendor().getId());
       dto.setTenantName(vendorPartner.getPartnerVendor().getTenantName());

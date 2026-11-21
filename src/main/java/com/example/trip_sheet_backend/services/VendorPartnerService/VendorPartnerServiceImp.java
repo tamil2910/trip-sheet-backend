@@ -5,6 +5,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.Locale;
+import java.util.Set;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -48,9 +49,10 @@ public class VendorPartnerServiceImp implements VendorPartnerService {
       if (body.getAddress() != null) partnerTenant.setAddress(body.getAddress());
       if (body.getType() != null) applyType(vendorPartner, body.getType());
     }
-    if (body.getIsActive() != null || body.getIsAssociateSupplier() != null || body.getIsAssociateCustomer() != null) {
+    if (body.getIsActive() != null || body.getIsAssociateSupplier() != null || body.getIsAssociateCustomer() != null
+        || body.getServiceCategories() != null) {
       if (!loggedInTenant.getId().equals(vendorPartner.getPrimaryVendor().getId())) {
-        throw new RuntimeException("Only the primary vendor can change partner active/associate settings");
+        throw new RuntimeException("Only the primary vendor can change partner active/associate settings and service categories");
       }
       if (body.getIsActive() != null) {
         vendorPartner.setIsActive(body.getIsActive());
@@ -64,6 +66,15 @@ public class VendorPartnerServiceImp implements VendorPartnerService {
     }
     if (body.getTaxIds() != null) {
       vendorPartner.setTaxList(resolveTaxes(body.getTaxIds()));
+    }
+    if (body.getServiceCategories() != null) {
+      vendorPartner.setServiceCategories(body.getServiceCategories().isEmpty()
+          ? new LinkedHashSet<>(Set.of(VendorPartner.ServiceCategory.RAC,
+              VendorPartner.ServiceCategory.ETS, VendorPartner.ServiceCategory.EVENTS))
+          : new LinkedHashSet<>(body.getServiceCategories()));
+    } else if (vendorPartner.getServiceCategories() == null || vendorPartner.getServiceCategories().isEmpty()) {
+      vendorPartner.setServiceCategories(new LinkedHashSet<>(Set.of(VendorPartner.ServiceCategory.RAC,
+          VendorPartner.ServiceCategory.ETS, VendorPartner.ServiceCategory.EVENTS)));
     }
     if (updatedBy != null) {
       vendorPartner.setUpdatedBy(updatedBy.toString());

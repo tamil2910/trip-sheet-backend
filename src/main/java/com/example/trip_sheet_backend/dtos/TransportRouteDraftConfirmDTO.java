@@ -43,6 +43,8 @@ public class TransportRouteDraftConfirmDTO {
         private String direction;
         private String pickupAddress;
         private String dropoffAddress;
+        /** Optional selected vendor. Omit to save this draft without assigning a vendor. */
+        private UUID vendorId;
         @Valid
         @NotEmpty
         private List<TransportRequestShiftItemDTO> requests;

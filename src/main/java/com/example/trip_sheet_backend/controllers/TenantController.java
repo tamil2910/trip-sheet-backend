@@ -245,7 +245,8 @@ public ResponseEntity<ApiResponse<Tenant>> createPartnerTenant(
             createdBy,
             body.getIsActive(),
             body.getIsAssociateSupplier(),
-            body.getIsAssociateCustomer()
+            body.getIsAssociateCustomer(),
+            body.getServiceCategories()
     );
 
     String message;
@@ -334,6 +335,7 @@ public ResponseEntity<ApiResponse<TenantLinkResponseDto>> addTenantByUniqueCode(
             body.getIsActive(),
             body.getIsAssociateSupplier(),
             body.getIsAssociateCustomer(),
+            body.getServiceCategories(),
             createdBy
     );
 

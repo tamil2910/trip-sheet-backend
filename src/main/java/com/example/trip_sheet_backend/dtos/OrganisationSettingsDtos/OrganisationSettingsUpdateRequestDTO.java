@@ -1,5 +1,7 @@
 package com.example.trip_sheet_backend.dtos.OrganisationSettingsDtos;
 
+import java.util.List;
+
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Getter;
@@ -23,4 +25,8 @@ public class OrganisationSettingsUpdateRequestDTO {
 
   @NotNull(message = "autoAllotEnabled is required")
   private Boolean autoAllotEnabled;
+
+  private Boolean autoEtsTripAssignmentEnabled;
+
+  private List<@jakarta.validation.Valid OrganisationVendorAllocationRequestDTO> etsVendorAllocations;
 }

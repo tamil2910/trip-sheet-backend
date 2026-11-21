@@ -34,6 +34,10 @@ public class TransportRouteDraft extends BaseModel {
     @JoinColumn(name = "shift_id", nullable = false)
     private Shift shift;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "vendor_id")
+    private Tenant assignedVendor;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "route_direction", nullable = false)
     private TransportRoute.RouteDirection routeDirection;
@@ -68,6 +72,12 @@ public class TransportRouteDraft extends BaseModel {
 
     @Column(name = "valid_to")
     private Long validTo;
+
+    @Column(name = "total_route_km")
+    private Double totalRouteKm;
+
+    @Column(name = "route_length_category", length = 16)
+    private String routeLengthCategory;
 
     public enum DraftStatus {
         ACTIVE,

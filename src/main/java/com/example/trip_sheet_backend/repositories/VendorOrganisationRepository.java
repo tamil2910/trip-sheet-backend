@@ -35,5 +35,7 @@ public interface VendorOrganisationRepository extends BaseRepository<VendorOrgan
   Optional<VendorOrganisation> findByVendorAndOrganisation_Id(Tenant vendor, UUID organisationId);
 
   Optional<VendorOrganisation> findByOrganisationAndVendor_Id(Tenant organisation, UUID vendorId);
+
+  Optional<VendorOrganisation> findByIdAndOrganisation_Id(UUID id, UUID organisationId);
   
 }

@@ -10,6 +10,10 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+import jakarta.persistence.OneToMany;
+import jakarta.persistence.CascadeType;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -44,6 +48,13 @@ public class OrganisationSettings extends BaseModel implements TenantScoped {
 
   @Column(nullable = false)
   private Boolean autoAllotEnabled = false;
+
+  @Column(nullable = false)
+  private Boolean autoEtsTripAssignmentEnabled = false;
+
+  @OneToMany(mappedBy = "organisationSettings", cascade = CascadeType.ALL, orphanRemoval = true,
+      fetch = FetchType.EAGER)
+  private List<OrganisationVendorAllocation> etsVendorAllocations = new ArrayList<>();
 
   @Override
   public Tenant getTenant() {

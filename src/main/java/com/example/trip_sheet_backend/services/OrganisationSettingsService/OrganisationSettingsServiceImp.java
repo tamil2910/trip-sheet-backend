@@ -2,23 +2,32 @@ package com.example.trip_sheet_backend.services.OrganisationSettingsService;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.math.BigDecimal;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.example.trip_sheet_backend.dtos.OrganisationSettingsDtos.OrganisationSettingsCreateRequestDTO;
 import com.example.trip_sheet_backend.dtos.OrganisationSettingsDtos.OrganisationSettingsUpdateRequestDTO;
+import com.example.trip_sheet_backend.dtos.OrganisationSettingsDtos.OrganisationVendorAllocationRequestDTO;
+import com.example.trip_sheet_backend.models.OrganisationVendorAllocation;
 import com.example.trip_sheet_backend.models.OrganisationSettings;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.repositories.OrganisationSettingsRepository;
+import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 
 @Service
 public class OrganisationSettingsServiceImp implements OrganisationSettingsService {
 
   private final OrganisationSettingsRepository organisationSettingsRepository;
+  private final VendorOrganisationRepository vendorOrganisationRepository;
 
-  public OrganisationSettingsServiceImp(OrganisationSettingsRepository organisationSettingsRepository) {
+  public OrganisationSettingsServiceImp(OrganisationSettingsRepository organisationSettingsRepository,
+      VendorOrganisationRepository vendorOrganisationRepository) {
     this.organisationSettingsRepository = organisationSettingsRepository;
+    this.vendorOrganisationRepository = vendorOrganisationRepository;
   }
 
   @Override
@@ -33,7 +42,9 @@ public class OrganisationSettingsServiceImp implements OrganisationSettingsServi
     OrganisationSettings settings = new OrganisationSettings();
     settings.setTenant(tokenTenant);
     applySettingsFields(settings, body.getAutoPoGenerationEnabled(), body.getAllowChildBookingAttachOnClosedTrip(),
-        body.getEmployeeKmRestrictionEnabled(), body.getEmployeeBookingKmLimit(), body.getAutoAllotEnabled());
+        body.getEmployeeKmRestrictionEnabled(), body.getEmployeeBookingKmLimit(), body.getAutoAllotEnabled(),
+        body.getAutoEtsTripAssignmentEnabled());
+    applyEtsVendorAllocations(settings, body.getEtsVendorAllocations(), tokenTenant);
 
     if (createdBy != null) {
       settings.setCreatedBy(createdBy.toString());
@@ -76,7 +87,9 @@ public class OrganisationSettingsServiceImp implements OrganisationSettingsServi
         .orElseThrow(() -> new RuntimeException("Organisation settings not found"));
 
     applySettingsFields(existingSettings, body.getAutoPoGenerationEnabled(), body.getAllowChildBookingAttachOnClosedTrip(),
-        body.getEmployeeKmRestrictionEnabled(), body.getEmployeeBookingKmLimit(), body.getAutoAllotEnabled());
+        body.getEmployeeKmRestrictionEnabled(), body.getEmployeeBookingKmLimit(), body.getAutoAllotEnabled(),
+        body.getAutoEtsTripAssignmentEnabled());
+    applyEtsVendorAllocations(existingSettings, body.getEtsVendorAllocations(), tokenTenant);
 
     if (updatedBy != null) {
       existingSettings.setUpdatedBy(updatedBy.toString());
@@ -110,7 +123,8 @@ public class OrganisationSettingsServiceImp implements OrganisationSettingsServi
       Boolean allowChildBookingAttachOnClosedTrip,
       Boolean employeeKmRestrictionEnabled,
       Integer employeeBookingKmLimit,
-      Boolean autoAllotEnabled
+      Boolean autoAllotEnabled,
+      Boolean autoEtsTripAssignmentEnabled
   ) {
     if (Boolean.TRUE.equals(employeeKmRestrictionEnabled) && employeeBookingKmLimit == null) {
       throw new RuntimeException("employeeBookingKmLimit is required when employeeKmRestrictionEnabled is true");
@@ -125,6 +139,48 @@ public class OrganisationSettingsServiceImp implements OrganisationSettingsServi
     settings.setEmployeeKmRestrictionEnabled(employeeKmRestrictionEnabled);
     settings.setEmployeeBookingKmLimit(Boolean.TRUE.equals(employeeKmRestrictionEnabled) ? employeeBookingKmLimit : null);
     settings.setAutoAllotEnabled(autoAllotEnabled);
+    if (autoEtsTripAssignmentEnabled != null) {
+      settings.setAutoEtsTripAssignmentEnabled(autoEtsTripAssignmentEnabled);
+    }
+  }
+
+  private void applyEtsVendorAllocations(OrganisationSettings settings,
+      List<OrganisationVendorAllocationRequestDTO> requestedAllocations, Tenant organisation) {
+    if (requestedAllocations == null) return;
+    if (settings.getEtsVendorAllocations() == null) settings.setEtsVendorAllocations(new ArrayList<>());
+    settings.getEtsVendorAllocations().clear();
+
+    if (!requestedAllocations.isEmpty()) {
+      HashSet<UUID> seen = new HashSet<>();
+      BigDecimal total = BigDecimal.ZERO;
+      for (OrganisationVendorAllocationRequestDTO requested : requestedAllocations) {
+        if (requested == null || requested.getVendorOrganisationId() == null
+            || requested.getAllocationPercentage() == null) {
+          throw new IllegalArgumentException("Each ETS allocation requires vendorOrganisationId and allocationPercentage");
+        }
+        if (!seen.add(requested.getVendorOrganisationId())) {
+          throw new IllegalArgumentException("A vendor organisation can appear only once in ETS allocations");
+        }
+        if (requested.getAllocationPercentage().compareTo(BigDecimal.ZERO) < 0
+            || requested.getAllocationPercentage().compareTo(new BigDecimal("100.00")) > 0) {
+          throw new IllegalArgumentException("allocationPercentage must be between 0 and 100");
+        }
+        var link = vendorOrganisationRepository
+            .findByIdAndOrganisation_Id(requested.getVendorOrganisationId(), organisation.getId())
+            .filter(value -> !Boolean.TRUE.equals(value.getIsDeleted()))
+            .orElseThrow(() -> new IllegalArgumentException(
+                "Vendor organisation link is not available to this organisation: " + requested.getVendorOrganisationId()));
+        OrganisationVendorAllocation allocation = new OrganisationVendorAllocation();
+        allocation.setOrganisationSettings(settings);
+        allocation.setVendorOrganisation(link);
+        allocation.setAllocationPercentage(requested.getAllocationPercentage());
+        settings.getEtsVendorAllocations().add(allocation);
+        total = total.add(requested.getAllocationPercentage());
+      }
+      if (total.compareTo(new BigDecimal("100.00")) != 0) {
+        throw new IllegalArgumentException("ETS vendor allocation percentages must total exactly 100");
+      }
+    }
   }
 
   private void validateOrganisationTenant(Tenant tokenTenant) {

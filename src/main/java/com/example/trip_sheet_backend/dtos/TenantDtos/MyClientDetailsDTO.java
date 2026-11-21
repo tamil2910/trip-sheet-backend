@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.dtos.TenantDtos;
 
 import java.util.UUID;
+import java.util.Set;
 
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.VendorOrganisation;
@@ -24,6 +25,7 @@ public class MyClientDetailsDTO {
   private String type;
   private Tenant organisation;
   private Tenant associateCustomer;
+  private Set<VendorPartner.ServiceCategory> serviceCategories;
 
   public static MyClientDetailsDTO fromOrganisation(VendorOrganisation link) {
     return new MyClientDetailsDTO(
@@ -36,6 +38,6 @@ public class MyClientDetailsDTO {
     return new MyClientDetailsDTO(
         null, link.getId(),
         link.getContractStatus() == null ? null : link.getContractStatus().name(),
-        "ASSOCIATE_CUSTOMER", null, link.getPartnerVendor());
+        "ASSOCIATE_CUSTOMER", null, link.getPartnerVendor(), link.getServiceCategories());
   }
 }

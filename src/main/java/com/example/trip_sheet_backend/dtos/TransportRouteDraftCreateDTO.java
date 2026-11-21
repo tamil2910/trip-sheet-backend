@@ -23,6 +23,9 @@ public class TransportRouteDraftCreateDTO {
     /** Optional explicit direction; if omitted it is inferred from the request shift. */
     private TransportRoute.RouteDirection routeDirection;
 
+    /** Set true to include vendor suggestions in analyzed route groups. Defaults to false. */
+    private Boolean suggestVendor = false;
+
     /** Optional when all selected requests already belong to the same shift. */
     private UUID shiftId;
 

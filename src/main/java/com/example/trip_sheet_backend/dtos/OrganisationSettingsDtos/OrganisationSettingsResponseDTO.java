@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.dtos.OrganisationSettingsDtos;
 
 import java.util.UUID;
+import java.util.List;
 
 import com.example.trip_sheet_backend.models.OrganisationSettings;
 
@@ -18,6 +19,8 @@ public class OrganisationSettingsResponseDTO {
   private Boolean employeeKmRestrictionEnabled;
   private Integer employeeBookingKmLimit;
   private Boolean autoAllotEnabled;
+  private Boolean autoEtsTripAssignmentEnabled;
+  private List<OrganisationVendorAllocationResponseDTO> etsVendorAllocations;
 
   public static OrganisationSettingsResponseDTO fromEntity(OrganisationSettings entity) {
     return new OrganisationSettingsResponseDTO(
@@ -28,7 +31,11 @@ public class OrganisationSettingsResponseDTO {
         entity.getAllowChildBookingAttachOnClosedTrip(),
         entity.getEmployeeKmRestrictionEnabled(),
         entity.getEmployeeBookingKmLimit(),
-        entity.getAutoAllotEnabled()
+        entity.getAutoAllotEnabled(),
+        entity.getAutoEtsTripAssignmentEnabled(),
+        entity.getEtsVendorAllocations() == null ? List.of() : entity.getEtsVendorAllocations().stream()
+            .filter(allocation -> !Boolean.TRUE.equals(allocation.getIsDeleted()))
+            .map(OrganisationVendorAllocationResponseDTO::fromEntity).toList()
     );
   }
 }

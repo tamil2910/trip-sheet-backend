@@ -16,8 +16,12 @@ import com.example.trip_sheet_backend.models.Shift;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.TransportRequest;
 import com.example.trip_sheet_backend.models.TransportRouteDraft;
+import com.example.trip_sheet_backend.models.TransportRoute;
 import com.example.trip_sheet_backend.repositories.TransportRouteDraftRepository;
 import com.example.trip_sheet_backend.repositories.TransportRequestRepository;
+import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
+import com.example.trip_sheet_backend.dtos.TransportRequestRouteGroupDTO.RouteLengthCategory;
+import com.example.trip_sheet_backend.services.PassengerGeocodingService.GeoPoint;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -29,12 +33,18 @@ public class TransportRouteDraftService {
     private final TransportRouteDraftRepository repository;
     private final TransportRequestRepository requestRepository;
     private final ObjectMapper objectMapper;
+    private final PassengerRouteEstimateService routeEstimateService;
+    private final VendorOrganisationRepository vendorOrganisationRepository;
 
     public TransportRouteDraftService(TransportRouteDraftRepository repository,
-            TransportRequestRepository requestRepository, ObjectMapper objectMapper) {
+            TransportRequestRepository requestRepository, ObjectMapper objectMapper,
+            PassengerRouteEstimateService routeEstimateService,
+            VendorOrganisationRepository vendorOrganisationRepository) {
         this.repository = repository;
         this.requestRepository = requestRepository;
         this.objectMapper = objectMapper;
+        this.routeEstimateService = routeEstimateService;
+        this.vendorOrganisationRepository = vendorOrganisationRepository;
     }
 
     @Transactional
@@ -57,11 +67,16 @@ public class TransportRouteDraftService {
             }
             List<TransportRequestShiftItemDTO> requestItems = validateAndMergeRequests(
                     tenant, firstRequest.getOrganisation(), shift, group.getRequests());
+            RouteMetrics routeMetrics = calculateRouteMetrics(group.getRouteDirection(), requestItems);
 
             TransportRouteDraft draft = new TransportRouteDraft();
             draft.setTenant(tenant);
             draft.setOrganisation(firstRequest.getOrganisation());
             draft.setShift(shift);
+            if (group.getVendorId() != null && tenant.getTenantType() != Tenant.TenantType.ORGANISATION) {
+                throw new IllegalArgumentException("Only an organisation can assign a vendor to a route draft");
+            }
+            draft.setAssignedVendor(resolveAssignedVendor(firstRequest.getOrganisation(), group.getVendorId()));
             draft.setRouteDirection(group.getRouteDirection());
             draft.setVehicleTypeId(group.getVehicleTypeId());
             draft.setAllowedPassenger(group.getAllowedPassenger());
@@ -73,6 +88,7 @@ public class TransportRouteDraftService {
             draft.setValidFrom(body.getValidFrom());
             draft.setValidTo(body.getValidTo());
             draft.setRequestsJson(writeRequests(requestItems));
+            applyRouteMetrics(draft, routeMetrics);
             draft = repository.save(draft);
 
             savedGroups.add(toRouteGroup(draft));
@@ -100,6 +116,7 @@ public class TransportRouteDraftService {
         Tenant actor = draft.getTenant();
         List<TransportRequestShiftItemDTO> requestItems = validateAndMergeRequests(
                 actor, draft.getOrganisation(), draft.getShift(), body.getRequests());
+        RouteMetrics routeMetrics = calculateRouteMetrics(body.getRouteDirection(), requestItems);
         draft.setRouteDirection(body.getRouteDirection());
         draft.setVehicleTypeId(body.getVehicleTypeId());
         draft.setAllowedPassenger(body.getAllowedPassenger());
@@ -109,6 +126,7 @@ public class TransportRouteDraftService {
         draft.setValidFrom(body.getValidFrom());
         draft.setValidTo(body.getValidTo());
         draft.setRequestsJson(writeRequests(requestItems));
+        applyRouteMetrics(draft, routeMetrics);
         return toRouteGroup(repository.save(draft));
     }
 
@@ -137,6 +155,10 @@ public class TransportRouteDraftService {
     }
 
     private RouteGroup toRouteGroup(TransportRouteDraft draft) {
+        if (draft.getTotalRouteKm() == null || draft.getRouteLengthCategory() == null) {
+            applyRouteMetrics(draft, calculateRouteMetrics(draft.getRouteDirection(),
+                    readRequests(draft.getRequestsJson())));
+        }
         RouteGroup group = new RouteGroup(null, draft.getRouteDirection(),
                 com.example.trip_sheet_backend.models.TransportRoute.RouteStatus.DRAFT,
                 draft.getVehicleTypeId(), draft.getAllowedPassenger(), draft.getDirection(),
@@ -146,8 +168,56 @@ public class TransportRouteDraftService {
         group.setExpiresAt(draft.getExpiresAt());
         group.setValidFrom(draft.getValidFrom());
         group.setValidTo(draft.getValidTo());
+        group.setTotalRouteKm(draft.getTotalRouteKm());
+        if (draft.getAssignedVendor() != null) {
+            group.setAssignedVendorId(draft.getAssignedVendor().getId());
+            group.setAssignedVendorName(draft.getAssignedVendor().getTenantName());
+        }
+        if (draft.getRouteLengthCategory() != null) {
+            group.setRouteLengthCategory(RouteLengthCategory.valueOf(draft.getRouteLengthCategory()));
+        }
         return group;
     }
+
+    private Tenant resolveAssignedVendor(Tenant organisation, UUID vendorId) {
+        if (vendorId == null) return null;
+        return vendorOrganisationRepository.findByOrganisationAndVendor_Id(organisation, vendorId)
+                .filter(link -> !Boolean.TRUE.equals(link.getIsDeleted()))
+                .map(link -> link.getVendor())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "vendorId must belong to a non-deleted vendor-organisation link for this organisation"));
+    }
+
+    private RouteMetrics calculateRouteMetrics(TransportRoute.RouteDirection direction,
+            List<TransportRequestShiftItemDTO> requests) {
+        boolean homeToOffice = direction == TransportRoute.RouteDirection.HOME_TO_OFFICE;
+        List<GeoPoint> passengerStops = requests.stream()
+                .map(request -> homeToOffice
+                        ? point(request.getPickupLatitude(), request.getPickupLongitude())
+                        : point(request.getDropoffLatitude(), request.getDropoffLongitude()))
+                .toList();
+        TransportRequestShiftItemDTO first = requests.get(0);
+        GeoPoint office = homeToOffice
+                ? point(first.getDropoffLatitude(), first.getDropoffLongitude())
+                : point(first.getPickupLatitude(), first.getPickupLongitude());
+        PassengerRouteEstimateService.RoutePlan plan = routeEstimateService.optimizeStops(
+                passengerStops, office, homeToOffice);
+        double totalKm = plan.legs().stream().mapToDouble(PassengerRouteEstimateService.RouteLeg::distanceKm).sum();
+        RouteLengthCategory category = totalKm <= 20.0 ? RouteLengthCategory.SHORTEST
+                : totalKm <= 30.0 ? RouteLengthCategory.MEDIUM : RouteLengthCategory.LONGEST;
+        return new RouteMetrics(Math.round(totalKm * 100.0) / 100.0, category);
+    }
+
+    private GeoPoint point(java.math.BigDecimal latitude, java.math.BigDecimal longitude) {
+        return new GeoPoint(latitude.doubleValue(), longitude.doubleValue());
+    }
+
+    private void applyRouteMetrics(TransportRouteDraft draft, RouteMetrics metrics) {
+        draft.setTotalRouteKm(metrics.totalKm());
+        draft.setRouteLengthCategory(metrics.category().name());
+    }
+
+    private record RouteMetrics(double totalKm, RouteLengthCategory category) { }
 
     private List<TransportRequestShiftItemDTO> validateAndMergeRequests(Tenant tenant, Tenant organisation,
             Shift shift, List<TransportRequestShiftItemDTO> requestedItems) {

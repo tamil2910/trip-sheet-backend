@@ -54,6 +54,7 @@ import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 import com.example.trip_sheet_backend.services.PassengerGeocodingService;
 import com.example.trip_sheet_backend.services.PassengerRouteEstimateService;
 import com.example.trip_sheet_backend.services.TransportRouteDraftService;
+import com.example.trip_sheet_backend.services.EtsVendorAssignmentService;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -75,12 +76,13 @@ public class TransportRequestController {
     private final TransportRouteRepository routeRepository;
     private final PassengerRouteEstimateService routeEstimateService;
     private final TransportRouteDraftService routeDraftService;
+    private final EtsVendorAssignmentService etsVendorAssignmentService;
 
     public TransportRequestController(TransportRequestRepository requestRepository,
             ShiftRepository shiftRepository, PeopleTenantRepository peopleTenantRepository,
             TenantRepository tenantRepository, VendorOrganisationRepository vendorOrganisationRepository,
             TransportRouteRepository routeRepository, PassengerRouteEstimateService routeEstimateService,
-            TransportRouteDraftService routeDraftService) {
+            TransportRouteDraftService routeDraftService, EtsVendorAssignmentService etsVendorAssignmentService) {
         this.requestRepository = requestRepository;
         this.shiftRepository = shiftRepository;
         this.peopleTenantRepository = peopleTenantRepository;
@@ -89,6 +91,7 @@ public class TransportRequestController {
         this.routeRepository = routeRepository;
         this.routeEstimateService = routeEstimateService;
         this.routeDraftService = routeDraftService;
+        this.etsVendorAssignmentService = etsVendorAssignmentService;
     }
 
     /** Guest employees submit for themselves; passenger identity is taken from their organisation profile. */
@@ -463,6 +466,10 @@ public class TransportRequestController {
                     : totalRouteKm <= 30.0
                             ? TransportRequestRouteGroupDTO.RouteLengthCategory.MEDIUM
                             : TransportRequestRouteGroupDTO.RouteLengthCategory.LONGEST);
+        }
+        if (tenant.getTenantType() == Tenant.TenantType.ORGANISATION
+                && Boolean.TRUE.equals(body.getSuggestVendor())) {
+            etsVendorAssignmentService.suggestVendors(first.getOrganisation(), routeGroups);
         }
         return ResponseEntity.ok(new ApiResponse<>(true,
                 "Transport route groups analysed successfully", routeGroups));

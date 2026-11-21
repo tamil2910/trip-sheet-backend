@@ -1,6 +1,8 @@
 package com.example.trip_sheet_backend.models;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
 import com.fasterxml.jackson.annotation.JsonManagedReference;
@@ -11,6 +13,10 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.ElementCollection;
+import jakarta.persistence.CollectionTable;
+import jakarta.persistence.Column;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.JoinTable;
 import jakarta.persistence.ManyToMany;
@@ -91,6 +97,20 @@ public class VendorPartner extends BaseModel {
   private Boolean isActive = true;
   private Boolean isAssociateSupplier = false;
   private Boolean isAssociateCustomer = false;
+
+  @ElementCollection(fetch = FetchType.EAGER)
+  @CollectionTable(name = "vendor_partner_service_categories",
+      joinColumns = @JoinColumn(name = "vendor_partner_id"))
+  @Column(name = "service_category", nullable = false, length = 16)
+  @Enumerated(EnumType.STRING)
+  private Set<ServiceCategory> serviceCategories = new LinkedHashSet<>(Set.of(
+      ServiceCategory.RAC, ServiceCategory.ETS, ServiceCategory.EVENTS));
+
+  public enum ServiceCategory {
+    RAC,
+    ETS,
+    EVENTS
+  }
 
   /** Keep the cached active flag aligned with the approved contract state. */
   public void setContractStatus(ContractStatus contractStatus) {

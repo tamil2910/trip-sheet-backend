@@ -1,6 +1,7 @@
 package com.example.trip_sheet_backend.dtos.TenantDtos;
 
 import java.util.UUID;
+import java.util.Set;
 
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.VendorPartner;
@@ -22,6 +23,7 @@ public class VendorPartnerSummaryDTO {
   private Boolean isAssociateSupplier;
   private Boolean isAssociateCustomer;
   private Tenant partnerVendor;
+  private Set<VendorPartner.ServiceCategory> serviceCategories;
 
   public static VendorPartnerSummaryDTO fromEntity(VendorPartner vendorPartner, Tenant currentVendor) {
     Tenant connectedVendor = vendorPartner.getPrimaryVendor().getId().equals(currentVendor.getId())
@@ -40,7 +42,8 @@ public class VendorPartnerSummaryDTO {
         vendorPartner.getIsActive(),
         vendorPartner.getIsAssociateSupplier(),
         vendorPartner.getIsAssociateCustomer(),
-        connectedVendor
+        connectedVendor,
+        vendorPartner.getServiceCategories()
     );
   }
 }

@@ -130,6 +130,7 @@ public class VendorPartnerRateCardResponseDTO {
     private Long contractStartDate;
     private Long contractEndDate;
     private List<TaxSummaryDTO> taxList;
+    private List<VendorPartner.ServiceCategory> serviceCategories;
 
     public static VendorPartnerSummaryDTO fromEntity(VendorPartner vendorPartner) {
       if (vendorPartner == null) {
@@ -153,7 +154,9 @@ public class VendorPartnerRateCardResponseDTO {
           vendorPartner.getContractEndDate(),
           vendorPartner.getTaxList() == null ? List.of() : vendorPartner.getTaxList().stream()
               .map(TaxSummaryDTO::fromEntity)
-              .toList()
+              .toList(),
+          vendorPartner.getServiceCategories() == null ? List.of()
+              : vendorPartner.getServiceCategories().stream().toList()
       );
     }
   }

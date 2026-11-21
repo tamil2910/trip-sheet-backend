@@ -42,13 +42,20 @@ public class TransportRequestRouteGroupDTO {
         private Long validTo;
         private Double totalRouteKm;
         private RouteLengthCategory routeLengthCategory;
+        private UUID suggestedVendorId;
+        private String suggestedVendorName;
+        private Double suggestedVendorAllocationPercentage;
+        private UUID assignedVendorId;
+        private String assignedVendorName;
 
         public RouteGroup(UUID routeId, TransportRoute.RouteDirection routeDirection,
                 TransportRoute.RouteStatus routeStatus, UUID vehicleTypeId, Integer allowedPassenger,
                 String direction, String pickupAddress, String dropoffAddress,
                 List<TransportRequestShiftItemDTO> requests) {
             this(routeId, routeDirection, routeStatus, vehicleTypeId, allowedPassenger,
-                    direction, pickupAddress, dropoffAddress, requests, null, null, null, null, null, null, null);
+                    direction, pickupAddress, dropoffAddress, requests,
+                    null, null, null, null, null, null, null,
+                    null, null, null, null, null);
         }
     }
 

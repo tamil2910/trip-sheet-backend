@@ -2,6 +2,7 @@ package com.example.trip_sheet_backend.dtos.VendorPartnerDtos;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
 
 import com.example.trip_sheet_backend.models.VendorPartner;
 
@@ -33,6 +34,7 @@ public class VendorPartnerResponseDTO {
   private Long contractStartDate;
   private Long contractEndDate;
   private List<UUID> taxIds;
+  private Set<VendorPartner.ServiceCategory> serviceCategories;
 
   public static VendorPartnerResponseDTO fromEntity(VendorPartner entity) {
     return new VendorPartnerResponseDTO(
@@ -46,6 +48,7 @@ public class VendorPartnerResponseDTO {
         entity.getLocalBillingStructure(), entity.getMinGtgKmLimit(), entity.getMinGtgHrLimit(),
         entity.getMaxGtgKmLimit(), entity.getMaxGtgHrLimit(), entity.getContractStartDate(),
         entity.getContractEndDate(),
-        entity.getTaxList() == null ? List.of() : entity.getTaxList().stream().map(tax -> tax.getId()).toList());
+        entity.getTaxList() == null ? List.of() : entity.getTaxList().stream().map(tax -> tax.getId()).toList(),
+        entity.getServiceCategories());
   }
 }

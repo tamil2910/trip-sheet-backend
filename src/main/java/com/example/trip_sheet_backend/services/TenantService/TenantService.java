@@ -6,6 +6,7 @@ import java.util.List;
 import com.example.trip_sheet_backend.common.services.GlobalBaseService;
 import com.example.trip_sheet_backend.dtos.TenantDtos.TenantLinkResponseDto;
 import com.example.trip_sheet_backend.models.Tenant;
+import com.example.trip_sheet_backend.models.VendorPartner.ServiceCategory;
 
 public interface TenantService extends GlobalBaseService<Tenant, UUID> {
   Tenant findByIdResource(UUID id);
@@ -17,4 +18,8 @@ public interface TenantService extends GlobalBaseService<Tenant, UUID> {
 
   TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode,
       List<UUID> taxIds, Boolean isActive, Boolean isAssociateSupplier, Boolean isAssociateCustomer, UUID createdBy);
+
+  TenantLinkResponseDto linkExistingTenantByUniqueCode(Tenant loggedInTenant, String tenantUniqueCode,
+      List<UUID> taxIds, Boolean isActive, Boolean isAssociateSupplier, Boolean isAssociateCustomer,
+      java.util.Set<ServiceCategory> serviceCategories, UUID createdBy);
 }

@@ -2,7 +2,9 @@ package com.example.trip_sheet_backend.dtos.TenantDtos;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
 
+import com.example.trip_sheet_backend.models.VendorPartner.ServiceCategory;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -37,5 +39,7 @@ public class TenantCreateWithTaxIdsRequestDto {
   private Boolean isActive;
   private Boolean isAssociateSupplier;
   private Boolean isAssociateCustomer;
+
+  private Set<ServiceCategory> serviceCategories;
 
 }
