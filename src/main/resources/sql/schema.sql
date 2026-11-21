@@ -417,6 +417,34 @@ PREPARE trip_partner_response_status_statement FROM @trip_partner_response_statu
 EXECUTE trip_partner_response_status_statement;
 DEALLOCATE PREPARE trip_partner_response_status_statement;
 
+SET @delegation_status_exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'trip_vendor_delegation_history'
+    AND column_name = 'delegation_status'
+);
+SET @delegation_status_sql := IF(
+  @delegation_status_exists = 0,
+  'ALTER TABLE trip_vendor_delegation_history ADD COLUMN delegation_status VARCHAR(30) NULL',
+  'SELECT 1'
+);
+PREPARE delegation_status_statement FROM @delegation_status_sql;
+EXECUTE delegation_status_statement;
+DEALLOCATE PREPARE delegation_status_statement;
+
+SET @delegation_response_status_exists := (
+  SELECT COUNT(*) FROM information_schema.columns
+  WHERE table_schema = DATABASE() AND table_name = 'trip_vendor_delegation_history'
+    AND column_name = 'response_status'
+);
+SET @delegation_response_status_sql := IF(
+  @delegation_response_status_exists = 0,
+  'ALTER TABLE trip_vendor_delegation_history ADD COLUMN response_status VARCHAR(20) NOT NULL DEFAULT ''NOT_SHARED''',
+  'SELECT 1'
+);
+PREPARE delegation_response_status_statement FROM @delegation_response_status_sql;
+EXECUTE delegation_response_status_statement;
+DEALLOCATE PREPARE delegation_response_status_statement;
+
 UPDATE trips trip
 JOIN trip_summaries summary ON summary.trip_id = trip.id
 SET trip.trip_summary_id = summary.id

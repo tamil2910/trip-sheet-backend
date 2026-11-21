@@ -66,6 +66,10 @@ public final class TripResponseMapper {
         dto.setTripStatus(trip.getTripStatus());
         dto.setIsShareToPartner(trip.getIsShareToPartner());
         dto.setPartnerResponseStatus(trip.getPartnerResponseStatus());
+        if (trip.getAssignedByVendor() != null && trip.getVendor() != null
+                && viewerTenantId != null && Objects.equals(viewerTenantId, trip.getVendor().getId())) {
+            dto.setDelegationStatus(trip.getTripStatus());
+        }
         dto.setTripType(trip.getTripType());
         dto.setTripCategory(trip.getTripCategory());
         dto.setRecurrenceInterval(trip.getRecurrenceInterval());

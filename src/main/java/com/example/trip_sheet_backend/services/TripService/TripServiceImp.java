@@ -684,7 +684,6 @@ public Trip assignTripToPartnerVendor(
   trip.setPartnerResponseStatus(Boolean.TRUE.equals(payload.getIsShareToPartner())
       ? Trip.PartnerResponseStatus.PENDING
       : Trip.PartnerResponseStatus.NOT_SHARED);
-  trip.setTripStatus(Trip.TripStatus.REQUESTING);
   if (updatedBy != null) {
     trip.setUpdatedBy(updatedBy.toString());
   }
@@ -696,6 +695,10 @@ public Trip assignTripToPartnerVendor(
   history.setFromVendor(currentVendor);
   history.setToVendor(partnerVendor);
   history.setDelegatedAt(LocalDateTime.now());
+  history.setDelegationStatus(savedTrip.getTripStatus());
+  history.setResponseStatus(Boolean.TRUE.equals(payload.getIsShareToPartner())
+      ? VendorDelegationHistory.ResponseStatus.PENDING
+      : VendorDelegationHistory.ResponseStatus.NOT_SHARED);
   if (updatedBy != null) {
     history.setCreatedBy(updatedBy.toString());
     history.setUpdatedBy(updatedBy.toString());
@@ -707,8 +710,10 @@ public Trip assignTripToPartnerVendor(
 }
 
 public List<Trip> findPendingSharedTrips(UUID partnerVendorId) {
-  return repository.findByVendor_IdAndAssignedByVendor_IdIsNotNullAndIsShareToPartnerTrueAndPartnerResponseStatusAndIsDeletedFalseOrderByPickupTimeAsc(
-      partnerVendorId, Trip.PartnerResponseStatus.PENDING);
+  return vendorDelegationHistoryRepository
+      .findByToVendor_IdAndResponseStatusAndIsDeletedFalseOrderByDelegatedAtAsc(
+          partnerVendorId, VendorDelegationHistory.ResponseStatus.PENDING)
+      .stream().map(VendorDelegationHistory::getTrip).toList();
 }
 
 @Transactional(rollbackFor = Exception.class)
@@ -722,6 +727,17 @@ public Trip respondToSharedTrip(UUID partnerVendorId, UUID tripId, boolean accep
   if (trip.getPartnerResponseStatus() != Trip.PartnerResponseStatus.PENDING) {
     throw new RuntimeException("This shared trip has already been answered");
   }
+  VendorDelegationHistory delegation = vendorDelegationHistoryRepository
+      .findFirstByTrip_IdAndToVendor_IdAndIsDeletedFalseOrderByDelegatedAtDesc(tripId, partnerVendorId)
+      .orElseThrow(() -> new RuntimeException("Trip delegation not found"));
+  if (delegation.getResponseStatus() != VendorDelegationHistory.ResponseStatus.PENDING) {
+    throw new RuntimeException("This shared trip has already been answered");
+  }
+  delegation.setResponseStatus(accepted
+      ? VendorDelegationHistory.ResponseStatus.ACCEPTED
+      : VendorDelegationHistory.ResponseStatus.DECLINED);
+  delegation.setDelegationStatus(trip.getTripStatus());
+  vendorDelegationHistoryRepository.save(delegation);
   trip.setPartnerResponseStatus(accepted
       ? Trip.PartnerResponseStatus.ACCEPTED
       : Trip.PartnerResponseStatus.DECLINED);
@@ -834,6 +850,7 @@ public Trip allotTripToSupplier(Tenant tokenTenant, UUID tokenTenantId, UUID tri
   trip.setVehicle(vehicleMapping.getVehicle());
   trip.setDispatchCenter(dispatchCenter);
   trip.setTripStatus(Trip.TripStatus.ALLOTTED);
+  syncCurrentDelegationStatus(trip);
   if (updatedBy != null) {
     trip.setUpdatedBy(updatedBy.toString());
   }
@@ -2081,6 +2098,7 @@ public Trip dispatchTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount use
   tripSummaryRepository.save(summary);
 
   trip.setTripStatus(Trip.TripStatus.DISPATCHED);
+  syncCurrentDelegationStatus(trip);
   Trip savedTrip = repository.save(trip);
   tripRealtimePublisher.publishUpdated(savedTrip);
   return savedTrip;
@@ -2116,6 +2134,7 @@ public Trip arrivedTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user
   tripSummaryRepository.save(summary);
 
   trip.setTripStatus(Trip.TripStatus.ARRIVED);
+  syncCurrentDelegationStatus(trip);
   Trip savedTrip = repository.save(trip);
   tripRealtimePublisher.publishUpdated(savedTrip);
   return savedTrip;
@@ -2140,6 +2159,7 @@ public Trip startTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, 
   tripSummaryRepository.save(summary);
 
   trip.setTripStatus(Trip.TripStatus.STARTED);
+  syncCurrentDelegationStatus(trip);
   Trip savedTrip = repository.save(trip);
   tripRealtimePublisher.publishUpdated(savedTrip);
   return savedTrip;
@@ -2170,6 +2190,7 @@ public Trip dropTrip(UUID tokenTenantId, Tenant tokenTenant, UserAccount user, U
 
 
   trip.setTripStatus(Trip.TripStatus.COMPLETED);
+  syncCurrentDelegationStatus(trip);
   Trip completedTrip = repository.save(trip);
   
   processAfterTripCompletion(completedTrip);
@@ -2675,6 +2696,7 @@ public Trip allotDriverVehicle(Tenant tokenTenant, UUID tokenTenantId, UserAccou
      trip.setVehicle(vehicle);
      trip.setDispatchCenter(dispatchCenter);
      trip.setTripStatus(Trip.TripStatus.ALLOTTED);
+     syncCurrentDelegationStatus(trip);
      Trip savedTrip = repository.save(trip);
      tripRealtimePublisher.publishUpdated(savedTrip);
      return savedTrip;
@@ -2691,6 +2713,7 @@ public Trip reallotDriverVehicle(Tenant tokenTenant, UUID tokenTenantId, UserAcc
     trip.setVehicle(resolveOptionalVehicle(allotData.getVehicleId()));
     trip.setDispatchCenter(resolveOptionalDispatchCenter(allotData.getDispatchCenterId()));
     trip.setTripStatus(Trip.TripStatus.REALLOCATED);
+    syncCurrentDelegationStatus(trip);
     Trip savedTrip = repository.save(trip);
     tripRealtimePublisher.publishUpdated(savedTrip);
     return savedTrip;
@@ -2704,6 +2727,7 @@ public Trip clearTripAllotment(UUID tokenTenantId, UUID tripId, UUID updatedBy) 
     trip.setVehicle(null);
     trip.setDispatchCenter(null);
     trip.setTripStatus(Trip.TripStatus.CONFIRMED);
+    syncCurrentDelegationStatus(trip);
     if (updatedBy != null) {
       trip.setUpdatedBy(updatedBy.toString());
     }
@@ -2718,6 +2742,7 @@ public Trip cancelTrip(UUID tokenTenantId, UUID tripId, UUID updatedBy) {
         Trip.TripStatus.CONFIRMED, Trip.TripStatus.ALLOTTED, Trip.TripStatus.REALLOCATED,
         Trip.TripStatus.DRIVER_ACCEPTED, Trip.TripStatus.DRIVER_REJECTED);
     trip.setTripStatus(Trip.TripStatus.CANCELLED);
+    syncCurrentDelegationStatus(trip);
     if (updatedBy != null) {
       trip.setUpdatedBy(updatedBy.toString());
     }
@@ -2739,9 +2764,23 @@ public Trip confirmTrip(Tenant tokenTenant, UUID tripId, UUID updatedBy){
   
   trip.setUpdatedBy(updatedBy.toString());
   trip.setTripStatus(Trip.TripStatus.CONFIRMED);
+  syncCurrentDelegationStatus(trip);
   Trip savedTrip = repository.save(trip);
   tripRealtimePublisher.publishUpdated(savedTrip);
   return savedTrip;
+}
+
+private void syncCurrentDelegationStatus(Trip trip) {
+  if (trip == null || trip.getId() == null || trip.getVendor() == null || trip.getVendor().getId() == null) {
+    return;
+  }
+  vendorDelegationHistoryRepository
+      .findFirstByTrip_IdAndToVendor_IdAndIsDeletedFalseOrderByDelegatedAtDesc(
+          trip.getId(), trip.getVendor().getId())
+      .ifPresent(delegation -> {
+        delegation.setDelegationStatus(trip.getTripStatus());
+        vendorDelegationHistoryRepository.save(delegation);
+      });
 }
 
 }

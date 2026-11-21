@@ -26,6 +26,7 @@ public class TripResponseDTO {
     private Trip.TripStatus tripStatus;
     private Boolean isShareToPartner;
     private Trip.PartnerResponseStatus partnerResponseStatus;
+    private Trip.TripStatus delegationStatus;
     private Trip.TripType tripType;
     private Trip.TripCategory tripCategory;
     private Integer recurrenceInterval;

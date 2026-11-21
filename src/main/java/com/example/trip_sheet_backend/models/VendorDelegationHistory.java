@@ -7,6 +7,9 @@ import com.example.trip_sheet_backend.common.models.BaseModel;
 import jakarta.persistence.Entity;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Column;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -30,6 +33,16 @@ public class VendorDelegationHistory extends BaseModel implements TenantScoped {
   private Tenant toVendor;
 
   private LocalDateTime delegatedAt;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "delegation_status")
+  private Trip.TripStatus delegationStatus;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "response_status", nullable = false)
+  private ResponseStatus responseStatus = ResponseStatus.PENDING;
+
+  public enum ResponseStatus { PENDING, ACCEPTED, DECLINED, NOT_SHARED }
 
   @Override
   public Tenant getTenant() {
