@@ -3,8 +3,6 @@ package com.example.trip_sheet_backend.controllers;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.UUID;
 
 import org.springframework.data.domain.Page;
@@ -33,33 +31,29 @@ import com.example.trip_sheet_backend.dtos.TripDtos.TripAllotRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripResponseDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripStartRequestDTO;
 import com.example.trip_sheet_backend.dtos.TripDtos.TripUpdateRequestDTO;
-import com.example.trip_sheet_backend.dtos.TripDtos.TripStopPassengerRequestDTO;
 import com.example.trip_sheet_backend.mappers.TripResponseMapper;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.Trip;
-import com.example.trip_sheet_backend.models.VendorOrganisation;
 import com.example.trip_sheet_backend.models.UserAccount;
-import com.example.trip_sheet_backend.repositories.VendorOrganisationRepository;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.TripService.TripServiceImp;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
-import com.example.trip_sheet_backend.models.TripStop;
 
 @RestController
 @RequestMapping("/ets/trips")
 public class EtsTripController {
 
     private final TripServiceImp tripService;
-    private final VendorOrganisationRepository vendorOrganisationRepository;
+    private final EtsTripRequestValidator etsTripRequestValidator;
 
     public EtsTripController(
             TripServiceImp tripService,
-            VendorOrganisationRepository vendorOrganisationRepository) {
+            EtsTripRequestValidator etsTripRequestValidator) {
         this.tripService = tripService;
-        this.vendorOrganisationRepository = vendorOrganisationRepository;
+        this.etsTripRequestValidator = etsTripRequestValidator;
     }
 
     @PostMapping
@@ -75,52 +69,12 @@ public class EtsTripController {
         if (createdBy == null) {
             throw new IllegalArgumentException("Authenticated user not found");
         }
-        if (body.getAllowedPassenger() == null || body.getAllowedPassenger() < 1) {
-            throw new IllegalArgumentException("allowedPassenger must be greater than zero");
-        }
-        if (body.getPassengerIds() == null || body.getPassengerIds().isEmpty()) {
-            throw new IllegalArgumentException("passengerIds from the route group are required");
-        }
-        if (body.getPassengerIds().size() > body.getAllowedPassenger()) {
-            throw new IllegalArgumentException("Passenger count exceeds allowedPassenger for the selected vehicle type");
-        }
-        if (body.getStops() == null || body.getStops().isEmpty()) {
-            throw new IllegalArgumentException("stops from the route group are required");
-        }
-        validateEtsPickupAssignments(body);
-
-        applyTenantRelations(body, tenant);
-        body.setTripCategory(Trip.TripCategory.ETS);
-        // ETS creates the trip first; assignment happens through the later allotment flow.
-        body.setDriverId(null);
-        body.setVehicleId(null);
+        etsTripRequestValidator.prepare(body, tenant);
 
         Trip trip = tripService.createTrip(body, tenant, createdBy);
         TripResponseDTO response = TripResponseMapper.toDTO(trip, tenant.getId());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new ApiResponse<>(true, "ETS trip created successfully", response));
-    }
-
-    private void validateEtsPickupAssignments(EtsTripCreateRequestDTO body) {
-        Set<String> tripPassengers = new HashSet<>(body.getPassengerIds());
-        Set<String> assignedPassengers = new HashSet<>();
-        for (var stop : body.getStops()) {
-            if (stop.getStopType() != TripStop.StopType.PICKUP) continue;
-            if (stop.getPassengers() == null || stop.getPassengers().isEmpty()) {
-                throw new IllegalArgumentException("Every ETS pickup stop must list its passengers and pickup times");
-            }
-            for (TripStopPassengerRequestDTO passenger : stop.getPassengers()) {
-                if (!tripPassengers.contains(passenger.getPassengerId())) {
-                    throw new IllegalArgumentException("Pickup stop passenger must be included in passengerIds");
-                }
-                if (!assignedPassengers.add(passenger.getPassengerId())) {
-                    throw new IllegalArgumentException("Each ETS passenger must have exactly one pickup stop");
-                }
-            }
-        }
-        if (!assignedPassengers.equals(tripPassengers)) {
-            throw new IllegalArgumentException("Each ETS passenger must be assigned to a pickup stop with a pickupTime");
-        }
     }
 
     @GetMapping
@@ -303,51 +257,4 @@ public class EtsTripController {
                 TripResponseMapper.toDTO(trip, tenantId)));
     }
 
-    private void applyTenantRelations(EtsTripCreateRequestDTO body, Tenant tenant) {
-        if (tenant.getTenantType() == Tenant.TenantType.ORGANISATION) {
-            String vendorId = body.getVendorId();
-            body.setOrganisationId(tenant.getId().toString());
-            body.setAssociateCustomerId(null);
-            if (vendorId != null && !vendorId.isBlank()) {
-                UUID selectedVendorId = UUID.fromString(vendorId);
-                VendorOrganisation link = vendorOrganisationRepository
-                        .findByOrganisationAndVendor_Id(tenant, selectedVendorId)
-                        .filter(this::isActiveVendorOrganisation)
-                        .orElseThrow(() -> new IllegalArgumentException(
-                                "vendorId is not an active vendor relationship for this organisation"));
-                body.setVendorId(link.getVendor().getId().toString());
-            } else {
-                body.setVendorId(null);
-            }
-            return;
-        }
-
-        if (tenant.getTenantType() == Tenant.TenantType.VENDOR) {
-            if (body.getOrganisationId() == null || body.getOrganisationId().isBlank()) {
-                throw new IllegalArgumentException("organisationId is required when a vendor creates an ETS trip");
-            }
-            UUID organisationId = UUID.fromString(body.getOrganisationId());
-            VendorOrganisation link = vendorOrganisationRepository
-                    .findByVendorAndOrganisation_Id(tenant, organisationId)
-                    .filter(this::isActiveVendorOrganisation)
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "organisationId is not linked to this vendor through an active vendor-organisation relationship"));
-            body.setOrganisationId(link.getOrganisation().getId().toString());
-            body.setVendorId(tenant.getId().toString());
-            body.setAssociateCustomerId(null);
-            return;
-        }
-
-        throw new IllegalArgumentException("Only organisation and vendor tenants can create ETS trips");
-    }
-
-    private boolean isActiveVendorOrganisation(VendorOrganisation link) {
-        return link != null
-                && !Boolean.TRUE.equals(link.getIsDeleted())
-                && !Boolean.FALSE.equals(link.getActive())
-                && (link.getContractStatus() == null
-                        || link.getContractStatus() == VendorOrganisation.ContractStatus.ACTIVE)
-                && link.getVendor() != null
-                && link.getOrganisation() != null;
-    }
 }
