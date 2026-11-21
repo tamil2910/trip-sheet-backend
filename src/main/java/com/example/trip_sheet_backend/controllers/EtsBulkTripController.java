@@ -58,6 +58,9 @@ public class EtsBulkTripController {
             if (trip.getVendorId() == null || trip.getVendorId().isBlank()) {
                 trip.setVendorId(body.getVendorId());
             }
+            if (trip.getOrganisationId() == null || trip.getOrganisationId().isBlank()) {
+                trip.setOrganisationId(body.getOrganisationId());
+            }
             if (trip.getDutyTypeId() == null || trip.getDutyTypeId().isBlank()) {
                 throw new IllegalArgumentException("Provide dutyTypeId on the bulk request or on every trip item");
             }

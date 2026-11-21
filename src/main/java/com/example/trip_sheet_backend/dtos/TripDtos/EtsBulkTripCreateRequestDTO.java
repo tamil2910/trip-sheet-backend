@@ -18,6 +18,9 @@ public class EtsBulkTripCreateRequestDTO {
     /** Optional default vendor for trip items; each trip may override it. */
     private String vendorId;
 
+    /** Default organisation for vendor-created trip items that omit their own organisationId. */
+    private String organisationId;
+
     @Valid
     @NotEmpty(message = "At least one ETS trip is required")
     private List<EtsTripCreateRequestDTO> trips;
