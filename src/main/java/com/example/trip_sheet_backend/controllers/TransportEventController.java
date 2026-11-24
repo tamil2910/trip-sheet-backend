@@ -27,12 +27,17 @@ import com.example.trip_sheet_backend.dtos.EventDtos.EventResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventRouteDraftRequest;
 import com.example.trip_sheet_backend.dtos.EventDtos.EventRouteDraftResponse;
 import com.example.trip_sheet_backend.dtos.EventDtos.UpdateEventVehicleTypesRequest;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventVendorTransportRequestCreate;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventVendorTransportRequestResponse;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventVendorTransportDecision;
+import com.example.trip_sheet_backend.dtos.EventDtos.EventVendorTransportAllotment;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.EventParticipantRequest;
 import com.example.trip_sheet_backend.services.EventParticipantRequestService;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.TransportEventService;
 import com.example.trip_sheet_backend.services.EventRouteDraftService;
+import com.example.trip_sheet_backend.services.EventVendorTransportService;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -44,12 +49,48 @@ public class TransportEventController {
   private final TransportEventService eventService;
   private final EventParticipantRequestService participantRequestService;
   private final EventRouteDraftService routeDraftService;
+  private final EventVendorTransportService vendorTransportService;
 
   public TransportEventController(TransportEventService eventService, EventParticipantRequestService participantRequestService,
-      EventRouteDraftService routeDraftService) {
+      EventRouteDraftService routeDraftService, EventVendorTransportService vendorTransportService) {
     this.eventService = eventService;
     this.participantRequestService = participantRequestService;
     this.routeDraftService = routeDraftService;
+    this.vendorTransportService = vendorTransportService;
+  }
+
+  @PostMapping("/{id}/vendor-transport-requests")
+  @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+  public ResponseEntity<ApiResponse<List<EventVendorTransportRequestResponse>>> sendToVendor(HttpServletRequest request,
+      @PathVariable UUID id, @Valid @RequestBody EventVendorTransportRequestCreate body) {
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    UUID actorId = (UUID) request.getAttribute("createdBy");
+    return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(true, "Event transport groups sent to vendor",
+        vendorTransportService.send(id, body, tenant, actorId)));
+  }
+
+  @GetMapping("/vendor-transport-requests")
+  public ApiResponse<List<EventVendorTransportRequestResponse>> vendorInbox(HttpServletRequest request) {
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    return new ApiResponse<>(true, "Event transport requests fetched", vendorTransportService.inbox(tenant));
+  }
+
+  @PutMapping("/vendor-transport-requests/{requestId}/decision")
+  public ApiResponse<EventVendorTransportRequestResponse> vendorDecision(HttpServletRequest request,
+      @PathVariable UUID requestId, @Valid @RequestBody EventVendorTransportDecision body) {
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    UUID actorId = (UUID) request.getAttribute("createdBy");
+    return new ApiResponse<>(true, "Event transport request updated",
+        vendorTransportService.decide(requestId, tenant, body.getAccepted(), actorId));
+  }
+
+  @PutMapping("/vendor-transport-requests/{requestId}/allot")
+  public ApiResponse<EventVendorTransportRequestResponse> allotEventRequest(HttpServletRequest request,
+      @PathVariable UUID requestId, @Valid @RequestBody EventVendorTransportAllotment body) {
+    Tenant tenant = (Tenant) request.getAttribute("tenant");
+    UUID actorId = (UUID) request.getAttribute("createdBy");
+    return new ApiResponse<>(true, "Driver and vehicle assigned; EVENT trip created",
+        vendorTransportService.allot(requestId, tenant, body, actorId));
   }
 
   @PostMapping
