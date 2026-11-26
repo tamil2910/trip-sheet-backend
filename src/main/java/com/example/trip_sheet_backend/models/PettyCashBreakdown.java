@@ -61,6 +61,16 @@ public class PettyCashBreakdown extends BaseModel implements TenantScoped {
   @Column(name = "payment_status", nullable = false, length = 20)
   private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
 
+  @Enumerated(EnumType.STRING)
+  @Column(name = "paid_payment_mode", length = 20)
+  private Expense.PaymentMode paidPaymentMode;
+
+  @Column(name = "payment_reference", length = 255)
+  private String paymentReference;
+
+  @Column(name = "paid_bank_account_id")
+  private UUID paidBankAccountId;
+
   @Column(length = 1000)
   private String statusComment;
 }

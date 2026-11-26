@@ -5,6 +5,7 @@ import java.util.UUID;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,8 +17,10 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.trip_sheet_backend.dtos.ExpenseDtos.ExpenseBreakdownRequests.PettyCashRequest;
+import com.example.trip_sheet_backend.dtos.ExpenseDtos.ExpenseBreakdownRequests.PaymentSubmissionRequest;
 import com.example.trip_sheet_backend.dtos.ExpenseDtos.ExpenseBreakdownRequests.StatusActionRequest;
 import com.example.trip_sheet_backend.dtos.ExpenseDtos.ExpenseBreakdownRequests.VehicleExpenseRequest;
+import com.example.trip_sheet_backend.dtos.ExpenseDtos.ExpenseRequests.PayablesResponse;
 import com.example.trip_sheet_backend.models.PettyCashBreakdown;
 import com.example.trip_sheet_backend.models.Tenant;
 import com.example.trip_sheet_backend.models.VehicleExpenseBreakdown;
@@ -47,6 +50,12 @@ public class ExpenseBreakdownController {
 
   private <T> ResponseEntity<ApiResponse<T>> ok(String message, T data) {
     return ResponseEntity.ok(new ApiResponse<>(true, message, data));
+  }
+
+  @GetMapping("/expenses/payables")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_READ_EXPENSE')")
+  public ResponseEntity<ApiResponse<PayablesResponse>> payables(HttpServletRequest request) {
+    return ok("Payables fetched", service.payables(tenantId(request)));
   }
 
   // Petty cash breakdowns
@@ -81,6 +90,7 @@ public class ExpenseBreakdownController {
   }
 
   @PutMapping("/petty-cash/{id}/approve")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_UPDATE_EXPENSE')")
   public ResponseEntity<ApiResponse<PettyCashBreakdown>> pettyCashApprove(@PathVariable UUID id, HttpServletRequest request) {
     return ok("Petty cash approved", service.approvePettyCash(tenantId(request), actorId(request), id));
   }
@@ -92,19 +102,24 @@ public class ExpenseBreakdownController {
   }
 
   @PutMapping("/petty-cash/{id}/reject")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_UPDATE_EXPENSE')")
   public ResponseEntity<ApiResponse<PettyCashBreakdown>> pettyCashReject(@PathVariable UUID id,
       @RequestBody(required = false) StatusActionRequest body, HttpServletRequest request) {
     return ok("Petty cash rejected", service.rejectPettyCash(tenantId(request), actorId(request), id, body));
   }
 
   @PutMapping("/petty-cash/{id}/mark-paid")
-  public ResponseEntity<ApiResponse<PettyCashBreakdown>> pettyCashMarkPaid(@PathVariable UUID id, HttpServletRequest request) {
-    return ok("Petty cash marked paid", service.setPettyCashPaid(tenantId(request), actorId(request), id, true));
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_UPDATE_EXPENSE')")
+  public ResponseEntity<ApiResponse<PettyCashBreakdown>> pettyCashMarkPaid(@PathVariable UUID id,
+      @Valid @RequestBody PaymentSubmissionRequest body, HttpServletRequest request) {
+    return ok("Petty cash marked paid",
+        service.markPettyCashPaid(tenantId(request), actorId(request), id, body));
   }
 
   @PutMapping("/petty-cash/{id}/mark-unpaid")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_UPDATE_EXPENSE')")
   public ResponseEntity<ApiResponse<PettyCashBreakdown>> pettyCashMarkUnpaid(@PathVariable UUID id, HttpServletRequest request) {
-    return ok("Petty cash marked unpaid", service.setPettyCashPaid(tenantId(request), actorId(request), id, false));
+    return ok("Petty cash marked unpaid", service.markPettyCashUnpaid(tenantId(request), actorId(request), id));
   }
 
   // Vehicle expense breakdowns
@@ -140,6 +155,7 @@ public class ExpenseBreakdownController {
   }
 
   @PutMapping("/vehicle-expenses/{id}/approve")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_UPDATE_EXPENSE')")
   public ResponseEntity<ApiResponse<VehicleExpenseBreakdown>> vehicleExpenseApprove(@PathVariable UUID id,
       HttpServletRequest request) {
     return ok("Vehicle expense approved", service.approveVehicleExpense(tenantId(request), actorId(request), id));
@@ -152,20 +168,24 @@ public class ExpenseBreakdownController {
   }
 
   @PutMapping("/vehicle-expenses/{id}/reject")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_UPDATE_EXPENSE')")
   public ResponseEntity<ApiResponse<VehicleExpenseBreakdown>> vehicleExpenseReject(@PathVariable UUID id,
       @RequestBody(required = false) StatusActionRequest body, HttpServletRequest request) {
     return ok("Vehicle expense rejected", service.rejectVehicleExpense(tenantId(request), actorId(request), id, body));
   }
 
   @PutMapping("/vehicle-expenses/{id}/mark-paid")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_UPDATE_EXPENSE')")
   public ResponseEntity<ApiResponse<VehicleExpenseBreakdown>> vehicleExpenseMarkPaid(@PathVariable UUID id,
-      HttpServletRequest request) {
-    return ok("Vehicle expense marked paid", service.setVehicleExpensePaid(tenantId(request), actorId(request), id, true));
+      @Valid @RequestBody PaymentSubmissionRequest body, HttpServletRequest request) {
+    return ok("Vehicle expense marked paid",
+        service.markVehicleExpensePaid(tenantId(request), actorId(request), id, body));
   }
 
   @PutMapping("/vehicle-expenses/{id}/mark-unpaid")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_UPDATE_EXPENSE')")
   public ResponseEntity<ApiResponse<VehicleExpenseBreakdown>> vehicleExpenseMarkUnpaid(@PathVariable UUID id,
       HttpServletRequest request) {
-    return ok("Vehicle expense marked unpaid", service.setVehicleExpensePaid(tenantId(request), actorId(request), id, false));
+    return ok("Vehicle expense marked unpaid", service.markVehicleExpenseUnpaid(tenantId(request), actorId(request), id));
   }
 }

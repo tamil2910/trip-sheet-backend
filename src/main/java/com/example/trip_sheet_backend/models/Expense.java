@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 import com.example.trip_sheet_backend.common.models.BaseModel;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -36,11 +37,25 @@ public class Expense extends BaseModel implements TenantScoped {
     PAYMENT
   }
 
+  public enum Status {
+    PENDING,
+    APPROVED,
+    REJECTED
+  }
+
   public enum PaymentMode {
     CASH,
     CHEQUE,
     NEFT,
-    OTHER
+    OTHER,
+    BANK_TRANSFER,
+    UPI,
+    CARD
+  }
+
+  public enum PaymentStatus {
+    UNPAID,
+    PAID
   }
 
   @JsonIgnore
@@ -86,6 +101,27 @@ public class Expense extends BaseModel implements TenantScoped {
   @Column(nullable = false)
   private PaymentMode paymentMode;
 
+  @Enumerated(EnumType.STRING)
+  @Column(nullable = false, length = 20)
+  private Status status = Status.PENDING;
+
+  @Column(length = 1000)
+  private String statusComment;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "payment_status", nullable = false, length = 20)
+  private PaymentStatus paymentStatus = PaymentStatus.UNPAID;
+
+  @Enumerated(EnumType.STRING)
+  @Column(name = "paid_payment_mode", length = 20)
+  private PaymentMode paidPaymentMode;
+
+  @Column(name = "payment_reference", length = 255)
+  private String paymentReference;
+
+  @Column(name = "paid_bank_account_id")
+  private UUID paidBankAccountId;
+
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "bank_account_id")
   private BankAccount bankAccount;
@@ -102,7 +138,7 @@ public class Expense extends BaseModel implements TenantScoped {
   @jakarta.persistence.Embeddable
   public static class ExpenseInvoiceReference {
     @Column(name = "invoice_id")
-    private java.util.UUID invoiceId;
+    private UUID invoiceId;
     @Column(name = "invoice_number")
     private String invoiceNumber;
   }

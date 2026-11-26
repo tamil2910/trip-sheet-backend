@@ -9,6 +9,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import com.example.trip_sheet_backend.dtos.ExpenseDtos.ExpenseRequests.*;
+import com.example.trip_sheet_backend.dtos.ExpenseDtos.ExpenseBreakdownRequests.StatusActionRequest;
+import com.example.trip_sheet_backend.dtos.ExpenseDtos.ExpenseBreakdownRequests.PaymentSubmissionRequest;
 import com.example.trip_sheet_backend.exceptions.ResourceNotFoundException;
 import com.example.trip_sheet_backend.models.*;
 import com.example.trip_sheet_backend.repositories.*;
@@ -130,10 +132,69 @@ public class ExpenseService {
         : expenses.findByTenant_IdAndLedger_IdAndIsDeletedFalseOrderByRequestedDateDesc(tenant, ledgerId);
   }
   public Expense expense(UUID tenant, UUID id) { return expenses.findByIdAndTenant_IdAndIsDeletedFalse(id,tenant).orElseThrow(()->notFound("Expense")); }
+
+  public Expense approveExpense(UUID tenant, UUID actor, UUID id) {
+    Expense row = expense(tenant, id);
+    if (row.getStatus() != Expense.Status.PENDING) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only pending expenses can be approved");
+    }
+    row.setStatus(Expense.Status.APPROVED);
+    row.setStatusComment(null);
+    audit(row, actor, false);
+    return expenses.save(row);
+  }
+
+  public Expense rejectExpense(UUID tenant, UUID actor, UUID id, StatusActionRequest body) {
+    Expense row = expense(tenant, id);
+    if (row.getStatus() != Expense.Status.PENDING) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only pending expenses can be rejected");
+    }
+    row.setStatus(Expense.Status.REJECTED);
+    row.setStatusComment(body == null ? null : body.reason());
+    audit(row, actor, false);
+    return expenses.save(row);
+  }
+
+  public Expense markExpensePaid(UUID tenant, UUID actor, UUID id, PaymentSubmissionRequest body) {
+    Expense row = expense(tenant, id);
+    if (row.getStatus() != Expense.Status.APPROVED) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only approved expenses can be marked as paid");
+    }
+    if (row.getPaymentStatus() != Expense.PaymentStatus.UNPAID) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Expense is already marked as paid");
+    }
+    BankAccount bankAccount = paymentBankAccount(tenant, body.paymentMode(),
+        body.bankAccountId(), row.getBankAccount());
+    row.setPaymentStatus(Expense.PaymentStatus.PAID);
+    row.setPaidPaymentMode(body.paymentMode());
+    row.setPaymentReference(body.reference());
+    row.setPaidBankAccountId(bankAccount == null ? null : bankAccount.getId());
+    audit(row, actor, false);
+    return expenses.save(row);
+  }
+
+  public Expense markExpenseUnpaid(UUID tenant, UUID actor, UUID id) {
+    Expense row = expense(tenant, id);
+    if (row.getPaymentStatus() != Expense.PaymentStatus.PAID) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Expense is not marked as paid");
+    }
+    row.setPaymentStatus(Expense.PaymentStatus.UNPAID);
+    row.setPaidPaymentMode(null);
+    row.setPaymentReference(null);
+    row.setPaidBankAccountId(null);
+    audit(row, actor, false);
+    return expenses.save(row);
+  }
+
   public Expense saveExpense(UUID tenant, UUID actor, UUID id, ExpenseRequest body) {
     Expense row=id==null?new Expense():expense(tenant,id);
     ExpenseLedger ledger=ledgers.findByIdAndTenant_IdAndIsDeletedFalse(body.ledgerId(),tenant).orElseThrow(()->notFound("Ledger"));
     if(!Boolean.TRUE.equals(ledger.getIsActive())) throw new IllegalArgumentException("Selected ledger must be active");
+    if (isDedicatedBreakdownType(ledger.getName())
+        || (ledger.getCategory() != null && isDedicatedBreakdownType(ledger.getCategory().getName()))) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+          "Vehicle expense and petty cash types must use their dedicated APIs");
+    }
     row.setTenant(refTenant(tenant)); row.setLedger(ledger); row.setCategory(ledger.getCategory()); row.setSubCategory(null);
     row.setRequestedDate(body.requestedDate()); row.setPaymentType(body.paymentType()); row.setAmount(body.amount()); row.setTdsDeducted(body.tdsDeducted()); row.setAdjustments(body.adjustments()); row.setExpenseName(body.expenseName().trim()); row.setComment(body.comment()); row.setPaymentMode(body.paymentMode()); row.setBankDebitDate(body.bankDebitDate());
     row.setInvoices(body.invoices() == null ? new ArrayList<>() : body.invoices().stream().map(invoice -> {
@@ -146,6 +207,30 @@ public class ExpenseService {
     else { if(body.bankAccountId()==null) throw new IllegalArgumentException("A bank account is required for this payment mode"); row.setBankAccount(banks.findByIdAndTenant_IdAndIsDeletedFalse(body.bankAccountId(),tenant).filter(b->Boolean.TRUE.equals(b.getIs_active())).orElseThrow(()->notFound("Active bank account"))); }
     if(body.paymentMode()!=Expense.PaymentMode.CASH && body.bankDebitDate()==null) throw new IllegalArgumentException("Bank debit date is required for non-cash payments");
     audit(row,actor,id==null); return expenses.save(row);
+  }
+
+  private static boolean isDedicatedBreakdownType(String name) {
+    String normalized = name.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9]", "");
+    return normalized.equals("vehicleexpense") || normalized.equals("pettycash");
+  }
+
+  private BankAccount paymentBankAccount(UUID tenant, Expense.PaymentMode paymentMode, UUID bankAccountId,
+      BankAccount existingBankAccount) {
+    if (paymentMode == Expense.PaymentMode.CASH) {
+      if (bankAccountId != null) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Cash payments must not specify a bank account");
+      }
+      return null;
+    }
+    if (bankAccountId == null && existingBankAccount != null) {
+      bankAccountId = existingBankAccount.getId();
+    }
+    if (bankAccountId == null) {
+      return null;
+    }
+    return banks.findByIdAndTenant_IdAndIsDeletedFalse(bankAccountId, tenant)
+        .filter(bank -> Boolean.TRUE.equals(bank.getIs_active()))
+        .orElseThrow(() -> notFound("Active bank account"));
   }
 
   public ExpenseCreationResponse createExpenseWithProofs(UUID tenant, UUID actor, ExpenseRequest body,

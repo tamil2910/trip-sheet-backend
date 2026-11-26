@@ -6,6 +6,8 @@ import java.util.UUID;
 import java.util.List;
 import jakarta.validation.Valid;
 import com.example.trip_sheet_backend.models.Expense;
+import com.example.trip_sheet_backend.models.PettyCashBreakdown;
+import com.example.trip_sheet_backend.models.VehicleExpenseBreakdown;
 import com.example.trip_sheet_backend.models.Expense.PaymentMode;
 import com.example.trip_sheet_backend.models.Expense.PaymentType;
 import jakarta.validation.constraints.*;
@@ -28,4 +30,6 @@ public final class ExpenseRequests {
       @NotBlank String contentType, @NotBlank String base64Data) {}
   public record ProofResponse(UUID id, String fileName, String contentType, Long fileSize, String downloadUrl) {}
   public record ExpenseCreationResponse(Expense expense, java.util.List<ProofResponse> proofs) {}
+  public record PayablesResponse(List<Expense> expenses, List<PettyCashBreakdown> pettyCash,
+      List<VehicleExpenseBreakdown> vehicleExpenses) {}
 }

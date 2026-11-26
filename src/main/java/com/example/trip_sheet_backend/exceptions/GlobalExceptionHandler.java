@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 
@@ -32,6 +33,12 @@ public class GlobalExceptionHandler {
     return ResponseEntity.badRequest().body(
         new ApiResponse<>(false, "Validation failed", errors)
     );
+  }
+
+  @ExceptionHandler(ResponseStatusException.class)
+  public ResponseEntity<ApiResponse<String>> handleResponseStatusException(ResponseStatusException ex) {
+    return ResponseEntity.status(ex.getStatusCode())
+        .body(new ApiResponse<>(false, ex.getReason(), null));
   }
 
   @ExceptionHandler(DataIntegrityViolationException.class)

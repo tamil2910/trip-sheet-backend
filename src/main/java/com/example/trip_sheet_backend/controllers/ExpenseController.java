@@ -2,8 +2,11 @@ package com.example.trip_sheet_backend.controllers;
 
 import java.util.*;
 import org.springframework.http.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import com.example.trip_sheet_backend.dtos.ExpenseDtos.ExpenseRequests.*;
+import com.example.trip_sheet_backend.dtos.ExpenseDtos.ExpenseBreakdownRequests.StatusActionRequest;
+import com.example.trip_sheet_backend.dtos.ExpenseDtos.ExpenseBreakdownRequests.PaymentSubmissionRequest;
 import com.example.trip_sheet_backend.models.*;
 import com.example.trip_sheet_backend.response_setups.ApiResponse;
 import com.example.trip_sheet_backend.services.ExpenseService;
@@ -43,6 +46,28 @@ public class ExpenseController {
 
   @GetMapping public ResponseEntity<ApiResponse<List<Expense>>> expenses(@RequestParam(required = false) UUID ledgerId, HttpServletRequest r) { return ok("Expenses fetched",service.expenses(tenant(r), ledgerId)); }
   @GetMapping("/{id}") public ResponseEntity<ApiResponse<Expense>> expense(@PathVariable UUID id,HttpServletRequest r) { return ok("Expense fetched",service.expense(tenant(r),id)); }
+  @PutMapping("/{id}/approve")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_UPDATE_EXPENSE')")
+  public ResponseEntity<ApiResponse<Expense>> approveExpense(@PathVariable UUID id, HttpServletRequest r) {
+    return ok("Expense approved", service.approveExpense(tenant(r), actor(r), id));
+  }
+  @PutMapping("/{id}/reject")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_UPDATE_EXPENSE')")
+  public ResponseEntity<ApiResponse<Expense>> rejectExpense(@PathVariable UUID id,
+      @RequestBody(required = false) StatusActionRequest body, HttpServletRequest r) {
+    return ok("Expense rejected", service.rejectExpense(tenant(r), actor(r), id, body));
+  }
+  @PutMapping("/{id}/mark-paid")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_UPDATE_EXPENSE')")
+  public ResponseEntity<ApiResponse<Expense>> markExpensePaid(@PathVariable UUID id,
+      @Valid @RequestBody PaymentSubmissionRequest body, HttpServletRequest r) {
+    return ok("Expense marked paid", service.markExpensePaid(tenant(r), actor(r), id, body));
+  }
+  @PutMapping("/{id}/mark-unpaid")
+  @PreAuthorize("hasRole('ADMIN') or hasRole('SUPER_ADMIN') or hasAuthority('CAN_UPDATE_EXPENSE')")
+  public ResponseEntity<ApiResponse<Expense>> markExpenseUnpaid(@PathVariable UUID id, HttpServletRequest r) {
+    return ok("Expense marked unpaid", service.markExpenseUnpaid(tenant(r), actor(r), id));
+  }
   @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
   public ResponseEntity<ApiResponse<ExpenseCreationResponse>> createExpense(@Valid @RequestBody ExpenseRequest b, HttpServletRequest r) {
     return ResponseEntity.status(HttpStatus.CREATED).body(new ApiResponse<>(true, "Expense created with proofs",

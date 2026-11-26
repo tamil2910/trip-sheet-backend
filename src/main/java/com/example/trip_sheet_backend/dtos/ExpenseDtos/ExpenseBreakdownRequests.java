@@ -3,6 +3,7 @@ package com.example.trip_sheet_backend.dtos.ExpenseDtos;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
+import com.example.trip_sheet_backend.models.Expense;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
@@ -31,4 +32,9 @@ public final class ExpenseBreakdownRequests {
       String comment) {}
 
   public record StatusActionRequest(@Size(max = 1000) String reason) {}
+
+  public record PaymentSubmissionRequest(
+      @NotNull Expense.PaymentMode paymentMode,
+      UUID bankAccountId,
+      @Size(max = 255) String reference) {}
 }
